@@ -36,16 +36,26 @@ CREATE TABLE deals (
     title VARCHAR(200) NOT NULL,
     contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
     value DECIMAL(12, 2) DEFAULT 0,
-    stage VARCHAR(50) NOT NULL DEFAULT 'discovery',
+    stage VARCHAR(50) NOT NULL DEFAULT 'lead',
     description TEXT,
     expected_close DATE,
     actual_close DATE,
     lost_reason TEXT,
+    priority VARCHAR(20) DEFAULT 'medium',
+    source VARCHAR(100),
+    labels TEXT[] DEFAULT '{}',
+    days_in_stage INTEGER DEFAULT 0,
+    contact_name VARCHAR(200),
+    company_name VARCHAR(200),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Stage options: discovery, proposal, negotiation, won, lost
+-- Stage options: lead, qualified, proposal, negotiation, contract, won, lost
+-- Priority options: low, medium, high
+-- Source options: Networking, Referral, Website, LinkedIn, Cold Outreach, etc.
+
+CREATE INDEX idx_deals_priority ON deals(priority);
 
 -- ============================================
 -- DEAL TASKS (Checklist items on deals)

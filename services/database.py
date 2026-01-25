@@ -14,10 +14,13 @@ load_dotenv()
 # Try to import supabase, handle if not installed
 try:
     from supabase import create_client, Client
+    from supabase.lib.client_options import ClientOptions
+    import httpx
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
     Client = None
+    ClientOptions = None
 
 class Database:
     """Supabase database wrapper for MPT-CRM"""
@@ -25,6 +28,7 @@ class Database:
     def __init__(self):
         self.client: Optional[Client] = None
         self._connected = False
+        self._connection_error = None
 
         if SUPABASE_AVAILABLE:
             url = os.getenv("SUPABASE_URL")
@@ -32,10 +36,36 @@ class Database:
 
             if url and key:
                 try:
-                    self.client = create_client(url, key)
+                    # Create client with extended timeout for slow networks
+                    options = ClientOptions(
+                        postgrest_client_timeout=30,  # 30 second timeout
+                    )
+                    self.client = create_client(url, key, options=options)
                     self._connected = True
                 except Exception as e:
+                    self._connection_error = str(e)
                     print(f"Failed to connect to Supabase: {e}")
+            else:
+                self._connection_error = "Missing SUPABASE_URL or SUPABASE_ANON_KEY"
+        else:
+            self._connection_error = "Supabase library not installed"
+
+    def get_connection_error(self) -> Optional[str]:
+        """Return the last connection error if any"""
+        return self._connection_error
+
+    def test_connection(self) -> tuple[bool, str]:
+        """Test the database connection by making a simple query"""
+        if not self._connected or not self.client:
+            return False, self._connection_error or "Not connected"
+
+        try:
+            # Try a simple query to verify connection works
+            response = self.client.table("contacts").select("id").limit(1).execute()
+            return True, "Connection successful"
+        except Exception as e:
+            self._connection_error = str(e)
+            return False, str(e)
 
     @property
     def is_connected(self) -> bool:
