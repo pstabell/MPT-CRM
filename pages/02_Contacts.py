@@ -1,6 +1,7 @@
 """
 MPT-CRM Contacts Page
 Manage contacts with types, tags, and full detail views
+Connected to Supabase for data persistence
 """
 
 import streamlit as st
@@ -11,6 +12,7 @@ from pathlib import Path
 # Add project root to path for shared imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared.navigation import render_sidebar, render_sidebar_stats
+from services.database import db
 
 st.set_page_config(
     page_title="MPT-CRM - Contacts",
@@ -21,9 +23,8 @@ st.set_page_config(
 # Render shared sidebar (includes all styling)
 render_sidebar("Contacts")
 
-# Initialize session state for contacts
-if 'contacts' not in st.session_state:
-    st.session_state.contacts = [
+# Sample contacts for when database is not connected
+SAMPLE_CONTACTS = [
         {
             "id": "c-1",
             "type": "networking",
@@ -120,23 +121,67 @@ if 'contacts' not in st.session_state:
             "created_at": "2026-01-08",
             "last_contacted": "2026-01-12"
         },
-        {
-            "id": "c-7",
-            "type": "partner",
-            "first_name": "Amanda",
-            "last_name": "White",
-            "company": "White Marketing Agency",
-            "email": "amanda@whitemarketing.com",
-            "phone": "(239) 555-0107",
-            "source": "networking",
-            "source_detail": "Fort Myers Chamber",
-            "tags": ["Fort Myers Chamber", "Partner", "Referral Source"],
-            "notes": "Marketing agency. Could be good referral partner for web projects.",
-            "email_status": "active",
-            "created_at": "2025-11-20",
-            "last_contacted": "2026-01-10"
-        },
-    ]
+    {
+        "id": "c-7",
+        "type": "partner",
+        "first_name": "Amanda",
+        "last_name": "White",
+        "company": "White Marketing Agency",
+        "email": "amanda@whitemarketing.com",
+        "phone": "(239) 555-0107",
+        "source": "networking",
+        "source_detail": "Fort Myers Chamber",
+        "tags": ["Fort Myers Chamber", "Partner", "Referral Source"],
+        "notes": "Marketing agency. Could be good referral partner for web projects.",
+        "email_status": "active",
+        "created_at": "2025-11-20",
+        "last_contacted": "2026-01-10"
+    },
+]
+
+def load_contacts():
+    """Load contacts from database or return sample data"""
+    if db.is_connected:
+        try:
+            contacts = db.get_contacts()
+            return contacts if contacts is not None else []
+        except Exception as e:
+            st.warning(f"Could not load from database: {str(e)[:50]}...")
+            return SAMPLE_CONTACTS
+    return SAMPLE_CONTACTS
+
+def save_contact(contact_id: str, contact_data: dict):
+    """Save contact updates to database"""
+    if db.is_connected and not contact_id.startswith("c-") and not contact_id.startswith("local-"):
+        try:
+            db.update_contact(contact_id, contact_data)
+            return True
+        except Exception as e:
+            st.error(f"Failed to save: {str(e)[:50]}")
+    return False
+
+def create_contact(contact_data: dict):
+    """Create a new contact in the database"""
+    if db.is_connected:
+        try:
+            return db.create_contact(contact_data)
+        except Exception as e:
+            st.error(f"Database error: {str(e)[:50]}")
+    return None
+
+def delete_contact(contact_id: str):
+    """Delete a contact from the database"""
+    if db.is_connected and not contact_id.startswith("c-") and not contact_id.startswith("local-"):
+        try:
+            return db.delete_contact(contact_id)
+        except Exception as e:
+            st.error(f"Failed to delete: {str(e)[:50]}")
+    return False
+
+# Initialize session state for contacts
+if 'contacts' not in st.session_state or st.session_state.get('contacts_need_refresh', True):
+    st.session_state.contacts = load_contacts()
+    st.session_state.contacts_need_refresh = False
 
 if 'selected_contact' not in st.session_state:
     st.session_state.selected_contact = None
@@ -200,22 +245,28 @@ def show_contact_detail(contact_id):
             new_phone = st.text_input("Phone", contact['phone'], key="edit_phone")
             new_source_detail = st.text_input("Source Detail", contact.get('source_detail', ''), key="edit_source")
 
-        # Update contact if changed
-        if (new_first != contact['first_name'] or new_last != contact['last_name'] or
-            new_email != contact['email'] or new_phone != contact['phone'] or
-            new_company != contact['company']):
-            contact['first_name'] = new_first
-            contact['last_name'] = new_last
-            contact['email'] = new_email
-            contact['phone'] = new_phone
-            contact['company'] = new_company
-            contact['source_detail'] = new_source_detail
-
         # Notes
         st.markdown("### 📝 Notes")
         new_notes = st.text_area("Notes", contact.get('notes', ''), height=150, key="edit_notes", label_visibility="collapsed")
-        if new_notes != contact.get('notes', ''):
-            contact['notes'] = new_notes
+
+        # Save button for contact info
+        if st.button("💾 Save Changes", type="primary", key="save_contact_info"):
+            update_data = {
+                "first_name": new_first,
+                "last_name": new_last,
+                "email": new_email,
+                "phone": new_phone,
+                "company": new_company,
+                "source_detail": new_source_detail,
+                "notes": new_notes
+            }
+            # Update local state
+            contact.update(update_data)
+            # Save to database
+            if save_contact(contact['id'], update_data):
+                st.success("Contact saved!")
+            elif not db.is_connected:
+                st.info("Changes saved locally (connect database to persist)")
 
         # Activity Timeline (placeholder)
         st.markdown("### 📅 Recent Activity")
@@ -288,15 +339,95 @@ def show_contact_detail(contact_id):
             st.toast("Campaign enrollment coming soon!")
 
 
+# Initialize new contact form state
+if 'show_new_contact_form' not in st.session_state:
+    st.session_state.show_new_contact_form = False
+
+def show_new_contact_form():
+    """Display the new contact form"""
+    st.markdown("---")
+    st.markdown("## New Contact")
+
+    with st.form("new_contact_form"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            first_name = st.text_input("First Name *", placeholder="e.g., John")
+            last_name = st.text_input("Last Name *", placeholder="e.g., Smith")
+            email = st.text_input("Email", placeholder="e.g., john@company.com")
+            phone = st.text_input("Phone", placeholder="e.g., (239) 555-0100")
+
+        with col2:
+            company = st.text_input("Company", placeholder="e.g., Smith Consulting")
+            type_options = list(CONTACT_TYPES.keys())
+            type_labels = [f"{CONTACT_TYPES[t]['icon']} {CONTACT_TYPES[t]['label']}" for t in type_options]
+            contact_type = st.selectbox("Contact Type", type_labels, index=1)  # Default to prospect
+            source = st.selectbox("Source", ["Networking", "Referral", "Website", "LinkedIn", "Cold Outreach", "Conference"])
+            source_detail = st.text_input("Source Detail", placeholder="e.g., Cape Coral Chamber event")
+
+        notes = st.text_area("Notes", placeholder="Any initial notes about this contact...")
+
+        col_submit, col_cancel = st.columns(2)
+        with col_submit:
+            submitted = st.form_submit_button("Create Contact", type="primary", use_container_width=True)
+        with col_cancel:
+            cancelled = st.form_submit_button("Cancel", use_container_width=True)
+
+        if submitted and first_name and last_name:
+            contact_data = {
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": email,
+                "phone": phone,
+                "company": company,
+                "type": type_options[type_labels.index(contact_type)],
+                "source": source.lower().replace(" ", "_"),
+                "source_detail": source_detail,
+                "notes": notes,
+                "tags": [],
+                "email_status": "active"
+            }
+
+            result = create_contact(contact_data)
+            if result:
+                st.success(f"Contact '{first_name} {last_name}' created!")
+                st.session_state.contacts_need_refresh = True
+                st.session_state.show_new_contact_form = False
+                st.rerun()
+            elif not db.is_connected:
+                # Add to session state for demo purposes
+                contact_data["id"] = f"local-{len(st.session_state.contacts)+1}"
+                contact_data["created_at"] = datetime.now().strftime("%Y-%m-%d")
+                contact_data["last_contacted"] = datetime.now().strftime("%Y-%m-%d")
+                st.session_state.contacts.append(contact_data)
+                st.success(f"Contact '{first_name} {last_name}' created (local only)")
+                st.session_state.show_new_contact_form = False
+                st.rerun()
+            else:
+                st.error("Failed to create contact")
+
+        if cancelled:
+            st.session_state.show_new_contact_form = False
+            st.rerun()
+
 # Main page
 st.title("👥 Contacts")
+
+# Show database connection status in sidebar
+with st.sidebar:
+    if db.is_connected:
+        st.success("Database connected", icon="✅")
+    else:
+        st.warning("Using sample data", icon="⚠️")
 
 # Show detail view if contact selected
 if st.session_state.selected_contact:
     show_contact_detail(st.session_state.selected_contact)
+elif st.session_state.show_new_contact_form:
+    show_new_contact_form()
 else:
     # Toolbar
-    toolbar_col1, toolbar_col2, toolbar_col3, toolbar_col4 = st.columns([2, 1, 1, 1])
+    toolbar_col1, toolbar_col2, toolbar_col3, toolbar_col4, toolbar_col5 = st.columns([2, 1, 1, 1, 1])
 
     with toolbar_col1:
         search = st.text_input("🔍 Search contacts...", placeholder="Name, company, or email", label_visibility="collapsed")
@@ -308,8 +439,15 @@ else:
         tag_filter = st.selectbox("Tag", ["All Tags"] + ALL_TAGS, label_visibility="collapsed")
 
     with toolbar_col4:
-        if st.button("➕ New Contact", type="primary"):
-            st.toast("New contact form coming soon!")
+        if st.button("🔄 Refresh", use_container_width=True):
+            st.session_state.contacts_need_refresh = True
+            st.rerun()
+
+    with toolbar_col5:
+        if st.button("➕ New Contact", type="primary", use_container_width=True):
+            st.session_state.show_new_contact_form = True
+            st.session_state.selected_contact = None
+            st.rerun()
 
     # Filter contacts
     filtered_contacts = st.session_state.contacts
@@ -360,7 +498,10 @@ else:
                 tags = contact.get('tags', [])[:3]  # Show first 3 tags
                 if tags:
                     st.markdown(" ".join([f"`{t}`" for t in tags]))
-                st.caption(f"Last contact: {contact['last_contacted']}")
+                last_contacted = contact.get('last_contacted') or contact.get('created_at', 'N/A')
+                if last_contacted and 'T' in str(last_contacted):
+                    last_contacted = str(last_contacted).split('T')[0]  # Format ISO timestamp
+                st.caption(f"Last contact: {last_contacted}")
 
             with col4:
                 if st.button("Open", key=f"open_{contact['id']}"):
