@@ -1,29 +1,1015 @@
 """
 MPT-CRM Marketing Page
-Drip campaigns, email templates, and SendGrid integration
+Drip campaigns, email templates, SendGrid integration, and Business Card Scanner
+
+SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
 """
 
 import streamlit as st
 from datetime import datetime, timedelta
-import sys
-from pathlib import Path
+from io import BytesIO
+import base64
+import json
+import os
+import re
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.navigation import render_sidebar, render_sidebar_stats
+# Load environment variables from .env file
+from dotenv import load_dotenv
+# Clear any existing keys from system environment to ensure .env is used
+for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SENDGRID_API_KEY"]:
+    if key in os.environ:
+        del os.environ[key]
+# Now load from .env file
+load_dotenv()
 
+# ============================================
+# DATABASE CONNECTION (self-contained)
+# ============================================
+try:
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
+
+@st.cache_resource(show_spinner=False)
+def get_db():
+    """Create and cache Supabase client"""
+    if not SUPABASE_AVAILABLE:
+        print("[DB] Supabase package not available")
+        return None
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    print(f"[DB] Supabase URL loaded: {url[:30] if url else 'None'}...")
+    print(f"[DB] Supabase key loaded: {len(key) if key else 0} characters")
+    if url and key:
+        try:
+            client = create_client(url, key)
+            print("[DB] Supabase client created successfully")
+            return client
+        except Exception as e:
+            print(f"[DB] Error creating Supabase client: {e}")
+            return None
+    print("[DB] Missing SUPABASE_URL or SUPABASE_ANON_KEY")
+    return None
+
+def db_is_connected():
+    """Check if database is connected"""
+    return get_db() is not None
+
+# ============================================
+# DATABASE FUNCTIONS FOR CARD SCANNER
+# ============================================
+
+def db_create_contact(contact_data):
+    """Create a new contact in the database"""
+    db = get_db()
+    if not db:
+        print("[DB] Database connection failed - get_db() returned None")
+        return None
+    try:
+        print(f"[DB] Inserting contact: {contact_data.get('first_name')} {contact_data.get('last_name')}")
+        response = db.table("contacts").insert(contact_data).execute()
+        print(f"[DB] Insert response: {response.data}")
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[DB] ERROR creating contact: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+def db_check_contact_exists(email):
+    """Check if a contact with this email already exists"""
+    db = get_db()
+    if not db or not email:
+        return None
+    try:
+        response = db.table("contacts").select("id, first_name, last_name, email").eq("email", email).execute()
+        return response.data[0] if response.data else None
+    except Exception:
+        return None
+
+def db_check_contacts_by_company(company_name):
+    """Check if contacts with similar company name exist"""
+    db = get_db()
+    if not db or not company_name:
+        return []
+    try:
+        # Use ilike for case-insensitive partial match
+        response = db.table("contacts").select("id, first_name, last_name, email, company, phone").ilike("company", f"%{company_name}%").execute()
+        return response.data if response.data else []
+    except Exception:
+        return []
+
+def db_find_potential_duplicates_by_card(first_name, last_name, company, email):
+    """
+    Find potential duplicate contacts for a business card.
+    Matching priority: name -> company -> email
+    Returns list of potential matches with match_reason
+    """
+    db = get_db()
+    if not db:
+        return []
+
+    first_name = (first_name or '').strip().lower()
+    last_name = (last_name or '').strip().lower()
+    company = (company or '').strip().lower()
+    email = (email or '').strip().lower()
+
+    potential_duplicates = []
+    seen_ids = set()
+
+    try:
+        # Get all non-archived contacts
+        all_contacts = db.table("contacts").select("id, first_name, last_name, email, company, phone, notes").neq("archived", True).execute()
+        contacts = all_contacts.data if all_contacts.data else []
+
+        for c in contacts:
+            c_first = (c.get('first_name') or '').strip().lower()
+            c_last = (c.get('last_name') or '').strip().lower()
+            c_company = (c.get('company') or '').strip().lower()
+            c_email = (c.get('email') or '').strip().lower()
+
+            match_reasons = []
+            match_priority = 0  # Lower = higher priority
+
+            # Priority 1: Name match (first AND last) - HIGHEST
+            if first_name and last_name and c_first and c_last:
+                if first_name == c_first and last_name == c_last:
+                    match_reasons.append("Same name")
+                    match_priority = 1
+
+            # Priority 2: Company match
+            if company and c_company and len(company) > 2:
+                if company == c_company:
+                    match_reasons.append("Same company")
+                    if match_priority == 0:
+                        match_priority = 2
+                elif company in c_company or c_company in company:
+                    match_reasons.append("Similar company")
+                    if match_priority == 0:
+                        match_priority = 3
+
+            # Priority 3: Email match - LOWEST (but still a match)
+            if email and c_email and '@' in email:
+                if email == c_email:
+                    match_reasons.append("Same email")
+                    if match_priority == 0:
+                        match_priority = 4
+
+            if match_reasons:
+                c['match_reasons'] = match_reasons
+                c['match_priority'] = match_priority
+                potential_duplicates.append(c)
+                seen_ids.add(c['id'])
+
+        # Sort by priority (lower number = higher priority match)
+        # Name matches first, then company, then email
+        potential_duplicates.sort(key=lambda x: (x.get('match_priority', 99), -len(x.get('match_reasons', []))))
+
+        return potential_duplicates
+    except Exception as e:
+        print(f"Error finding duplicates: {e}")
+        return []
+
+def db_update_contact(contact_id, update_data):
+    """Update an existing contact"""
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("contacts").update(update_data).eq("id", contact_id).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Error updating contact: {e}")
+        return None
+
+def upload_card_image_to_supabase(image_bytes, contact_id):
+    """Upload card image to Supabase Storage and return the public URL"""
+    db = get_db()
+    if not db:
+        return None
+    try:
+        # Generate unique filename
+        filename = f"business-cards/{contact_id}.png"
+
+        # Upload to storage bucket 'card-images'
+        # Note: You need to create this bucket in Supabase Dashboard > Storage
+        response = db.storage.from_("card-images").upload(
+            filename,
+            image_bytes,
+            {"content-type": "image/png", "upsert": "true"}
+        )
+
+        if response:
+            # Get public URL
+            public_url = db.storage.from_("card-images").get_public_url(filename)
+            return public_url
+        return None
+    except Exception as e:
+        print(f"Error uploading card image: {e}")
+        return None
+
+def db_create_enrollment(enrollment_data):
+    """Create a campaign enrollment record"""
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("campaign_enrollments").insert(enrollment_data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Error creating enrollment: {e}")
+        return None
+
+def db_log_activity(activity_type, description, contact_id=None):
+    """Log an activity to the activities table"""
+    db = get_db()
+    if not db:
+        return None
+    try:
+        activity = {
+            "type": activity_type,
+            "description": description,
+        }
+        if contact_id:
+            activity["contact_id"] = contact_id
+        response = db.table("activities").insert(activity).execute()
+        return response.data[0] if response.data else None
+    except Exception:
+        return None
+
+# ============================================
+# PDF TO IMAGE CONVERSION
+# ============================================
+
+def convert_pdf_to_images(pdf_bytes):
+    """
+    Convert PDF pages to images using pypdfium2.
+    Returns list of dicts with image_bytes, page_number, type.
+    """
+    try:
+        import pypdfium2 as pdfium
+        from PIL import Image
+    except ImportError:
+        return [{"error": "pypdfium2 or Pillow not installed. Run: pip install pypdfium2 Pillow"}]
+
+    images = []
+    try:
+        pdf = pdfium.PdfDocument(pdf_bytes)
+        for page_num in range(len(pdf)):
+            page = pdf[page_num]
+            # Render at 300 DPI for good OCR quality (scale = 300/72 ≈ 4.17)
+            bitmap = page.render(scale=4)
+            pil_image = bitmap.to_pil()
+
+            # Convert to PNG bytes
+            img_buffer = BytesIO()
+            pil_image.save(img_buffer, format="PNG")
+            img_bytes = img_buffer.getvalue()
+
+            images.append({
+                "image_bytes": img_bytes,
+                "page_number": page_num + 1,
+                "type": "image/png"
+            })
+        pdf.close()
+        return images
+    except Exception as e:
+        return [{"error": str(e)}]
+
+# ============================================
+# MULTI-CARD DETECTION & CROPPING
+# ============================================
+
+def detect_cards_on_page(image_bytes, image_type="image/png"):
+    """
+    Use Claude Vision to detect multiple business cards on a scanned page.
+    Returns list of bounding boxes as percentages: [{"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100}, ...]
+    """
+    try:
+        import anthropic
+    except ImportError:
+        return {"error": "anthropic package not installed"}
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return {"error": "ANTHROPIC_API_KEY not configured"}
+
+    # Debug: Show key length (not the actual key for security)
+    print(f"[Card Detection] API key loaded: {len(api_key)} characters, starts with: {api_key[:15]}...")
+
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    detection_prompt = """This is a scanned page that may contain MULTIPLE business cards arranged in a grid.
+
+Your task: Find and locate EVERY individual business card on this page.
+
+For each business card, provide its bounding box as PERCENTAGES (0-100) of the total image dimensions.
+
+Return a JSON object:
+{
+    "card_count": total number of individual cards found,
+    "cards": [
+        {
+            "x": left edge percentage (0-100),
+            "y": top edge percentage (0-100),
+            "width": card width as percentage (0-100),
+            "height": card height as percentage (0-100)
+        }
+    ]
+}
+
+CRITICAL RULES:
+1. Count EVERY individual business card - there may be 6, 8, 10, or more cards on the page
+2. Standard business cards are 3.5" x 2" - on 8.5"x11" paper, expect ~4 cards per row, ~5 rows
+3. Each card should have width ~35-45% and height ~15-20% of the page
+4. Scan the ENTIRE page systematically: top-left to top-right, then next row, etc.
+5. Include 2-3% padding around each card boundary
+6. Cards may be in portrait OR landscape orientation
+7. Return ONLY the JSON object, no other text
+
+Example for a page with 8 cards in 2 columns x 4 rows:
+{"card_count": 8, "cards": [{"x": 5, "y": 5, "width": 40, "height": 18}, {"x": 55, "y": 5, "width": 40, "height": 18}, ...]}"""
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key, timeout=60.0)  # 60 second timeout
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": image_type,
+                                "data": image_b64
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": detection_prompt
+                        }
+                    ]
+                }
+            ]
+        )
+
+        result_text = response.content[0].text
+
+        # Handle markdown code blocks
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0]
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0]
+
+        return json.loads(result_text.strip())
+    except json.JSONDecodeError as e:
+        return {"error": f"Failed to parse detection response: {e}", "card_count": 0, "cards": []}
+    except Exception as e:
+        return {"error": str(e), "card_count": 0, "cards": []}
+
+
+def crop_card_from_image(image_bytes, bbox):
+    """
+    Crop a single card from an image using bounding box percentages.
+    bbox: {"x": 0-100, "y": 0-100, "width": 0-100, "height": 0-100}
+    Returns cropped image as PNG bytes.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+
+    try:
+        # Load image from bytes
+        img = Image.open(BytesIO(image_bytes))
+        img_width, img_height = img.size
+
+        # Convert percentages to pixels
+        x = int((bbox.get("x", 0) / 100) * img_width)
+        y = int((bbox.get("y", 0) / 100) * img_height)
+        width = int((bbox.get("width", 100) / 100) * img_width)
+        height = int((bbox.get("height", 100) / 100) * img_height)
+
+        # Ensure bounds are within image
+        x = max(0, min(x, img_width))
+        y = max(0, min(y, img_height))
+        right = max(0, min(x + width, img_width))
+        bottom = max(0, min(y + height, img_height))
+
+        # Crop the card
+        cropped = img.crop((x, y, right, bottom))
+
+        # Convert back to PNG bytes
+        output = BytesIO()
+        cropped.save(output, format="PNG")
+        return output.getvalue()
+    except Exception as e:
+        print(f"Error cropping card: {e}")
+        return None
+
+
+def grid_crop_cards(image_bytes, card_count):
+    """
+    Fallback: Crop cards using a simple grid pattern when AI detection fails.
+    Assumes cards are arranged in a regular grid on the page.
+    """
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(image_bytes))
+        img_width, img_height = img.size
+
+        # Determine grid layout based on card count
+        # Most business card scanners use 3 columns × 4 rows (12 positions)
+        # Common layouts:
+        layouts = {
+            6: (2, 3),   # 2 cols × 3 rows
+            8: (2, 4),   # 2 cols × 4 rows
+            9: (3, 4),   # 3 cols × 4 rows (scanner with 12 positions, 9 filled)
+            10: (2, 5),  # 2 cols × 5 rows
+            12: (3, 4),  # 3 cols × 4 rows (full scanner)
+            15: (3, 5),  # 3 cols × 5 rows
+            16: (4, 4),  # 4 cols × 4 rows
+            18: (3, 6),  # 3 cols × 6 rows
+            20: (4, 5)   # 4 cols × 5 rows
+        }
+
+        if card_count in layouts:
+            cols, rows = layouts[card_count]
+        else:
+            # Default: assume 3-column scanner layout
+            cols = 3
+            rows = (card_count + cols - 1) // cols
+
+        # Calculate cell dimensions with margins
+        # Business card scanners have some spacing between cards
+        margin_x = int(img_width * 0.03)  # 3% outer margin
+        margin_y = int(img_height * 0.03)
+
+        usable_width = img_width - (2 * margin_x)
+        usable_height = img_height - (2 * margin_y)
+
+        cell_width = usable_width // cols
+        cell_height = usable_height // rows
+
+        # Inset from cell edges to avoid bleeding into adjacent cards
+        # This makes each card slightly smaller than the cell to create separation
+        inset_x = int(cell_width * 0.08)  # 8% inset from each side
+        inset_y = int(cell_height * 0.08)  # 8% inset from top/bottom
+
+        print(f"[Grid Crop] Image: {img_width}x{img_height}, Grid: {cols}x{rows}, Cell: {cell_width}x{cell_height}, Inset: {inset_x}x{inset_y}")
+
+        # Crop each card
+        cropped_cards = []
+        for row in range(rows):
+            for col in range(cols):
+                if len(cropped_cards) >= card_count:
+                    break
+
+                # Calculate boundaries with insets to avoid adjacent cards
+                x = margin_x + (col * cell_width) + inset_x
+                y = margin_y + (row * cell_height) + inset_y
+                right = margin_x + ((col + 1) * cell_width) - inset_x
+                bottom = margin_y + ((row + 1) * cell_height) - inset_y
+
+                print(f"[Grid Crop] Card {len(cropped_cards)+1} (row={row}, col={col}): x={x}, y={y}, right={right}, bottom={bottom}")
+
+                # Ensure bounds are valid
+                x = max(0, min(x, img_width))
+                y = max(0, min(y, img_height))
+                right = max(0, min(right, img_width))
+                bottom = max(0, min(bottom, img_height))
+
+                if right > x and bottom > y:
+                    cropped = img.crop((x, y, right, bottom))
+                    output = BytesIO()
+                    cropped.save(output, format="PNG")
+                    cropped_cards.append(output.getvalue())
+
+            if len(cropped_cards) >= card_count:
+                break
+
+        img.close()
+        return cropped_cards if cropped_cards else [image_bytes]
+    except Exception as e:
+        print(f"[Grid Crop] Error: {e}")
+        return [image_bytes]
+
+
+def process_page_for_cards(image_bytes, image_type="image/png", expected_count=0):
+    """
+    Process a scanned page to detect and crop individual business cards.
+    Returns list of cropped card images as bytes.
+    """
+    # If user specified expected count > 1, try AI detection first
+    if expected_count > 1:
+        print(f"[Card Processing] User specified {expected_count} cards - trying AI detection first")
+        detection_result = detect_cards_on_page(image_bytes, image_type)
+        ai_card_count = detection_result.get("card_count", 0)
+
+        print(f"[Card Processing] AI detected {ai_card_count} cards (expected {expected_count})")
+
+        # If AI found the right number or close to it, use AI detection
+        if ai_card_count >= expected_count * 0.7:  # At least 70% of expected
+            cards = detection_result.get("cards", [])
+            if cards:
+                cropped_cards = []
+                for i, bbox in enumerate(cards):
+                    if bbox.get("width", 0) > 5 and bbox.get("height", 0) > 5:
+                        cropped = crop_card_from_image(image_bytes, bbox)
+                        if cropped:
+                            cropped_cards.append(cropped)
+
+                if len(cropped_cards) >= expected_count * 0.7:
+                    print(f"[Card Processing] AI detection successful: {len(cropped_cards)} cards")
+                    return cropped_cards
+
+        # Fall back to grid if AI didn't find enough cards
+        print(f"[Card Processing] AI detection insufficient, falling back to grid cropping")
+        return grid_crop_cards(image_bytes, expected_count)
+
+    # Check image dimensions to see if this looks like a multi-card scan
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(image_bytes))
+        img_width, img_height = img.size
+        # Standard letter page at 300 DPI is roughly 2550x3300 pixels
+        # If image is large (like a scanned page), it likely has multiple cards
+        is_likely_multicard = img_width > 1500 or img_height > 1500
+        img.close()
+    except Exception:
+        is_likely_multicard = True  # Assume it could be multi-card
+
+    if not is_likely_multicard:
+        # Small image is probably a single card photo
+        return [image_bytes]
+
+    # Try AI detection first
+    detection_result = detect_cards_on_page(image_bytes, image_type)
+
+    if "error" in detection_result and detection_result.get("card_count", 0) == 0:
+        # Detection failed, return the whole image as a single card
+        print("[Card Detection] AI detection failed")
+        return [image_bytes]
+
+    card_count = detection_result.get("card_count", 0)
+    cards = detection_result.get("cards", [])
+
+    print(f"[Card Detection] AI found {card_count} cards with bounding boxes: {cards}")
+
+    if card_count <= 1 or not cards:
+        # Single card detected, return the whole image
+        print("[Card Detection] Only 1 card detected, returning full image")
+        return [image_bytes]
+
+    # Crop each detected card
+    cropped_cards = []
+    for i, bbox in enumerate(cards):
+        # Validate bounding box has reasonable dimensions
+        if bbox.get("width", 0) > 5 and bbox.get("height", 0) > 5:
+            cropped = crop_card_from_image(image_bytes, bbox)
+            if cropped:
+                print(f"[Card Detection] Successfully cropped card {i+1}")
+                cropped_cards.append(cropped)
+
+    # If cropping failed for all cards, return original
+    if not cropped_cards:
+        print("[Card Detection] Cropping failed, returning original image")
+        return [image_bytes]
+
+    return cropped_cards
+
+
+# ============================================
+# CLAUDE VISION API FOR CARD EXTRACTION
+# ============================================
+
+def extract_contact_from_business_card(image_bytes, image_type="image/png"):
+    """
+    Use Claude Vision API to extract contact info from a business card image.
+    Returns dict with first_name, last_name, company, email, phone, title, confidence, raw_text.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        return {"error": "anthropic package not installed. Run: pip install anthropic"}
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return {"error": "ANTHROPIC_API_KEY not configured in environment variables"}
+
+    # Debug: Show key info
+    print(f"[Contact Extraction] API key loaded: {len(api_key)} characters, starts with: {api_key[:15]}...")
+
+    # Optimize image size to avoid timeouts
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(image_bytes))
+
+        # Resize if image is very large (max 1600px on longest side)
+        max_size = 1600
+        if max(img.size) > max_size:
+            ratio = max_size / max(img.size)
+            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+            print(f"[Contact Extraction] Resized image from {img.size} to {new_size}")
+
+        # Convert to JPEG with quality 85 to reduce size
+        output = BytesIO()
+        if img.mode in ("RGBA", "LA", "P"):
+            img = img.convert("RGB")
+        img.save(output, format="JPEG", quality=85, optimize=True)
+        image_bytes = output.getvalue()
+        image_type = "image/jpeg"
+        print(f"[Contact Extraction] Optimized image size: {len(image_bytes)} bytes")
+    except Exception as e:
+        print(f"[Contact Extraction] Image optimization failed: {e}, using original")
+
+    # Encode image to base64
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    extraction_prompt = """Analyze this business card image and extract the contact information.
+
+Return a JSON object with these fields (use null for any field not found):
+{
+    "first_name": "extracted first name",
+    "last_name": "extracted last name",
+    "company": "company/organization name",
+    "email": "email address",
+    "phone": "phone number (preserve formatting)",
+    "title": "job title/position",
+    "website": "website URL if present",
+    "address": "physical address if present",
+    "confidence": 0.0 to 1.0 rating of extraction confidence,
+    "raw_text": "all text visible on the card"
+}
+
+Important:
+- Extract the primary contact's name, not company name as the person's name
+- If multiple phone numbers, prefer mobile/cell
+- If multiple emails, prefer personal over generic (info@, contact@)
+- Clean up any OCR artifacts in the text
+- Return ONLY the JSON object, no other text"""
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key, timeout=60.0)  # 60 second timeout
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": image_type,
+                                "data": image_b64
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": extraction_prompt
+                        }
+                    ]
+                }
+            ]
+        )
+
+        result_text = response.content[0].text
+
+        # Handle markdown code blocks
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0]
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0]
+
+        return json.loads(result_text.strip())
+    except json.JSONDecodeError as e:
+        return {"error": f"Failed to parse response: {e}", "raw_text": result_text if 'result_text' in dir() else ""}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
+# SENDGRID EMAIL SENDING
+# ============================================
+
+def send_email_via_sendgrid(to_email, to_name, subject, html_body, contact_id=None, enrollment_id=None):
+    """
+    Send an email via SendGrid with tracking.
+    Returns {"success": True, "message_id": "..."} or {"success": False, "error": "..."}
+    """
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail, TrackingSettings, ClickTracking, OpenTracking
+    except ImportError:
+        return {"success": False, "error": "sendgrid package not installed"}
+
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("SENDGRID_FROM_EMAIL", "patrick@metropointtechnology.com")
+    from_name = os.getenv("SENDGRID_FROM_NAME", "Patrick Stabell")
+
+    if not api_key:
+        return {"success": False, "error": "SENDGRID_API_KEY not configured"}
+
+    try:
+        message = Mail(
+            from_email=(from_email, from_name),
+            to_emails=(to_email, to_name),
+            subject=subject,
+            html_content=html_body.replace("\n", "<br>")  # Convert newlines to HTML
+        )
+
+        # Enable tracking
+        tracking_settings = TrackingSettings()
+        tracking_settings.click_tracking = ClickTracking(True, True)
+        tracking_settings.open_tracking = OpenTracking(True)
+        message.tracking_settings = tracking_settings
+
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(message)
+
+        return {
+            "success": True,
+            "message_id": response.headers.get("X-Message-Id", ""),
+            "status_code": response.status_code
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# ============================================
+# MERGE FIELD REPLACEMENT
+# ============================================
+
+def replace_merge_fields(template, contact, event_name=""):
+    """
+    Replace merge fields in email template with actual values.
+    Supports: {{first_name}}, {{last_name}}, {{company}}, {{event_name}}, {{your_name}}, etc.
+    """
+    # Get settings from session state or use defaults
+    settings = st.session_state.get('settings_data', {})
+
+    replacements = {
+        "{{first_name}}": contact.get("first_name", ""),
+        "{{last_name}}": contact.get("last_name", ""),
+        "{{company}}": contact.get("company", ""),
+        "{{company_name}}": contact.get("company", ""),
+        "{{email}}": contact.get("email", ""),
+        "{{phone}}": contact.get("phone", ""),
+        "{{title}}": contact.get("title", ""),
+        "{{event_name}}": event_name or contact.get("source_detail", ""),
+        "{{your_name}}": settings.get("owner_name", "Patrick Stabell"),
+        "{{your_phone}}": settings.get("phone", "(239) 600-8159"),
+        "{{your_email}}": settings.get("email", "patrick@metropointtechnology.com"),
+        "{{your_website}}": settings.get("website", "www.MetroPointTechnology.com"),
+        "{{unsubscribe_link}}": "[Unsubscribe](mailto:patrick@metropointtechnology.com?subject=Unsubscribe)",
+    }
+
+    result = template
+    for field, value in replacements.items():
+        result = result.replace(field, value or "")
+
+    # Handle conditional blocks like {{#event_name}}...{{/event_name}}
+    conditional_pattern = r'\{\{#(\w+)\}\}(.*?)\{\{/\1\}\}'
+
+    def replace_conditional(match):
+        field_name = match.group(1)
+        content = match.group(2)
+        value = replacements.get(f"{{{{{field_name}}}}}", "")
+        return content if value else ""
+
+    result = re.sub(conditional_pattern, replace_conditional, result, flags=re.DOTALL)
+
+    return result
+
+# ============================================
+# 6-WEEK NETWORKING DRIP CAMPAIGN TEMPLATES
+# ============================================
+
+NETWORKING_DRIP_CAMPAIGN = {
+    "campaign_id": "networking-drip-6week",
+    "campaign_name": "Networking Follow-Up (6 Week)",
+    "emails": [
+        {
+            "day": 0,
+            "purpose": "thank_you",
+            "subject": "Great meeting you!",
+            "body": """Hi {{first_name}},
+
+It was great meeting you today. I enjoyed our conversation and learning about what you do{{#company}} at {{company}}{{/company}}.
+
+I'm the owner of Metro Point Technology - we build custom software, websites, and business automation tools for local businesses.
+
+I'd love to stay connected. Feel free to reach out anytime if there's ever anything I can help with.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 7,
+            "purpose": "value_add",
+            "subject": "Quick resource I thought you'd find useful",
+            "body": """Hi {{first_name}},
+
+I came across something that made me think of our conversation last week and wanted to share it with you.
+
+[Consider adding a relevant article, tool, or resource here based on their industry]
+
+Hope you find it useful! Let me know if you'd like to chat more about it.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 14,
+            "purpose": "coffee_invite",
+            "subject": "Let's grab coffee",
+            "body": """Hi {{first_name}},
+
+I hope things have been going well!
+
+I'd love to continue our conversation over coffee. Are you free sometime this week or next? I'm usually flexible in the mornings or early afternoons.
+
+There's a great spot near downtown Cape Coral if that works for you, or I'm happy to come to you.
+
+Let me know what works!
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 30,
+            "purpose": "check_in",
+            "subject": "Quick check-in",
+            "body": """Hi {{first_name}},
+
+Just wanted to touch base and see how things are going!
+
+It's been about a month since we connected, and I wanted to keep the relationship warm. If there's anything I can help with - technology questions, introductions to people in my network, or just bouncing ideas around - don't hesitate to reach out.
+
+Hope business is treating you well!
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 45,
+            "purpose": "referral_ask",
+            "subject": "Quick favor to ask",
+            "body": """Hi {{first_name}},
+
+I hope all is well! I wanted to reach out with a quick ask.
+
+I'm always looking to connect with business owners who might benefit from custom software, websites, or automation tools. If you know anyone who's mentioned struggling with:
+- Outdated or clunky software
+- Manual processes that eat up their time
+- A website that needs updating
+- Data scattered across multiple systems
+
+I'd really appreciate an introduction. No pressure at all - just thought I'd put it out there!
+
+And of course, if there's ever anything I can do for you, just let me know.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        }
+    ]
+}
+
+def calculate_drip_schedule(start_date=None):
+    """Calculate the dates for each email in the drip campaign"""
+    if start_date is None:
+        start_date = datetime.now()
+
+    schedule = []
+    for email in NETWORKING_DRIP_CAMPAIGN["emails"]:
+        scheduled_date = start_date + timedelta(days=email["day"])
+        schedule.append({
+            "step": email["day"],
+            "day": email["day"],
+            "purpose": email["purpose"],
+            "subject": email["subject"],
+            "scheduled_for": scheduled_date.isoformat(),
+            "sent_at": None
+        })
+    return schedule
+
+# ============================================
+# NAVIGATION SIDEBAR (self-contained)
+# ============================================
+HIDE_STREAMLIT_NAV = """
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #1a1a2e;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label span {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+</style>
+"""
+
+PAGE_CONFIG = {
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+}
+
+def render_sidebar(current_page="Marketing"):
+    """Render the navigation sidebar"""
+    st.markdown(HIDE_STREAMLIT_NAV, unsafe_allow_html=True)
+
+    with st.sidebar:
+        # Logo/Title
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("---")
+
+        # Navigation using radio buttons
+        pages = [f"{config['icon']} {name}" for name, config in PAGE_CONFIG.items()]
+        current_index = list(PAGE_CONFIG.keys()).index(current_page) if current_page in PAGE_CONFIG else 0
+
+        selected = st.radio("Navigation", pages, index=current_index, label_visibility="collapsed")
+
+        # Handle navigation
+        selected_name = selected.split(" ", 1)[1] if " " in selected else selected
+        if selected_name != current_page:
+            config = PAGE_CONFIG.get(selected_name)
+            if config and config['path']:
+                st.switch_page(config['path'])
+
+        st.markdown("---")
+
+def render_sidebar_stats(stats: dict):
+    """Render stats in the sidebar"""
+    with st.sidebar:
+        st.markdown("### Quick Stats")
+        for label, value in stats.items():
+            st.metric(label, value)
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 st.set_page_config(
     page_title="MPT-CRM - Marketing",
-    page_icon="📧",
+    page_icon="favicon.jpg",
     layout="wide"
 )
 
-# Render shared sidebar (includes all styling)
+# ============================================
+# RENDER SIDEBAR
+# ============================================
 render_sidebar("Marketing")
 
-# Initialize session state for campaigns
-if 'campaigns' not in st.session_state:
-    st.session_state.campaigns = [
+# ============================================
+# INITIALIZE SESSION STATE
+# ============================================
+if 'mkt_campaigns' not in st.session_state:
+    st.session_state.mkt_campaigns = [
         {
             "id": "camp-1",
             "name": "New Networking Contact",
@@ -120,8 +1106,8 @@ if 'campaigns' not in st.session_state:
         },
     ]
 
-if 'email_templates' not in st.session_state:
-    st.session_state.email_templates = [
+if 'mkt_email_templates' not in st.session_state:
+    st.session_state.mkt_email_templates = [
         {
             "id": "tmpl-1",
             "name": "Networking Follow-Up - New Contact",
@@ -176,47 +1162,6 @@ Metro Point Technology, LLC
         },
         {
             "id": "tmpl-3",
-            "name": "Networking Follow-Up - Value Add",
-            "category": "follow_up",
-            "subject": "Quick tip: Streamline your business operations",
-            "body": """Hi {{first_name}},
-
-I was thinking about our conversation at {{event_name}} and wanted to share a quick tip that might be helpful.
-
-Many businesses I work with spend hours each week on manual data entry and repetitive tasks. One simple change that makes a big difference: identify your top 3 time-consuming processes and look for automation opportunities.
-
-If you'd like to chat about how technology could help {{company_name}}, I'm always happy to brainstorm ideas - no strings attached.
-
-Best,
-Patrick
-
-{{unsubscribe_link}}""",
-            "merge_fields": ["first_name", "event_name", "company_name", "unsubscribe_link"],
-            "tips": "Send 3-7 days after initial contact. Provide genuine value. Keep the ask soft."
-        },
-        {
-            "id": "tmpl-4",
-            "name": "Networking Follow-Up - Coffee Invite",
-            "category": "follow_up",
-            "subject": "Let's grab coffee",
-            "body": """Hi {{first_name}},
-
-I hope you've been well since we met at {{event_name}}.
-
-I'd love to learn more about what you're working on at {{company_name}}. Would you be open to grabbing coffee sometime this week or next?
-
-I'm flexible on time and happy to come to you.
-
-Best,
-Patrick
-{{your_phone}}
-
-{{unsubscribe_link}}""",
-            "merge_fields": ["first_name", "event_name", "company_name", "your_phone", "unsubscribe_link"],
-            "tips": "Send 7-14 days after initial contact. Be specific about timing. Offer to make it easy for them."
-        },
-        {
-            "id": "tmpl-5",
             "name": "New Client Welcome",
             "category": "welcome",
             "subject": "Welcome to Metro Point Technology!",
@@ -244,7 +1189,7 @@ Patrick
             "tips": "Send immediately when deal is won. Set clear expectations. Make them feel valued."
         },
         {
-            "id": "tmpl-6",
+            "id": "tmpl-4",
             "name": "Proposal Follow-Up",
             "category": "proposal",
             "subject": "Following up on your proposal",
@@ -266,16 +1211,32 @@ Patrick
         },
     ]
 
-if 'selected_campaign' not in st.session_state:
-    st.session_state.selected_campaign = None
+if 'mkt_selected_campaign' not in st.session_state:
+    st.session_state.mkt_selected_campaign = None
 
-if 'selected_template' not in st.session_state:
-    st.session_state.selected_template = None
+if 'mkt_selected_template' not in st.session_state:
+    st.session_state.mkt_selected_template = None
+
+# Card Scanner session state
+if 'mkt_scanned_contacts' not in st.session_state:
+    st.session_state.mkt_scanned_contacts = []
+
+if 'mkt_scanning_in_progress' not in st.session_state:
+    st.session_state.mkt_scanning_in_progress = False
+
+if 'mkt_scan_event_name' not in st.session_state:
+    st.session_state.mkt_scan_event_name = ""
+
+if 'mkt_import_results' not in st.session_state:
+    st.session_state.mkt_import_results = None
+
+if 'mkt_card_images' not in st.session_state:
+    st.session_state.mkt_card_images = []
 
 
 def show_campaign_detail(campaign_id):
     """Show full campaign detail with email sequence"""
-    campaign = next((c for c in st.session_state.campaigns if c['id'] == campaign_id), None)
+    campaign = next((c for c in st.session_state.mkt_campaigns if c['id'] == campaign_id), None)
     if not campaign:
         return
 
@@ -285,7 +1246,7 @@ def show_campaign_detail(campaign_id):
         st.markdown(f"## {status_icon} {campaign['name']}")
     with col2:
         if st.button("← Back to Campaigns"):
-            st.session_state.selected_campaign = None
+            st.session_state.mkt_selected_campaign = None
             st.rerun()
 
     st.markdown("---")
@@ -364,7 +1325,7 @@ def show_campaign_detail(campaign_id):
 
 def show_template_detail(template_id):
     """Show and edit email template"""
-    template = next((t for t in st.session_state.email_templates if t['id'] == template_id), None)
+    template = next((t for t in st.session_state.mkt_email_templates if t['id'] == template_id), None)
     if not template:
         return
 
@@ -373,7 +1334,7 @@ def show_template_detail(template_id):
         st.markdown(f"## ✉️ {template['name']}")
     with col2:
         if st.button("← Back to Templates"):
-            st.session_state.selected_template = None
+            st.session_state.mkt_selected_template = None
             st.rerun()
 
     st.markdown("---")
@@ -401,36 +1362,7 @@ def show_template_detail(template_id):
         test_first_name = st.text_input("Test first name:", value="Patrick", key="test_first_name")
 
         if st.button("📧 Send Test Email", type="secondary"):
-            try:
-                from services.email_service import email_service
-
-                if email_service.is_configured:
-                    # Prepare merge data
-                    merge_data = {
-                        "first_name": test_first_name,
-                        "last_name": "Test",
-                        "company_name": "Test Company",
-                        "event_name": "Test Event",
-                        "conversation_topic": "your business",
-                        "deal_title": "Test Project",
-                    }
-
-                    result = email_service.send_template_email(
-                        to_email=test_email,
-                        to_name=test_first_name,
-                        template_subject=template['subject'],
-                        template_body=template['body'],
-                        merge_data=merge_data
-                    )
-
-                    if result['success']:
-                        st.success(f"✅ Test email sent to {test_email}!")
-                    else:
-                        st.error(f"❌ Failed: {result.get('error', 'Unknown error')}")
-                else:
-                    st.error("SendGrid not configured. Check your .env file.")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
+            st.toast("SendGrid integration coming soon!")
 
     with col2:
         st.markdown("### 🔗 Merge Fields")
@@ -468,44 +1400,73 @@ def show_template_detail(template_id):
             st.info(template['tips'])
 
 
-# Main page
+# ============================================
+# MAIN PAGE
+# ============================================
 st.title("📧 Marketing")
 
+# Check if we're enrolling a contact from the Contacts page
+enroll_contact_id = st.session_state.get('mkt_enroll_contact_id')
+enroll_contact_name = st.session_state.get('mkt_enroll_contact_name', '')
+enroll_contact_email = st.session_state.get('mkt_enroll_contact_email', '')
+
+if enroll_contact_id:
+    st.markdown("---")
+    st.markdown(f"### 📧 Enroll Contact in Campaign")
+    st.info(f"**Contact:** {enroll_contact_name} ({enroll_contact_email})")
+
+    # Show available campaigns
+    active_campaigns = [c for c in st.session_state.mkt_campaigns if c['status'] == 'active']
+
+    if active_campaigns:
+        campaign_options = {c['id']: f"{c['name']} ({len(c['emails'])} emails)" for c in active_campaigns}
+        selected_campaign_id = st.selectbox(
+            "Select a campaign:",
+            options=list(campaign_options.keys()),
+            format_func=lambda x: campaign_options[x]
+        )
+
+        col_enroll, col_cancel = st.columns(2)
+        with col_enroll:
+            if st.button("Enroll", type="primary", use_container_width=True):
+                # Find the campaign and increment enrollments
+                campaign = next((c for c in st.session_state.mkt_campaigns if c['id'] == selected_campaign_id), None)
+                if campaign:
+                    campaign['enrollments'] += 1
+                    st.success(f"**{enroll_contact_name}** enrolled in **{campaign['name']}**!")
+                    # Clear prefill values
+                    for key in ['mkt_enroll_contact_id', 'mkt_enroll_contact_name', 'mkt_enroll_contact_email']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.rerun()
+        with col_cancel:
+            if st.button("Cancel", use_container_width=True):
+                # Clear prefill values
+                for key in ['mkt_enroll_contact_id', 'mkt_enroll_contact_name', 'mkt_enroll_contact_email']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.rerun()
+    else:
+        st.warning("No active campaigns available. Create and activate a campaign first.")
+        if st.button("← Back"):
+            for key in ['mkt_enroll_contact_id', 'mkt_enroll_contact_name', 'mkt_enroll_contact_email']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
 # Show detail views if selected
-if st.session_state.selected_campaign:
-    show_campaign_detail(st.session_state.selected_campaign)
-elif st.session_state.selected_template:
-    show_template_detail(st.session_state.selected_template)
+elif st.session_state.mkt_selected_campaign:
+    show_campaign_detail(st.session_state.mkt_selected_campaign)
+elif st.session_state.mkt_selected_template:
+    show_template_detail(st.session_state.mkt_selected_template)
 else:
     # Tab navigation
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🔄 Campaigns", "✉️ Templates", "⚙️ Settings"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "🔄 Campaigns", "✉️ Templates", "📇 Card Scanner", "⚙️ Settings"])
 
     with tab1:
         # Marketing Dashboard
         st.markdown("### Campaign Performance Overview")
-
-        # Stats row
-        stat_cols = st.columns(4)
-
-        total_sent = sum(c['sent'] for c in st.session_state.campaigns)
-        total_opened = sum(c['opened'] for c in st.session_state.campaigns)
-        total_clicked = sum(c['clicked'] for c in st.session_state.campaigns)
-        active_campaigns = len([c for c in st.session_state.campaigns if c['status'] == 'active'])
-
-        with stat_cols[0]:
-            st.metric("Active Campaigns", active_campaigns)
-        with stat_cols[1]:
-            st.metric("Emails Sent (All Time)", total_sent)
-        with stat_cols[2]:
-            if total_sent > 0:
-                st.metric("Avg Open Rate", f"{(total_opened/total_sent)*100:.0f}%")
-            else:
-                st.metric("Avg Open Rate", "0%")
-        with stat_cols[3]:
-            if total_sent > 0:
-                st.metric("Avg Click Rate", f"{(total_clicked/total_sent)*100:.0f}%")
-            else:
-                st.metric("Avg Click Rate", "0%")
+        st.info("📊 Campaign analytics will appear here once you start importing contacts and sending campaigns via the Card Scanner.")
 
         st.markdown("---")
 
@@ -535,7 +1496,7 @@ else:
             if st.button("➕ New Campaign", type="primary"):
                 st.toast("Campaign builder coming soon!")
 
-        for campaign in st.session_state.campaigns:
+        for campaign in st.session_state.mkt_campaigns:
             with st.container(border=True):
                 col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
 
@@ -560,7 +1521,7 @@ else:
 
                 with col4:
                     if st.button("Edit", key=f"edit_camp_{campaign['id']}"):
-                        st.session_state.selected_campaign = campaign['id']
+                        st.session_state.mkt_selected_campaign = campaign['id']
                         st.rerun()
 
     with tab3:
@@ -574,7 +1535,7 @@ else:
 
         # Group by category
         categories = {}
-        for template in st.session_state.email_templates:
+        for template in st.session_state.mkt_email_templates:
             cat = template['category']
             if cat not in categories:
                 categories[cat] = []
@@ -601,10 +1562,593 @@ else:
 
                     with col2:
                         if st.button("Edit", key=f"edit_tmpl_{template['id']}"):
-                            st.session_state.selected_template = template['id']
+                            st.session_state.mkt_selected_template = template['id']
                             st.rerun()
 
     with tab4:
+        # ============================================
+        # CARD SCANNER TAB
+        # ============================================
+        st.markdown("### 📇 Business Card Scanner")
+        st.caption("Upload business cards from networking events to extract contacts and start drip campaigns")
+
+        # Check for import results to display
+        if st.session_state.mkt_import_results:
+            results = st.session_state.mkt_import_results
+            st.success(f"**Import Complete!** {results['contacts_created']} contacts imported successfully")
+
+            if results.get('emails_sent', 0) > 0:
+                st.info(f"📧 {results['emails_sent']} welcome emails sent")
+
+            if results.get('enrollments_created', 0) > 0:
+                st.info(f"🔄 {results['enrollments_created']} contacts enrolled in 6-week networking campaign")
+
+                # Show email schedule
+                with st.expander("📅 View Email Schedule", expanded=True):
+                    schedule = calculate_drip_schedule()
+                    for i, step in enumerate(schedule):
+                        scheduled_date = datetime.fromisoformat(step['scheduled_for'])
+                        status_icon = "✅" if i == 0 else "📅"
+                        status_text = "Sent" if i == 0 else scheduled_date.strftime("%b %d, %Y")
+                        st.markdown(f"**Day {step['day']}** - {step['purpose'].replace('_', ' ').title()} | {status_icon} {status_text}")
+                        st.caption(f"Subject: {step['subject']}")
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("👥 View Contacts", use_container_width=True):
+                    st.switch_page("pages/02_Contacts.py")
+            with col2:
+                if st.button("🔄 View Campaigns", use_container_width=True):
+                    st.session_state.mkt_import_results = None
+                    st.rerun()
+            with col3:
+                if st.button("📇 Scan More Cards", use_container_width=True):
+                    st.session_state.mkt_import_results = None
+                    st.session_state.mkt_scanned_contacts = []
+                    st.session_state.mkt_card_images = []
+                    st.rerun()
+
+        # Show review interface if we have scanned contacts
+        elif st.session_state.mkt_scanned_contacts:
+            st.markdown("---")
+            st.markdown(f"### Review Extracted Contacts ({len(st.session_state.mkt_scanned_contacts)} cards scanned)")
+
+            # Event name (editable)
+            event_name = st.text_input(
+                "Event Name (for email personalization)",
+                value=st.session_state.mkt_scan_event_name,
+                key="review_event_name"
+            )
+            st.session_state.mkt_scan_event_name = event_name
+
+            st.markdown("---")
+
+            # Quick Apply to All section
+            with st.expander("⚡ Quick Apply to All Contacts", expanded=True):
+                st.markdown("Set defaults for all contacts at once. You can still edit individual contacts below.")
+
+                quick_col1, quick_col2 = st.columns(2)
+
+                with quick_col1:
+                    # Contact Type
+                    quick_contact_types = ["prospect", "lead", "client", "networking", "partner"]
+                    quick_type_labels = ["👤 Prospect", "🎯 Lead", "✅ Client", "🤝 Networking", "🤜🤛 Partner"]
+                    quick_contact_type_idx = 3  # Default to "networking"
+                    quick_selected_type_label = st.selectbox("Contact Type", quick_type_labels, index=quick_contact_type_idx, key="quick_type")
+                    quick_contact_type = quick_contact_types[quick_type_labels.index(quick_selected_type_label)]
+
+                    # Source
+                    quick_sources = ["networking", "referral", "website", "linkedin", "cold_outreach", "conference"]
+                    quick_source_labels = ["Networking Event", "Referral", "Website", "LinkedIn", "Cold Outreach", "Conference"]
+                    quick_source_idx = 0  # Default to "networking"
+                    quick_selected_source_label = st.selectbox("Source", quick_source_labels, index=quick_source_idx, key="quick_source")
+                    quick_source = quick_sources[quick_source_labels.index(quick_selected_source_label)]
+
+                with quick_col2:
+                    # Source Detail (pre-filled with event name)
+                    quick_source_detail = st.text_input("Source Detail", value=event_name, key="quick_src_detail", help="Event name, referral source, etc.")
+
+                    # Tags
+                    quick_default_tags = ["Card Scanner", event_name] if event_name else ["Card Scanner"]
+                    quick_tags_input = st.text_input("Tags (comma-separated)", value=", ".join(quick_default_tags), key="quick_tags")
+                    quick_tags = [t.strip() for t in quick_tags_input.split(",") if t.strip()]
+
+                if st.button("✨ Apply to All Contacts", type="primary", use_container_width=True):
+                    st.session_state.mkt_apply_to_all = {
+                        "contact_type": quick_contact_type,
+                        "source": quick_source,
+                        "source_detail": quick_source_detail,
+                        "tags": quick_tags
+                    }
+                    st.success("✅ Settings applied to all contacts! Review individual contacts below if you need to make changes.")
+                    st.rerun()
+
+            st.markdown("---")
+
+            # Track which contacts to import
+            contacts_to_import = []
+            apply_to_all_settings = st.session_state.get('mkt_apply_to_all', {})
+
+            for idx, contact in enumerate(st.session_state.mkt_scanned_contacts):
+                confidence = contact.get('confidence', 0.5)
+                confidence_icon = "✅" if confidence >= 0.7 else "⚠️"
+                confidence_label = "High confidence" if confidence >= 0.7 else "Low confidence - please verify"
+
+                with st.expander(f"{confidence_icon} Card {idx + 1}: {contact.get('first_name', 'Unknown')} {contact.get('last_name', '')} ({confidence_label})", expanded=(confidence < 0.7)):
+
+                    # Two-column layout: image on left, form on right
+                    if idx < len(st.session_state.mkt_card_images):
+                        col_img, col_form = st.columns([1, 2])
+                        with col_img:
+                            st.image(st.session_state.mkt_card_images[idx], caption="Original Card", use_container_width=True)
+                    else:
+                        col_img = None
+                        col_form = st.container()
+
+                    with col_form:
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            first_name = st.text_input("First Name", value=contact.get('first_name', '') or '', key=f"fn_{idx}")
+                            company = st.text_input("Company", value=contact.get('company', '') or '', key=f"co_{idx}")
+                            phone = st.text_input("Phone", value=contact.get('phone', '') or '', key=f"ph_{idx}")
+
+                        with col2:
+                            last_name = st.text_input("Last Name", value=contact.get('last_name', '') or '', key=f"ln_{idx}")
+                            email = st.text_input("Email", value=contact.get('email', '') or '', key=f"em_{idx}")
+                            title = st.text_input("Title", value=contact.get('title', '') or '', key=f"ti_{idx}")
+
+                    # Check for potential duplicates using name -> company -> email priority
+                    potential_duplicates = db_find_potential_duplicates_by_card(first_name, last_name, company, email)
+                    merge_with_contact = None
+                    is_exact_email_match = False
+
+                    if potential_duplicates:
+                        # Check if any match is an exact email match (highest certainty of duplicate)
+                        email_matches = [d for d in potential_duplicates if "Same email" in d.get('match_reasons', [])]
+                        if email_matches:
+                            is_exact_email_match = True
+                            st.warning(f"⚠️ Contact with this email already exists: **{email_matches[0]['first_name']} {email_matches[0]['last_name']}**")
+
+                        # Show all potential duplicates (sorted by priority: name > company > email)
+                        st.info(f"🔍 Found {len(potential_duplicates)} potential match(es)")
+
+                        for dup in potential_duplicates[:3]:  # Show top 3
+                            match_info = ", ".join(dup.get('match_reasons', []))
+                            dup_name = f"{dup.get('first_name', '')} {dup.get('last_name', '')}".strip()
+                            dup_email = dup.get('email', 'no email')
+                            st.caption(f"• {dup_name} ({dup_email}) - **{match_info}**")
+
+                        # Option to merge or create new
+                        merge_options = ["Create new contact"] + [
+                            f"{d['first_name']} {d['last_name']} ({d.get('email', 'no email')}) - {', '.join(d.get('match_reasons', []))}"
+                            for d in potential_duplicates
+                        ]
+                        merge_choice = st.selectbox(
+                            "Add to existing contact or create new?",
+                            merge_options,
+                            key=f"merge_{idx}",
+                            index=1 if is_exact_email_match else 0  # Default to merge if exact email match
+                        )
+
+                        if merge_choice != "Create new contact":
+                            # Find selected contact
+                            selected_idx = merge_options.index(merge_choice) - 1
+                            merge_with_contact = potential_duplicates[selected_idx]
+                            st.success(f"Will add this card's info to **{merge_with_contact['first_name']} {merge_with_contact['last_name']}**'s record")
+
+                    # Contact metadata (Type, Source, Tags)
+                    st.markdown("---")
+                    meta_col1, meta_col2 = st.columns(2)
+
+                    with meta_col1:
+                        # Contact Type - use Apply to All if set, otherwise default
+                        contact_types = ["prospect", "lead", "client", "networking", "partner"]
+                        type_labels = ["👤 Prospect", "🎯 Lead", "✅ Client", "🤝 Networking", "🤜🤛 Partner"]
+                        default_type = apply_to_all_settings.get('contact_type', 'networking')
+                        contact_type_idx = contact_types.index(default_type) if default_type in contact_types else 3
+                        selected_type_label = st.selectbox("Contact Type", type_labels, index=contact_type_idx, key=f"type_{idx}")
+                        contact_type = contact_types[type_labels.index(selected_type_label)]
+
+                        # Source - use Apply to All if set, otherwise default
+                        sources = ["networking", "referral", "website", "linkedin", "cold_outreach", "conference"]
+                        source_labels = ["Networking Event", "Referral", "Website", "LinkedIn", "Cold Outreach", "Conference"]
+                        default_source = apply_to_all_settings.get('source', 'networking')
+                        source_idx = sources.index(default_source) if default_source in sources else 0
+                        selected_source_label = st.selectbox("Source", source_labels, index=source_idx, key=f"source_{idx}")
+                        source = sources[source_labels.index(selected_source_label)]
+
+                    with meta_col2:
+                        # Source Detail - use Apply to All if set, otherwise event name
+                        default_source_detail = apply_to_all_settings.get('source_detail', event_name)
+                        source_detail = st.text_input("Source Detail", value=default_source_detail, key=f"src_detail_{idx}", help="Event name, referral source, etc.")
+
+                        # Tags - use Apply to All if set, otherwise default
+                        default_tags = apply_to_all_settings.get('tags', ["Card Scanner", event_name] if event_name else ["Card Scanner"])
+                        tags_input = st.text_input("Tags (comma-separated)", value=", ".join(default_tags), key=f"tags_{idx}")
+                        tags = [t.strip() for t in tags_input.split(",") if t.strip()]
+
+                    # Options
+                    col_opt1, col_opt2, col_opt3, col_opt4 = st.columns(4)
+                    with col_opt1:
+                        include = st.checkbox("Include in import", value=True, key=f"inc_{idx}")
+                    with col_opt2:
+                        enroll = st.checkbox("Enroll in drip campaign", value=True, key=f"enr_{idx}")
+                    with col_opt3:
+                        send_email = st.checkbox("Send first email", value=True, key=f"send_{idx}")
+                    with col_opt4:
+                        save_card_image = st.checkbox("Save card image", value=True, key=f"img_{idx}")
+
+                    if include:
+                        print(f"[Review] Card {idx+1} checked for import: {first_name} {last_name}")
+                        contacts_to_import.append({
+                            "first_name": first_name,
+                            "last_name": last_name,
+                            "company": company,
+                            "email": email,
+                            "phone": phone,
+                            "title": title,
+                            "contact_type": contact_type,
+                            "source": source,
+                            "source_detail": source_detail,
+                            "tags": tags,
+                            "enroll": enroll,
+                            "send_email": send_email,
+                            "save_card_image": save_card_image,
+                            "card_image_idx": idx,
+                            "is_exact_email_match": is_exact_email_match and merge_with_contact is None,  # Skip only if email match AND not merging
+                            "merge_with_contact": merge_with_contact
+                        })
+                    else:
+                        print(f"[Review] Card {idx+1} NOT checked for import: {first_name} {last_name}")
+
+            print(f"[Review] Total contacts to import: {len(contacts_to_import)}")
+            st.markdown("---")
+
+            # Import buttons
+            col_back, col_skip, col_import = st.columns([1, 1, 2])
+
+            with col_back:
+                if st.button("← Back", use_container_width=True):
+                    st.session_state.mkt_scanned_contacts = []
+                    st.session_state.mkt_card_images = []
+                    st.rerun()
+
+            with col_import:
+                if st.button(f"✅ Import {len(contacts_to_import)} Contacts & Start Campaign", type="primary", use_container_width=True):
+                    if not contacts_to_import:
+                        st.error("No contacts selected for import")
+                    else:
+                        print(f"[Import] Starting import of {len(contacts_to_import)} contacts")
+                        # Process imports
+                        results = {
+                            "contacts_created": 0,
+                            "emails_sent": 0,
+                            "enrollments_created": 0,
+                            "errors": []
+                        }
+
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        for i, contact_data in enumerate(contacts_to_import):
+                            print(f"[Import] Processing contact {i+1}: {contact_data.get('first_name')} {contact_data.get('last_name')}")
+                            progress = (i + 1) / len(contacts_to_import)
+                            progress_bar.progress(progress)
+                            status_text.text(f"Processing {contact_data['first_name']} {contact_data['last_name']}...")
+
+                            # Skip if exact email match exists and user didn't choose to merge
+                            if contact_data.get('is_exact_email_match'):
+                                print(f"[Import] SKIPPING - exact email match: {contact_data['email']}")
+                                results['errors'].append(f"Skipped {contact_data['email']} - contact already exists (select 'merge' to add info)")
+                                continue
+
+                            print(f"[Import] No duplicate detected, proceeding with contact creation")
+
+                            # Check if merging with existing contact
+                            merge_contact = contact_data.get('merge_with_contact')
+                            if merge_contact:
+                                # Update existing contact with additional info from this card
+                                contact_id = merge_contact['id']
+                                existing_notes = merge_contact.get('notes', '') or ''
+                                new_notes = f"{existing_notes}\n\n--- Additional Card ({datetime.now().strftime('%Y-%m-%d')}) ---\nTitle: {contact_data.get('title', '')}\nPhone: {contact_data.get('phone', '')}\nEmail: {contact_data.get('email', '')}"
+
+                                update_data = {"notes": new_notes.strip()}
+
+                                # Add phone/email if missing on existing contact
+                                if not merge_contact.get('phone') and contact_data.get('phone'):
+                                    update_data['phone'] = contact_data['phone']
+                                if not merge_contact.get('email') and contact_data.get('email'):
+                                    update_data['email'] = contact_data['email']
+
+                                db_update_contact(contact_id, update_data)
+
+                                db_log_activity(
+                                    "contact_updated",
+                                    f"Additional card info added from {event_name or 'networking event'}",
+                                    contact_id
+                                )
+                                results['contacts_created'] += 1  # Count as processed
+                            else:
+                                # Create new contact in database
+                                new_contact = {
+                                    "first_name": contact_data['first_name'],
+                                    "last_name": contact_data['last_name'],
+                                    "company": contact_data.get('company', ''),
+                                    "email": contact_data.get('email', ''),
+                                    "phone": contact_data.get('phone', ''),
+                                    "type": contact_data.get('contact_type', 'networking'),
+                                    "source": contact_data.get('source', 'networking'),
+                                    "source_detail": contact_data.get('source_detail', event_name),
+                                    "tags": contact_data.get('tags', ["Card Scanner"]),
+                                    "notes": f"Title: {contact_data.get('title', '')}\nImported via Card Scanner on {datetime.now().strftime('%Y-%m-%d')}",
+                                    "email_status": "active"
+                                }
+
+                                print(f"[Import] Creating contact in database: {new_contact}")
+                                created = db_create_contact(new_contact)
+                                print(f"[Import] Database response: {created}")
+
+                                if created:
+                                    results['contacts_created'] += 1
+                                    contact_id = created['id']
+                                    print(f"[Import] Contact created successfully with ID: {contact_id}")
+
+                                    # Log activity
+                                    db_log_activity(
+                                        "contact_created",
+                                        f"Contact created via Card Scanner from {event_name or 'networking event'}",
+                                        contact_id
+                                    )
+                                else:
+                                    print(f"[Import] FAILED to create contact: {contact_data['first_name']} {contact_data['last_name']}")
+                                    results['errors'].append(f"Failed to create contact: {contact_data['first_name']} {contact_data['last_name']}")
+                                    continue
+
+                            # Upload card image to Supabase Storage (if selected)
+                            if contact_data.get('save_card_image', True):
+                                card_idx = contact_data.get('card_image_idx', i)
+                                if card_idx < len(st.session_state.mkt_card_images):
+                                    image_url = upload_card_image_to_supabase(
+                                        st.session_state.mkt_card_images[card_idx],
+                                        contact_id
+                                    )
+                                    if image_url:
+                                        db_update_contact(contact_id, {"card_image_url": image_url})
+
+                            # Create campaign enrollment (for both new and merged contacts)
+                            if contact_data.get('enroll', True):
+                                schedule = calculate_drip_schedule()
+                                enrollment_data = {
+                                    "contact_id": contact_id,
+                                    "campaign_id": NETWORKING_DRIP_CAMPAIGN["campaign_id"],
+                                    "campaign_name": NETWORKING_DRIP_CAMPAIGN["campaign_name"],
+                                    "status": "active",
+                                    "current_step": 0,
+                                    "total_steps": len(NETWORKING_DRIP_CAMPAIGN["emails"]),
+                                    "step_schedule": json.dumps(schedule),
+                                    "source": "business_card_scanner",
+                                    "source_detail": event_name,
+                                    "emails_sent": 0
+                                }
+
+                                enrollment = db_create_enrollment(enrollment_data)
+                                if enrollment:
+                                    results['enrollments_created'] += 1
+
+                            # Send first email (for both new and merged contacts)
+                            if contact_data.get('send_email', True) and contact_data.get('email'):
+                                first_email = NETWORKING_DRIP_CAMPAIGN["emails"][0]
+                                subject = replace_merge_fields(first_email["subject"], contact_data, event_name)
+                                body = replace_merge_fields(first_email["body"], contact_data, event_name)
+
+                                email_result = send_email_via_sendgrid(
+                                    to_email=contact_data['email'],
+                                    to_name=f"{contact_data['first_name']} {contact_data['last_name']}",
+                                    subject=subject,
+                                    html_body=body,
+                                    contact_id=contact_id
+                                )
+
+                                if email_result.get('success'):
+                                    results['emails_sent'] += 1
+                                    db_log_activity(
+                                        "email_sent",
+                                        f"Welcome email sent: {subject}",
+                                        contact_id
+                                    )
+                                else:
+                                    results['errors'].append(f"Email failed for {contact_data['email']}: {email_result.get('error')}")
+
+                        progress_bar.empty()
+                        status_text.empty()
+
+                        # Store results and show success screen
+                        st.session_state.mkt_import_results = results
+                        st.session_state.mkt_scanned_contacts = []
+                        st.session_state.mkt_card_images = []
+                        st.rerun()
+
+        # Show upload interface (default state)
+        else:
+            st.markdown("---")
+
+            # Check for required API keys
+            anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+            sendgrid_key = os.getenv("SENDGRID_API_KEY")
+
+            if not anthropic_key:
+                st.error("⚠️ **Anthropic API Key not configured.** Add ANTHROPIC_API_KEY to your .env file to enable card scanning.")
+                st.code("ANTHROPIC_API_KEY=your-api-key-here")
+
+            if not sendgrid_key:
+                st.warning("⚠️ **SendGrid API Key not configured.** Emails will not be sent. Add SENDGRID_API_KEY to your .env file.")
+
+            # Upload section
+            with st.container(border=True):
+                st.markdown("#### Upload Business Cards")
+
+                uploaded_files = st.file_uploader(
+                    "Drop scanned sheets or card images here",
+                    type=["pdf", "jpg", "jpeg", "png", "webp"],
+                    accept_multiple_files=True,
+                    help="Upload 8.5x11 scanned sheets with multiple cards - AI will detect and crop each card individually. Or upload individual card photos."
+                )
+
+                event_name_input = st.text_input(
+                    "Event Name (optional)",
+                    placeholder="e.g., Cape Coral Chamber Networking, SWFL Tech Meetup",
+                    help="This will be used in follow-up emails for personalization"
+                )
+
+                col_cards, col_event = st.columns(2)
+                with col_cards:
+                    expected_card_count = st.number_input(
+                        "Expected cards per page (optional)",
+                        min_value=0,
+                        max_value=50,
+                        value=0,
+                        help="If you know how many cards are on each page (e.g., 9 cards), enter it here. 0 = auto-detect"
+                    )
+
+                if uploaded_files:
+                    st.info(f"📎 {len(uploaded_files)} file(s) selected")
+
+                    if st.button("🔍 Scan Cards", type="primary", use_container_width=True, disabled=not anthropic_key):
+                        st.session_state.mkt_expected_card_count = expected_card_count
+                        st.session_state.mkt_scan_event_name = event_name_input
+                        st.session_state.mkt_scanning_in_progress = True
+
+                        # Process files - Step 1: Convert PDFs and collect raw page images
+                        raw_page_images = []
+
+                        with st.spinner("Processing uploaded files..."):
+                            for file in uploaded_files:
+                                file_bytes = file.read()
+
+                                if file.type == "application/pdf":
+                                    # Convert PDF pages to images
+                                    pdf_images = convert_pdf_to_images(file_bytes)
+                                    for img in pdf_images:
+                                        if "error" in img:
+                                            st.error(f"PDF Error: {img['error']}")
+                                        else:
+                                            raw_page_images.append({
+                                                "image_bytes": img['image_bytes'],
+                                                "type": "image/png",
+                                                "source": f"PDF page {img['page_number']}"
+                                            })
+                                else:
+                                    # Direct image upload
+                                    mime_type = file.type or "image/jpeg"
+                                    raw_page_images.append({
+                                        "image_bytes": file_bytes,
+                                        "type": mime_type,
+                                        "source": file.name
+                                    })
+
+                        # Step 2: Detect and crop individual cards from each page
+                        all_images = []
+                        image_bytes_list = []
+                        expected_count = st.session_state.get('mkt_expected_card_count', 0)
+
+                        if raw_page_images:
+                            if expected_count > 0:
+                                st.info(f"📄 Processing {len(raw_page_images)} page(s), expecting {expected_count} cards per page...")
+                            else:
+                                st.info(f"📄 Processing {len(raw_page_images)} page(s), detecting individual cards...")
+                            detect_progress = st.progress(0)
+
+                            for page_idx, page_data in enumerate(raw_page_images):
+                                detect_progress.progress((page_idx + 1) / len(raw_page_images))
+
+                                with st.spinner(f"Detecting cards on {page_data['source']}..."):
+                                    # Detect and crop individual cards from this page
+                                    cropped_cards = process_page_for_cards(
+                                        page_data['image_bytes'],
+                                        page_data['type'],
+                                        expected_count
+                                    )
+
+                                    for card_bytes in cropped_cards:
+                                        all_images.append({
+                                            "image_bytes": card_bytes,
+                                            "type": "image/png",
+                                            "source": page_data['source']
+                                        })
+                                        image_bytes_list.append(card_bytes)
+
+                            detect_progress.empty()
+                            st.info(f"📇 Found {len(all_images)} individual card(s). Extracting contact information...")
+
+                            # Extract contacts from each image
+                            scanned_contacts = []
+                            progress = st.progress(0)
+
+                            for i, img_data in enumerate(all_images):
+                                progress.progress((i + 1) / len(all_images))
+
+                                with st.spinner(f"Scanning card {i + 1} of {len(all_images)}..."):
+                                    result = extract_contact_from_business_card(
+                                        img_data['image_bytes'],
+                                        img_data.get('type', 'image/png')
+                                    )
+
+                                    if "error" in result:
+                                        st.warning(f"Card {i + 1}: {result['error']}")
+                                        # Add placeholder with error
+                                        scanned_contacts.append({
+                                            "first_name": "",
+                                            "last_name": "",
+                                            "company": "",
+                                            "email": "",
+                                            "phone": "",
+                                            "title": "",
+                                            "confidence": 0.0,
+                                            "error": result['error'],
+                                            "raw_text": result.get('raw_text', '')
+                                        })
+                                    else:
+                                        scanned_contacts.append(result)
+
+                            progress.empty()
+
+                            # Store results in session state
+                            st.session_state.mkt_scanned_contacts = scanned_contacts
+                            st.session_state.mkt_card_images = image_bytes_list
+                            st.session_state.mkt_scanning_in_progress = False
+
+                            st.rerun()
+                        else:
+                            st.error("No valid images found in uploaded files")
+
+            # Info section
+            st.markdown("---")
+            st.markdown("#### How It Works")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.markdown("**1. Upload Cards**")
+                st.caption("Upload scanned sheets with multiple cards or individual photos. AI automatically detects and crops each card from the page.")
+
+            with col2:
+                st.markdown("**2. Review & Edit**")
+                st.caption("AI extracts contact details. Review the extracted data, fix any errors, and select contacts to import.")
+
+            with col3:
+                st.markdown("**3. Auto-Campaign**")
+                st.caption("Contacts are added to your CRM and enrolled in a 6-week networking drip campaign with the first email sent immediately.")
+
+            # Show campaign preview
+            with st.expander("📧 Preview: 6-Week Networking Drip Campaign"):
+                for i, email in enumerate(NETWORKING_DRIP_CAMPAIGN["emails"]):
+                    purpose_icons = {"thank_you": "🤝", "value_add": "💡", "coffee_invite": "☕", "check_in": "👋", "referral_ask": "🙏"}
+                    st.markdown(f"**Day {email['day']}** - {purpose_icons.get(email['purpose'], '📧')} {email['purpose'].replace('_', ' ').title()}")
+                    st.caption(f"Subject: {email['subject']}")
+                    if i < len(NETWORKING_DRIP_CAMPAIGN["emails"]) - 1:
+                        st.markdown("---")
+
+    with tab5:
         # SendGrid settings
         st.markdown("### ⚙️ SendGrid Configuration")
 
@@ -633,3 +2177,12 @@ else:
         st.markdown("#### 📡 Webhook Status")
         st.warning("⚠️ Webhook not configured. Set up webhook URL in SendGrid to receive open/click/bounce events.")
         st.code("Webhook URL: https://your-app-url.com/api/sendgrid/webhook")
+
+        st.markdown("---")
+        st.markdown("#### 🔑 Claude API (for Card Scanner)")
+        anthropic_configured = bool(os.getenv("ANTHROPIC_API_KEY"))
+        if anthropic_configured:
+            st.success("✅ Anthropic API Key configured")
+        else:
+            st.error("❌ Anthropic API Key not configured")
+            st.caption("Add ANTHROPIC_API_KEY to your .env file to enable business card scanning")

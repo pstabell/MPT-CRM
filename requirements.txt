@@ -16,3 +16,8 @@ pandas>=2.0.0
 
 # Utilities
 python-dateutil>=2.8.0
+
+# Business Card Scanner (Claude Vision + PDF processing)
+anthropic>=0.18.0
+pypdfium2>=4.0.0
+Pillow>=10.0.0
