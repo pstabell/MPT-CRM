@@ -472,7 +472,57 @@ with tab2:
     col1, col2 = st.columns([3, 1])
     with col2:
         if st.button("➕ Create Invoice", type="primary"):
-            st.toast("Invoice creation wizard coming soon!")
+            st.session_state.tb_show_invoice_wizard = True
+            st.rerun()
+
+    # Invoice creation wizard
+    if st.session_state.get('tb_show_invoice_wizard'):
+        with st.container(border=True):
+            st.markdown("### ➕ New Invoice")
+            with st.form("create_invoice_form"):
+                inv_col1, inv_col2 = st.columns(2)
+                with inv_col1:
+                    inv_client = st.text_input("Client Name *")
+                    inv_number = st.text_input("Invoice Number", value=f"INV-{datetime.now().strftime('%Y%m%d')}-{len(st.session_state.get('tb_invoices', [])) + 1:03d}")
+                with inv_col2:
+                    inv_amount = st.number_input("Total Amount ($)", min_value=0.0, step=100.0)
+                    inv_due_date = st.date_input("Due Date", value=date.today() + timedelta(days=30))
+
+                inv_description = st.text_area("Description / Line Items", height=100)
+
+                inv_col_a, inv_col_b = st.columns(2)
+                with inv_col_a:
+                    inv_submit = st.form_submit_button("📄 Create Invoice", type="primary")
+                with inv_col_b:
+                    inv_cancel = st.form_submit_button("Cancel")
+
+                if inv_submit and inv_client:
+                    new_invoice = {
+                        "invoice_number": inv_number,
+                        "client": inv_client,
+                        "total": inv_amount,
+                        "status": "draft",
+                        "created_at": datetime.now().isoformat(),
+                        "due_date": inv_due_date.isoformat(),
+                        "description": inv_description,
+                    }
+                    # Save to database if connected
+                    if db_is_connected():
+                        try:
+                            db = get_db()
+                            db.table("invoices").insert(new_invoice).execute()
+                        except Exception:
+                            pass
+                    # Add to session state
+                    if 'tb_invoices' not in st.session_state:
+                        st.session_state.tb_invoices = []
+                    st.session_state.tb_invoices.append(new_invoice)
+                    st.session_state.tb_show_invoice_wizard = False
+                    st.success(f"✅ Invoice {inv_number} created for {inv_client}")
+                    st.rerun()
+                elif inv_cancel:
+                    st.session_state.tb_show_invoice_wizard = False
+                    st.rerun()
 
     # Invoice stats
     draft_invoices = [i for i in st.session_state.tb_invoices if i['status'] == 'draft']

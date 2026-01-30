@@ -1180,15 +1180,44 @@ with col2:
     if st.button("🎯 Create Deal", use_container_width=True):
         if not st.session_state.get('current_contact_id'):
             st.warning("Save Client Info first to create a deal.")
+        elif db_is_connected():
+            try:
+                db = get_db()
+                deal_data = {
+                    "contact_id": st.session_state.get('current_contact_id'),
+                    "title": f"{', '.join(project_types[:2]) if project_types else 'New Project'} - {company_name or first_name}",
+                    "value": 0,
+                    "stage": "discovery",
+                    "description": desired_outcome or pain_points or "Created from Discovery Call",
+                    "expected_close": None,
+                }
+                response = db.table("deals").insert(deal_data).execute()
+                if response.data:
+                    st.success(f"✅ Deal created: {deal_data['title']}")
+                else:
+                    st.error("Failed to create deal.")
+            except Exception as e:
+                st.error(f"Error creating deal: {e}")
         else:
-            st.toast("Deal creation - coming soon!")
+            st.warning("Database not connected.")
 
 with col3:
     if st.button("📁 Create Project Folder", use_container_width=True):
         if company_name or first_name:
             folder_name = company_name or f"{first_name} {last_name}"
-            st.info(f"Would create: DEVELOPMENT/{folder_name}/")
-            st.toast("Project folder creation - coming soon!")
+            # Sanitize folder name
+            safe_name = "".join(c for c in folder_name if c.isalnum() or c in (' ', '-', '_')).strip()
+            base_path = Path(r"C:\Users\Patri\Metro Point Technology\Metro Point Technology - Documents\DEVELOPMENT\Metro Point Technology\Projects")
+            project_path = base_path / safe_name
+            try:
+                project_path.mkdir(parents=True, exist_ok=True)
+                # Create standard subfolders
+                for sub in ["Documents", "Design", "Source", "Deliverables"]:
+                    (project_path / sub).mkdir(exist_ok=True)
+                st.success(f"✅ Project folder created: {safe_name}/")
+                st.caption(f"📂 {project_path}")
+            except Exception as e:
+                st.error(f"Error creating folder: {e}")
         else:
             st.warning("Enter client name first.")
 
@@ -1242,7 +1271,68 @@ if st.session_state.get('show_proposal_wizard'):
         submitted = st.form_submit_button("📄 Generate Proposal", type="primary")
 
         if submitted:
-            st.success("Proposal data captured! (Full Word document generation coming soon)")
+            # Generate downloadable proposal
+            proposal_content = f"""PROPOSAL: {proposal_title}
+{'='*60}
+
+Prepared for: {company_name or first_name + ' ' + last_name}
+Prepared by: Patrick Stabell, Metro Point Technology LLC
+Date: {date.today().strftime('%B %d, %Y')}
+Valid Until: {valid_until.strftime('%B %d, %Y') if valid_until else 'N/A'}
+
+SCOPE OF WORK
+{'-'*40}
+{scope_description}
+
+DELIVERABLES
+{'-'*40}
+{deliverables_text or 'To be defined in contract.'}
+
+EXCLUSIONS / OUT OF SCOPE
+{'-'*40}
+{exclusions or 'N/A'}
+
+PRICING
+{'-'*40}
+Estimated Hours: {estimated_hours}
+Hourly Rate: ${hourly_rate:,.2f}
+Project Estimate: ${project_total:,.2f}
+
+Payment Terms: 50% upfront, 50% upon completion.
+
+NEXT STEPS
+{'-'*40}
+1. Review and approve this proposal
+2. Sign service agreement
+3. Submit 50% deposit
+4. Kick-off meeting scheduled within 5 business days
+
+{'='*60}
+Metro Point Technology LLC
+Patrick Stabell — Founder & Software Developer
+Support@MetroPointTech.com | (239) 600-8159
+www.MetroPointTechnology.com
+"""
+            # Save to database if connected
+            if db_is_connected():
+                try:
+                    db = get_db()
+                    intake_id = st.session_state.get('current_intake_id')
+                    if intake_id:
+                        db.table("client_intakes").update({
+                            "status": "proposal_pending",
+                            "next_steps": f"Proposal generated: {proposal_title} - ${project_total:,.0f}"
+                        }).eq("id", intake_id).execute()
+                except Exception:
+                    pass
+
+            st.success("✅ Proposal generated!")
+            st.download_button(
+                label="📥 Download Proposal",
+                data=proposal_content,
+                file_name=f"Proposal_{(company_name or first_name).replace(' ', '_')}_{date.today().strftime('%Y%m%d')}.txt",
+                mime="text/plain"
+            )
             st.session_state.show_proposal_wizard = False
 
     if st.button("Cancel"):

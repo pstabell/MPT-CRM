@@ -1077,9 +1077,58 @@ def show_contact_detail(contact_id):
         # Activity Timeline
         st.markdown("### 📅 Recent Activity")
         with st.container(border=True):
-            st.caption(f"📧 Email sent - {contact.get('last_contacted', 'N/A')}")
-            st.caption(f"📝 Contact created - {contact.get('created_at', 'N/A')}")
-            st.caption("_More activity tracking coming soon..._")
+            # Pull real activities from database
+            activities = []
+            if db_is_connected():
+                try:
+                    db = get_db()
+                    # Get email sends
+                    sends_resp = db.table("email_sends").select("*").eq("contact_id", contact['id']).order("sent_at", desc=True).limit(5).execute()
+                    if sends_resp.data:
+                        for send in sends_resp.data:
+                            sent_date = send.get('sent_at', 'Unknown')
+                            if sent_date and sent_date != 'Unknown':
+                                try:
+                                    sent_date = datetime.fromisoformat(sent_date.replace('Z', '+00:00')).strftime('%b %d, %Y %I:%M %p')
+                                except Exception:
+                                    pass
+                            activities.append(f"📧 Email sent — {send.get('subject', 'No subject')} — {sent_date}")
+
+                    # Get activities table
+                    act_resp = db.table("activities").select("*").eq("contact_id", contact['id']).order("created_at", desc=True).limit(5).execute()
+                    if act_resp.data:
+                        for act in act_resp.data:
+                            act_date = act.get('created_at', '')
+                            if act_date:
+                                try:
+                                    act_date = datetime.fromisoformat(act_date.replace('Z', '+00:00')).strftime('%b %d, %Y')
+                                except Exception:
+                                    pass
+                            activities.append(f"📋 {act.get('type', 'Activity')} — {act.get('description', '')} — {act_date}")
+                except Exception:
+                    pass
+
+            # Always show contact creation and last contacted
+            if contact.get('last_contacted'):
+                lc = contact['last_contacted']
+                try:
+                    lc = datetime.fromisoformat(lc.replace('Z', '+00:00')).strftime('%b %d, %Y')
+                except Exception:
+                    pass
+                activities.append(f"📧 Last contacted — {lc}")
+
+            created = contact.get('created_at', 'N/A')
+            try:
+                created = datetime.fromisoformat(created.replace('Z', '+00:00')).strftime('%b %d, %Y')
+            except Exception:
+                pass
+            activities.append(f"📝 Contact created — {created}")
+
+            if activities:
+                for act in activities:
+                    st.caption(act)
+            else:
+                st.caption("No activity recorded yet.")
 
         # Deals section
         st.markdown("### 🎯 Deals")

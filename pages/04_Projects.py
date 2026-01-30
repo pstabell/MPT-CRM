@@ -402,11 +402,58 @@ def show_project_detail(project_id):
         # Quick actions
         st.markdown("### ⚡ Quick Actions")
         if st.button("📄 Generate Invoice", use_container_width=True):
-            st.toast("Invoice generation coming soon!")
+            # Generate a simple invoice text
+            invoice_text = f"""INVOICE
+{'='*50}
+From: Metro Point Technology LLC
+To: {project.get('client', 'Client')}
+Date: {datetime.now().strftime('%B %d, %Y')}
+Project: {project.get('name', 'Project')}
+
+Hours Logged: {hours_logged:.1f}
+Hourly Rate: ${hourly_rate:,.2f}
+Amount Due: ${amount_earned:,.2f}
+
+Payment Terms: Net 30
+{'='*50}
+Metro Point Technology LLC
+Support@MetroPointTech.com | (239) 600-8159
+"""
+            st.download_button(
+                label="📥 Download Invoice",
+                data=invoice_text,
+                file_name=f"Invoice_{project.get('name', 'Project').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.txt",
+                mime="text/plain",
+                key=f"dl_invoice_{project['id']}"
+            )
+
         if st.button("📧 Email Client", use_container_width=True):
-            st.toast("Email feature coming soon!")
+            # Look up contact email
+            if project.get('contact_id') and db_is_connected():
+                try:
+                    db = get_db()
+                    contact = db.table("contacts").select("email, first_name").eq("id", project['contact_id']).single().execute()
+                    if contact.data and contact.data.get('email'):
+                        st.info(f"📧 Draft email to: {contact.data['email']}")
+                        st.caption("Use the Marketing page to send emails with templates.")
+                    else:
+                        st.warning("No email found for this project's contact.")
+                except Exception:
+                    st.warning("Could not look up contact email.")
+            else:
+                st.info("💡 Link a contact to this project to enable email.")
+
         if st.button("📊 View Report", use_container_width=True):
-            st.toast("Project reports coming soon!")
+            st.markdown(f"""
+            **Project Report: {project.get('name', 'N/A')}**
+            - **Status:** {project.get('status', 'N/A')}
+            - **Client:** {project.get('client', 'N/A')}
+            - **Budget:** ${budget:,.2f}
+            - **Hours Logged:** {hours_logged:.1f}
+            - **Amount Earned:** ${amount_earned:,.2f}
+            - **Budget Remaining:** ${max(budget - amount_earned, 0):,.2f}
+            - **Budget Utilization:** {(amount_earned/budget*100 if budget > 0 else 0):.0f}%
+            """)
 
 
 # ============================================

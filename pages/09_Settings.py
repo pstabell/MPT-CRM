@@ -245,16 +245,23 @@ with tab2:
 
     st.markdown("---")
 
-    # Microsoft Graph (Future)
-    st.markdown("#### 📅 Microsoft 365 (Coming Soon)")
+    # Microsoft Graph
+    st.markdown("#### 📅 Microsoft 365 Integration")
 
     with st.container(border=True):
-        st.info("🔜 Microsoft Graph integration will enable:")
+        st.success("✅ Microsoft Graph API is configured via Metro Bot (Clawdbot)")
         st.markdown("""
-        - Sync contacts with Outlook
-        - Sync deals with Microsoft Planner
-        - Calendar integration for meetings
-        - Send emails via Outlook
+        **Active Integrations:**
+        - ✅ Email — Support@MetroPointTech.com via Graph API
+        - ✅ Calendar — Outlook calendar sync (read/write)
+        - ✅ Planner — MPT Mission Control board
+        - ✅ Tasks — To-Do lists for task tracking
+        - ✅ Contacts — Directory access
+
+        **Bot Account:** Support@MetroPointTech.com
+        **App:** MetroPointBot (e9ea4d08-1047-4588-bf07-70aa7befa62f)
+
+        *Managed by Metro Bot — changes via Teams chat.*
         """)
 
 # ============================================
@@ -361,7 +368,29 @@ with st.expander("⚠️ Danger Zone"):
     with col1:
         st.markdown("**Export Data**")
         if st.button("📥 Export All Data (JSON)"):
-            st.toast("Export feature coming soon!")
+            if db_is_connected():
+                try:
+                    import json
+                    db = get_db()
+                    export = {}
+                    for table in ["contacts", "deals", "projects", "tasks", "time_entries", "invoices", "email_templates", "email_campaigns", "email_sends", "activities"]:
+                        try:
+                            resp = db.table(table).select("*").execute()
+                            export[table] = resp.data if resp.data else []
+                        except Exception:
+                            export[table] = []
+                    export_json = json.dumps(export, indent=2, default=str)
+                    st.download_button(
+                        label="📥 Download Export",
+                        data=export_json,
+                        file_name=f"mpt_crm_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        mime="application/json"
+                    )
+                    st.success(f"✅ Exported {sum(len(v) for v in export.values())} total records")
+                except Exception as e:
+                    st.error(f"Export failed: {e}")
+            else:
+                st.warning("Database not connected.")
 
     with col2:
         st.markdown("**Reset Data**")
