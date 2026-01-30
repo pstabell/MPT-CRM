@@ -1,29 +1,133 @@
 """
 MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
+
+SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
 """
 
 import streamlit as st
-from datetime import datetime, date
-import sys
-from pathlib import Path
+from datetime import datetime, date, timedelta
+import os
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.navigation import render_sidebar, render_sidebar_stats
+# ============================================
+# DATABASE CONNECTION (self-contained)
+# ============================================
+try:
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
 
+@st.cache_resource(show_spinner=False)
+def get_db():
+    """Create and cache Supabase client"""
+    if not SUPABASE_AVAILABLE:
+        return None
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if url and key:
+        try:
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None
+
+def db_is_connected():
+    """Check if database is connected"""
+    return get_db() is not None
+
+# ============================================
+# NAVIGATION SIDEBAR (self-contained)
+# ============================================
+HIDE_STREAMLIT_NAV = """
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #1a1a2e;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label span {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+</style>
+"""
+
+PAGE_CONFIG = {
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+}
+
+def render_sidebar(current_page="Projects"):
+    """Render the navigation sidebar"""
+    st.markdown(HIDE_STREAMLIT_NAV, unsafe_allow_html=True)
+
+    with st.sidebar:
+        # Logo/Title
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("---")
+
+        # Navigation using radio buttons
+        pages = [f"{config['icon']} {name}" for name, config in PAGE_CONFIG.items()]
+        current_index = list(PAGE_CONFIG.keys()).index(current_page) if current_page in PAGE_CONFIG else 0
+
+        selected = st.radio("Navigation", pages, index=current_index, label_visibility="collapsed")
+
+        # Handle navigation
+        selected_name = selected.split(" ", 1)[1] if " " in selected else selected
+        if selected_name != current_page:
+            config = PAGE_CONFIG.get(selected_name)
+            if config and config['path']:
+                st.switch_page(config['path'])
+
+        st.markdown("---")
+
+def render_sidebar_stats(stats: dict):
+    """Render stats in the sidebar"""
+    with st.sidebar:
+        st.markdown("### Quick Stats")
+        for label, value in stats.items():
+            st.metric(label, value)
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 st.set_page_config(
     page_title="MPT-CRM - Projects",
-    page_icon="📁",
+    page_icon="favicon.jpg",
     layout="wide"
 )
 
-# Render shared sidebar
+# ============================================
+# RENDER SIDEBAR
+# ============================================
 render_sidebar("Projects")
 
-# Initialize session state for projects
-if 'projects' not in st.session_state:
-    st.session_state.projects = [
+# ============================================
+# INITIALIZE SESSION STATE
+# ============================================
+if 'proj_projects' not in st.session_state:
+    st.session_state.proj_projects = [
         {
             "id": "proj-1",
             "name": "Williams Insurance CRM",
@@ -65,8 +169,8 @@ if 'projects' not in st.session_state:
         },
     ]
 
-if 'time_entries' not in st.session_state:
-    st.session_state.time_entries = [
+if 'proj_time_entries' not in st.session_state:
+    st.session_state.proj_time_entries = [
         {"id": "te-1", "project_id": "proj-1", "date": "2026-01-20", "hours": 4.5, "description": "Database schema design and setup", "billable": True},
         {"id": "te-2", "project_id": "proj-1", "date": "2026-01-21", "hours": 6, "description": "API development for contact management", "billable": True},
         {"id": "te-3", "project_id": "proj-1", "date": "2026-01-22", "hours": 5.5, "description": "Frontend UI components", "billable": True},
@@ -76,8 +180,11 @@ if 'time_entries' not in st.session_state:
         {"id": "te-7", "project_id": "proj-2", "date": "2026-01-17", "hours": 4, "description": "Testing and validation", "billable": True},
     ]
 
-if 'selected_project' not in st.session_state:
-    st.session_state.selected_project = None
+if 'proj_selected_project' not in st.session_state:
+    st.session_state.proj_selected_project = None
+
+if 'proj_show_new_form' not in st.session_state:
+    st.session_state.proj_show_new_form = False
 
 # Project status definitions
 PROJECT_STATUS = {
@@ -89,11 +196,80 @@ PROJECT_STATUS = {
 }
 
 
+def show_new_project_form():
+    """Show form to create a new project"""
+    st.markdown("---")
+    st.markdown("## New Project")
+
+    # Get pre-filled values from session state (set by Pipeline when deal is won)
+    prefill_name = st.session_state.get('new_project_name', '')
+    prefill_client = st.session_state.get('new_project_client', '')
+    prefill_contact_id = st.session_state.get('new_project_contact_id', None)
+    prefill_deal_id = st.session_state.get('new_project_deal_id', None)
+    prefill_budget = st.session_state.get('new_project_budget', 0)
+
+    if prefill_name:
+        st.success(f"Creating project from won deal: **{prefill_name}**")
+
+    with st.form("new_project_form"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            name = st.text_input("Project Name *", value=prefill_name, placeholder="e.g., Website Redesign")
+            client = st.text_input("Client *", value=prefill_client, placeholder="Company or contact name")
+            description = st.text_area("Description", placeholder="Brief description of the project scope...")
+
+        with col2:
+            budget = st.number_input("Budget ($)", min_value=0, step=1000, value=int(prefill_budget))
+            hourly_rate = st.number_input("Hourly Rate ($)", min_value=0, step=25, value=150)
+            start_date = st.date_input("Start Date", value=date.today())
+            target_end_date = st.date_input("Target End Date", value=date.today() + timedelta(days=60))
+            status = st.selectbox("Initial Status", ["planning", "active"], format_func=lambda x: PROJECT_STATUS[x]['label'])
+
+        col_submit, col_cancel = st.columns(2)
+        with col_submit:
+            submitted = st.form_submit_button("Create Project", type="primary", use_container_width=True)
+        with col_cancel:
+            cancelled = st.form_submit_button("Cancel", use_container_width=True)
+
+        if submitted and name and client:
+            new_project = {
+                "id": f"proj-{len(st.session_state.proj_projects) + 1}-{datetime.now().strftime('%H%M%S')}",
+                "name": name,
+                "client": client,
+                "client_id": prefill_contact_id,
+                "deal_id": prefill_deal_id,
+                "status": status,
+                "description": description,
+                "start_date": start_date.strftime("%Y-%m-%d"),
+                "target_end_date": target_end_date.strftime("%Y-%m-%d"),
+                "budget": budget,
+                "hours_logged": 0,
+                "hourly_rate": hourly_rate
+            }
+            st.session_state.proj_projects.append(new_project)
+            st.success(f"Project '{name}' created!")
+            st.session_state.proj_show_new_form = False
+            # Clear prefill values
+            for key in ['new_project_name', 'new_project_client', 'new_project_contact_id', 'new_project_deal_id', 'new_project_budget']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+        if cancelled:
+            st.session_state.proj_show_new_form = False
+            # Clear prefill values
+            for key in ['new_project_name', 'new_project_client', 'new_project_contact_id', 'new_project_deal_id', 'new_project_budget']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+
 def show_project_detail(project_id):
     """Show detailed project view"""
-    project = next((p for p in st.session_state.projects if p['id'] == project_id), None)
+    project = next((p for p in st.session_state.proj_projects if p['id'] == project_id), None)
     if not project:
-        st.session_state.selected_project = None
+        st.session_state.proj_selected_project = None
         st.rerun()
         return
 
@@ -106,7 +282,7 @@ def show_project_detail(project_id):
         st.markdown(f"**Client:** {project['client']}")
     with col2:
         if st.button("← Back to Projects"):
-            st.session_state.selected_project = None
+            st.session_state.proj_selected_project = None
             st.rerun()
 
     st.markdown("---")
@@ -145,7 +321,7 @@ def show_project_detail(project_id):
         # Time entries section
         st.markdown("### ⏱️ Time Entries")
 
-        project_entries = [e for e in st.session_state.time_entries if e['project_id'] == project_id]
+        project_entries = [e for e in st.session_state.proj_time_entries if e['project_id'] == project_id]
 
         # Add new time entry
         with st.expander("➕ Log Time"):
@@ -160,14 +336,14 @@ def show_project_detail(project_id):
             if st.button("Add Time Entry", type="primary"):
                 if new_entry_hours > 0 and new_entry_desc:
                     new_entry = {
-                        "id": f"te-{len(st.session_state.time_entries) + 1}",
+                        "id": f"te-{len(st.session_state.proj_time_entries) + 1}",
                         "project_id": project_id,
                         "date": new_entry_date.strftime("%Y-%m-%d"),
                         "hours": new_entry_hours,
                         "description": new_entry_desc,
                         "billable": new_entry_billable
                     }
-                    st.session_state.time_entries.append(new_entry)
+                    st.session_state.proj_time_entries.append(new_entry)
                     project['hours_logged'] = project.get('hours_logged', 0) + new_entry_hours
                     st.success("Time entry added!")
                     st.rerun()
@@ -233,11 +409,15 @@ def show_project_detail(project_id):
             st.toast("Project reports coming soon!")
 
 
-# Main page
+# ============================================
+# MAIN PAGE
+# ============================================
 st.title("📁 Projects")
 
-if st.session_state.selected_project:
-    show_project_detail(st.session_state.selected_project)
+if st.session_state.proj_show_new_form:
+    show_new_project_form()
+elif st.session_state.proj_selected_project:
+    show_project_detail(st.session_state.proj_selected_project)
 else:
     # Toolbar
     toolbar_col1, toolbar_col2, toolbar_col3 = st.columns([2, 1, 1])
@@ -254,10 +434,11 @@ else:
 
     with toolbar_col3:
         if st.button("➕ New Project", type="primary"):
-            st.toast("New project form coming soon!")
+            st.session_state.proj_show_new_form = True
+            st.rerun()
 
     # Stats
-    active_projects = [p for p in st.session_state.projects if p['status'] == 'active']
+    active_projects = [p for p in st.session_state.proj_projects if p['status'] == 'active']
     total_budget = sum(p.get('budget', 0) for p in active_projects)
     total_hours = sum(p.get('hours_logged', 0) for p in active_projects)
 
@@ -270,14 +451,14 @@ else:
     # Stats row
     stat_cols = st.columns(5)
     for i, (status_key, status_info) in enumerate(PROJECT_STATUS.items()):
-        count = len([p for p in st.session_state.projects if p['status'] == status_key])
+        count = len([p for p in st.session_state.proj_projects if p['status'] == status_key])
         with stat_cols[i]:
             st.metric(f"{status_info['icon']} {status_info['label']}", count)
 
     st.markdown("---")
 
     # Filter projects
-    filtered_projects = st.session_state.projects
+    filtered_projects = st.session_state.proj_projects
 
     if search:
         search_lower = search.lower()
@@ -319,5 +500,5 @@ else:
 
             with col4:
                 if st.button("Open", key=f"open_{project['id']}"):
-                    st.session_state.selected_project = project['id']
+                    st.session_state.proj_selected_project = project['id']
                     st.rerun()

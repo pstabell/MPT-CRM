@@ -1,29 +1,215 @@
 """
 MPT-CRM Time & Billing Page
 Track time entries, generate invoices, and manage billing
+
+SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
 """
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-import sys
-from pathlib import Path
+import os
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.navigation import render_sidebar, render_sidebar_stats
+# ============================================
+# DATABASE CONNECTION (self-contained)
+# ============================================
+try:
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
 
+@st.cache_resource(show_spinner=False)
+def get_db():
+    """Create and cache Supabase client"""
+    if not SUPABASE_AVAILABLE:
+        return None
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if url and key:
+        try:
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None
+
+def db_is_connected():
+    """Check if database is connected"""
+    return get_db() is not None
+
+# ============================================
+# PAGE-SPECIFIC DATABASE FUNCTIONS
+# ============================================
+def db_get_contacts():
+    """Get all contacts from database"""
+    db = get_db()
+    if not db:
+        return []
+
+    try:
+        response = db.table("contacts").select("*").neq("archived", True).execute()
+        return response.data or []
+    except Exception:
+        return []
+
+def db_get_projects():
+    """Get all projects from database"""
+    db = get_db()
+    if not db:
+        return []
+
+    try:
+        response = db.table("projects").select("*").execute()
+        return response.data or []
+    except Exception:
+        return []
+
+def db_get_time_entries():
+    """Get all time entries from database"""
+    db = get_db()
+    if not db:
+        return []
+
+    try:
+        response = db.table("time_entries").select("*, projects(id, name, client_id)").execute()
+        return response.data or []
+    except Exception:
+        return []
+
+def db_create_time_entry(entry_data: dict):
+    """Create a new time entry in database"""
+    db = get_db()
+    if not db:
+        return None
+
+    try:
+        response = db.table("time_entries").insert(entry_data).execute()
+        return response.data[0] if response.data else None
+    except Exception:
+        return None
+
+def db_get_invoices():
+    """Get all invoices from database"""
+    db = get_db()
+    if not db:
+        return []
+
+    try:
+        response = db.table("invoices").select("*").execute()
+        return response.data or []
+    except Exception:
+        return []
+
+def db_update_invoice(invoice_id: str, data: dict):
+    """Update an invoice in database"""
+    db = get_db()
+    if not db:
+        return None
+
+    try:
+        response = db.table("invoices").update(data).eq("id", invoice_id).execute()
+        return response.data[0] if response.data else None
+    except Exception:
+        return None
+
+# ============================================
+# NAVIGATION SIDEBAR (self-contained)
+# ============================================
+HIDE_STREAMLIT_NAV = """
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #1a1a2e;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label span {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+</style>
+"""
+
+PAGE_CONFIG = {
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+}
+
+def render_sidebar(current_page="Time & Billing"):
+    """Render the navigation sidebar"""
+    st.markdown(HIDE_STREAMLIT_NAV, unsafe_allow_html=True)
+
+    with st.sidebar:
+        # Logo/Title
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("---")
+
+        # Navigation using radio buttons
+        pages = [f"{config['icon']} {name}" for name, config in PAGE_CONFIG.items()]
+        current_index = list(PAGE_CONFIG.keys()).index(current_page) if current_page in PAGE_CONFIG else 0
+
+        selected = st.radio("Navigation", pages, index=current_index, label_visibility="collapsed")
+
+        # Handle navigation
+        selected_name = selected.split(" ", 1)[1] if " " in selected else selected
+        if selected_name != current_page:
+            config = PAGE_CONFIG.get(selected_name)
+            if config and config['path']:
+                st.switch_page(config['path'])
+
+        st.markdown("---")
+
+def render_sidebar_stats(stats: dict):
+    """Render stats in the sidebar"""
+    with st.sidebar:
+        st.markdown("### Quick Stats")
+        for label, value in stats.items():
+            st.metric(label, value)
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 st.set_page_config(
     page_title="MPT-CRM - Time & Billing",
-    page_icon="💰",
+    page_icon="favicon.jpg",
     layout="wide"
 )
 
-# Render shared sidebar
+# ============================================
+# RENDER SIDEBAR
+# ============================================
 render_sidebar("Time & Billing")
 
-# Initialize session state
-if 'invoices' not in st.session_state:
-    st.session_state.invoices = [
+# Show database connection status in sidebar
+with st.sidebar:
+    if db_is_connected():
+        st.success("Database connected", icon="✅")
+    else:
+        st.error("Database not connected - check .env file", icon="❌")
+
+# ============================================
+# INITIALIZE SESSION STATE
+# ============================================
+if 'tb_invoices' not in st.session_state:
+    st.session_state.tb_invoices = [
         {
             "id": "inv-1",
             "invoice_number": "INV-2026-001",
@@ -41,12 +227,12 @@ if 'invoices' not in st.session_state:
         },
     ]
 
-# Use time_entries from Projects page if available
-if 'time_entries' not in st.session_state:
-    st.session_state.time_entries = []
+# Use time_entries with page-specific prefix
+if 'tb_time_entries' not in st.session_state:
+    st.session_state.tb_time_entries = []
 
-if 'projects' not in st.session_state:
-    st.session_state.projects = []
+if 'tb_projects' not in st.session_state:
+    st.session_state.tb_projects = []
 
 # Invoice status definitions
 INVOICE_STATUS = {
@@ -57,7 +243,31 @@ INVOICE_STATUS = {
     "cancelled": {"label": "Cancelled", "icon": "❌", "color": "#6c757d"},
 }
 
-# Main page
+# ============================================
+# CACHED DATA LOADERS
+# ============================================
+def get_cached_clients():
+    """Get clients from cache or load on first access"""
+    if 'tb_cached_clients' not in st.session_state:
+        if db_is_connected():
+            all_contacts = db_get_contacts()
+            st.session_state.tb_cached_clients = [c for c in all_contacts if c.get('type') == 'client']
+        else:
+            st.session_state.tb_cached_clients = []
+    return st.session_state.tb_cached_clients
+
+def get_cached_projects():
+    """Get projects from cache or load on first access"""
+    if 'tb_cached_projects' not in st.session_state:
+        if db_is_connected():
+            st.session_state.tb_cached_projects = db_get_projects()
+        else:
+            st.session_state.tb_cached_projects = st.session_state.tb_projects
+    return st.session_state.tb_cached_projects
+
+# ============================================
+# MAIN PAGE
+# ============================================
 st.title("💰 Time & Billing")
 
 # Tabs for different views
@@ -69,14 +279,41 @@ tab1, tab2, tab3 = st.tabs(["⏱️ Time Tracking", "📄 Invoices", "📊 Summa
 with tab1:
     st.markdown("### ⏱️ Time Entries")
 
-    # Quick time entry
+    # Quick time entry - only load data when expander is opened
     with st.expander("➕ Log Time Entry", expanded=False):
+        # Load cached data only when this section is visible
+        clients = get_cached_clients()
+        all_projects = get_cached_projects()
+
         col1, col2 = st.columns(2)
 
         with col1:
-            # Get project options
-            project_options = ["-- Select Project --"] + [p['name'] for p in st.session_state.projects]
-            selected_project = st.selectbox("Project", project_options, key="te_project")
+            # Step 1: Select Client first
+            client_options = ["-- Select Client --"] + [
+                f"{c.get('company', '')} ({c['first_name']} {c['last_name']})" if c.get('company')
+                else f"{c['first_name']} {c['last_name']}"
+                for c in clients
+            ]
+            selected_client_display = st.selectbox("Client *", client_options, key="te_client")
+
+            # Get selected client ID
+            selected_client = None
+            if selected_client_display != "-- Select Client --":
+                client_idx = client_options.index(selected_client_display) - 1
+                if 0 <= client_idx < len(clients):
+                    selected_client = clients[client_idx]
+
+            # Step 2: Filter projects by selected client
+            if selected_client:
+                client_projects = [p for p in all_projects if p.get('client_id') == selected_client['id']]
+                if client_projects:
+                    project_options = ["-- Select Project --"] + [p['name'] for p in client_projects]
+                else:
+                    project_options = ["-- No projects for this client --"]
+            else:
+                project_options = ["-- Select Client First --"]
+
+            selected_project = st.selectbox("Project *", project_options, key="te_project")
 
             entry_date = st.date_input("Date", value=date.today(), key="te_date")
             entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, step=0.25, value=1.0, key="te_hours")
@@ -84,35 +321,61 @@ with tab1:
         with col2:
             entry_desc = st.text_area("Description", height=100, key="te_desc", placeholder="What did you work on?")
             entry_billable = st.checkbox("Billable", value=True, key="te_billable")
+            hourly_rate = st.number_input("Hourly Rate ($)", min_value=0.0, step=25.0, value=150.0, key="te_rate")
 
         if st.button("Add Entry", type="primary"):
-            if selected_project != "-- Select Project --" and entry_hours > 0:
-                project = next((p for p in st.session_state.projects if p['name'] == selected_project), None)
+            if selected_client and selected_project not in ["-- Select Project --", "-- Select Client First --", "-- No projects for this client --"] and entry_hours > 0:
+                # Find the project
+                project = next((p for p in all_projects if p['name'] == selected_project), None)
                 if project:
+                    # Get client display name
+                    client_name = selected_client.get('company') or f"{selected_client['first_name']} {selected_client['last_name']}"
+
                     new_entry = {
-                        "id": f"te-{len(st.session_state.time_entries) + 1}",
+                        "id": f"te-{len(st.session_state.tb_time_entries) + 1}",
                         "project_id": project['id'],
                         "project_name": project['name'],
+                        "client_id": selected_client['id'],
+                        "client_name": client_name,
                         "date": entry_date.strftime("%Y-%m-%d"),
                         "hours": entry_hours,
+                        "hourly_rate": hourly_rate,
                         "description": entry_desc,
                         "billable": entry_billable,
                         "invoiced": False
                     }
-                    st.session_state.time_entries.append(new_entry)
-                    project['hours_logged'] = project.get('hours_logged', 0) + entry_hours
-                    st.success(f"Added {entry_hours} hours to {selected_project}")
+
+                    # Save to database if connected
+                    if db_is_connected():
+                        db_create_time_entry({
+                            "project_id": project['id'],
+                            "description": entry_desc,
+                            "hours": entry_hours,
+                            "hourly_rate": hourly_rate,
+                            "date": entry_date.strftime("%Y-%m-%d"),
+                            "is_billable": entry_billable,
+                            "is_invoiced": False
+                        })
+
+                    st.session_state.tb_time_entries.append(new_entry)
+                    st.success(f"Added {entry_hours} hours to {client_name} - {selected_project}")
                     st.rerun()
             else:
-                st.warning("Please select a project and enter hours")
+                st.warning("Please select a client, project, and enter hours")
 
     # Filter options
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
     with filter_col1:
         date_range = st.selectbox("Date Range", ["This Week", "This Month", "Last 30 Days", "All Time"], key="te_filter_date")
     with filter_col2:
-        project_filter = st.selectbox("Project", ["All Projects"] + [p['name'] for p in st.session_state.projects], key="te_filter_project")
+        # Client filter
+        client_filter_options = ["All Clients"] + list(set(e.get('client_name', 'Unknown') for e in st.session_state.tb_time_entries if e.get('client_name')))
+        client_filter = st.selectbox("Client", client_filter_options, key="te_filter_client")
     with filter_col3:
+        # Get projects for filter dropdown
+        filter_projects = get_cached_projects()
+        project_filter = st.selectbox("Project", ["All Projects"] + [p['name'] for p in filter_projects], key="te_filter_project")
+    with filter_col4:
         billable_filter = st.selectbox("Type", ["All", "Billable Only", "Non-Billable Only"], key="te_filter_billable")
 
     # Calculate date filter
@@ -127,10 +390,13 @@ with tab1:
         start_date = None
 
     # Filter entries
-    filtered_entries = st.session_state.time_entries
+    filtered_entries = st.session_state.tb_time_entries
 
     if start_date:
         filtered_entries = [e for e in filtered_entries if datetime.strptime(e['date'], "%Y-%m-%d").date() >= start_date]
+
+    if client_filter != "All Clients":
+        filtered_entries = [e for e in filtered_entries if e.get('client_name') == client_filter]
 
     if project_filter != "All Projects":
         filtered_entries = [e for e in filtered_entries if e.get('project_name') == project_filter]
@@ -169,14 +435,21 @@ with tab1:
                     st.markdown(f"**{entry['date']}**")
 
                 with col2:
+                    client_name = entry.get('client_name', '')
                     project_name = entry.get('project_name', 'Unknown Project')
-                    st.markdown(f"**{project_name}**")
-                    st.caption(entry.get('description', 'No description'))
+                    if client_name:
+                        st.markdown(f"**{client_name}**")
+                        st.caption(f"📁 {project_name}")
+                    else:
+                        st.markdown(f"**{project_name}**")
+                    if entry.get('description'):
+                        st.caption(entry.get('description'))
 
                 with col3:
+                    rate = entry.get('hourly_rate', default_rate)
                     st.markdown(f"**{entry['hours']:.2f} hrs**")
                     if entry.get('billable'):
-                        st.caption(f"💰 ${entry['hours'] * default_rate:.0f}")
+                        st.caption(f"💰 ${entry['hours'] * rate:.0f}")
 
                 with col4:
                     if entry.get('billable'):
@@ -202,9 +475,9 @@ with tab2:
             st.toast("Invoice creation wizard coming soon!")
 
     # Invoice stats
-    draft_invoices = [i for i in st.session_state.invoices if i['status'] == 'draft']
-    sent_invoices = [i for i in st.session_state.invoices if i['status'] == 'sent']
-    paid_invoices = [i for i in st.session_state.invoices if i['status'] == 'paid']
+    draft_invoices = [i for i in st.session_state.tb_invoices if i['status'] == 'draft']
+    sent_invoices = [i for i in st.session_state.tb_invoices if i['status'] == 'sent']
+    paid_invoices = [i for i in st.session_state.tb_invoices if i['status'] == 'paid']
 
     total_outstanding = sum(i['total'] for i in sent_invoices)
     total_paid = sum(i['total'] for i in paid_invoices)
@@ -222,8 +495,8 @@ with tab2:
     st.markdown("---")
 
     # Invoice list
-    if st.session_state.invoices:
-        for invoice in sorted(st.session_state.invoices, key=lambda x: x['created_at'], reverse=True):
+    if st.session_state.tb_invoices:
+        for invoice in sorted(st.session_state.tb_invoices, key=lambda x: x['created_at'], reverse=True):
             status_info = INVOICE_STATUS.get(invoice['status'], INVOICE_STATUS['draft'])
 
             with st.container(border=True):
@@ -265,7 +538,7 @@ with tab3:
     st.markdown("#### This Month")
 
     this_month = date.today().replace(day=1)
-    month_entries = [e for e in st.session_state.time_entries
+    month_entries = [e for e in st.session_state.tb_time_entries
                      if datetime.strptime(e['date'], "%Y-%m-%d").date() >= this_month]
 
     month_hours = sum(e['hours'] for e in month_entries)
@@ -282,32 +555,46 @@ with tab3:
 
     st.markdown("---")
 
-    # By project breakdown
-    st.markdown("#### By Project")
+    # By client breakdown
+    st.markdown("#### By Client")
 
-    project_summary = {}
-    for entry in st.session_state.time_entries:
-        proj_name = entry.get('project_name', 'Unknown')
-        if proj_name not in project_summary:
-            project_summary[proj_name] = {"hours": 0, "billable_hours": 0}
-        project_summary[proj_name]["hours"] += entry['hours']
+    client_summary = {}
+    for entry in st.session_state.tb_time_entries:
+        client_name = entry.get('client_name', 'Unknown Client')
+        proj_name = entry.get('project_name', 'Unknown Project')
+        rate = entry.get('hourly_rate', default_rate)
+
+        if client_name not in client_summary:
+            client_summary[client_name] = {"hours": 0, "billable_hours": 0, "revenue": 0, "projects": set()}
+
+        client_summary[client_name]["hours"] += entry['hours']
+        client_summary[client_name]["projects"].add(proj_name)
         if entry.get('billable', True):
-            project_summary[proj_name]["billable_hours"] += entry['hours']
+            client_summary[client_name]["billable_hours"] += entry['hours']
+            client_summary[client_name]["revenue"] += entry['hours'] * rate
 
-    if project_summary:
-        for proj_name, data in project_summary.items():
+    if client_summary:
+        for client_name, data in sorted(client_summary.items()):
             with st.container(border=True):
-                col1, col2, col3 = st.columns([3, 1, 1])
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
                 with col1:
-                    st.markdown(f"**{proj_name}**")
+                    st.markdown(f"**{client_name}**")
+                    projects_list = ", ".join(list(data['projects'])[:3])
+                    if len(data['projects']) > 3:
+                        projects_list += f" +{len(data['projects']) - 3} more"
+                    st.caption(f"📁 {projects_list}")
                 with col2:
                     st.metric("Hours", f"{data['hours']:.1f}")
                 with col3:
-                    st.metric("Revenue", f"${data['billable_hours'] * default_rate:,.0f}")
+                    st.metric("Billable", f"{data['billable_hours']:.1f}")
+                with col4:
+                    st.metric("Revenue", f"${data['revenue']:,.0f}")
     else:
         st.info("No time tracked yet.")
 
-# Sidebar stats
+# ============================================
+# SIDEBAR STATS
+# ============================================
 render_sidebar_stats({
     "Hours This Month": f"{month_hours:.1f}",
     "Revenue": f"${month_revenue:,.0f}",

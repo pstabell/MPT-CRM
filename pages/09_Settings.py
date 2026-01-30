@@ -1,45 +1,144 @@
 """
 MPT-CRM Settings Page
 Configure integrations, user preferences, and system settings
+
+SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
 """
 
 import streamlit as st
 import os
 from datetime import datetime
-import sys
 from pathlib import Path
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.navigation import render_sidebar
+# ============================================
+# DATABASE CONNECTION (self-contained)
+# ============================================
+try:
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
 
+@st.cache_resource(show_spinner=False)
+def get_db():
+    """Create and cache Supabase client"""
+    if not SUPABASE_AVAILABLE:
+        return None
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if url and key:
+        try:
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None
+
+def db_is_connected():
+    """Check if database is connected"""
+    return get_db() is not None
+
+# ============================================
+# NAVIGATION SIDEBAR (self-contained)
+# ============================================
+HIDE_STREAMLIT_NAV = """
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #1a1a2e;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label span {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+</style>
+"""
+
+PAGE_CONFIG = {
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+}
+
+def render_sidebar(current_page="Settings"):
+    """Render the navigation sidebar"""
+    st.markdown(HIDE_STREAMLIT_NAV, unsafe_allow_html=True)
+
+    with st.sidebar:
+        # Logo/Title
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("---")
+
+        # Navigation using radio buttons
+        pages = [f"{config['icon']} {name}" for name, config in PAGE_CONFIG.items()]
+        current_index = list(PAGE_CONFIG.keys()).index(current_page) if current_page in PAGE_CONFIG else 0
+
+        selected = st.radio("Navigation", pages, index=current_index, label_visibility="collapsed")
+
+        # Handle navigation
+        selected_name = selected.split(" ", 1)[1] if " " in selected else selected
+        if selected_name != current_page:
+            config = PAGE_CONFIG.get(selected_name)
+            if config and config['path']:
+                st.switch_page(config['path'])
+
+        st.markdown("---")
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 st.set_page_config(
     page_title="MPT-CRM - Settings",
-    page_icon="⚙️",
+    page_icon="favicon.jpg",
     layout="wide"
 )
 
-# Render shared sidebar
+# ============================================
+# RENDER SIDEBAR
+# ============================================
 render_sidebar("Settings")
 
-# Initialize settings in session state
-if 'settings' not in st.session_state:
-    st.session_state.settings = {
+# ============================================
+# INITIALIZE SESSION STATE
+# ============================================
+if 'settings_data' not in st.session_state:
+    st.session_state.settings_data = {
         "company_name": "Metro Point Technology, LLC",
         "owner_name": "Patrick Stabell",
         "email": "patrick@metropointtechnology.com",
         "phone": "(239) 600-8159",
         "address": "4021 NE 8th Place, Cape Coral, FL 33909",
         "website": "www.MetroPointTechnology.com",
-        "default_hourly_rate": 150,
-        "tax_rate": 0,
+        "default_hourly_rate": 150.0,
+        "tax_rate": 0.0,
         "invoice_prefix": "INV",
         "invoice_due_days": 30,
-        "supabase_connected": False,
+        "supabase_connected": db_is_connected(),
         "sendgrid_connected": False,
     }
 
-# Main page
+# ============================================
+# MAIN PAGE
+# ============================================
 st.title("⚙️ Settings")
 
 # Tabs for different settings sections
@@ -51,7 +150,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["🏢 Company", "🔗 Integrations", "💰 Bil
 with tab1:
     st.markdown("### Company Information")
 
-    settings = st.session_state.settings
+    settings = st.session_state.settings_data
 
     col1, col2 = st.columns(2)
 
@@ -84,11 +183,15 @@ with tab2:
     st.markdown("#### 🗄️ Supabase (Database)")
 
     with st.container(border=True):
-        if settings['supabase_connected']:
+        if db_is_connected():
             st.success("✅ Connected to Supabase")
-            if st.button("Disconnect Supabase"):
-                settings['supabase_connected'] = False
-                st.rerun()
+            if st.button("Test Connection"):
+                try:
+                    db = get_db()
+                    db.table("contacts").select("id").limit(1).execute()
+                    st.success("Connection test passed!")
+                except Exception as e:
+                    st.error(f"Connection test failed: {str(e)[:100]}")
         else:
             st.warning("⚠️ Not connected")
             st.markdown("Enter your Supabase credentials to enable persistent data storage.")
@@ -163,8 +266,8 @@ with tab3:
     col1, col2 = st.columns(2)
 
     with col1:
-        new_rate = st.number_input("Default Hourly Rate ($)", value=settings['default_hourly_rate'], min_value=0, step=25)
-        new_tax = st.number_input("Tax Rate (%)", value=settings['tax_rate'], min_value=0.0, max_value=100.0, step=0.5)
+        new_rate = st.number_input("Default Hourly Rate ($)", value=float(settings['default_hourly_rate']), min_value=0.0, step=25.0)
+        new_tax = st.number_input("Tax Rate (%)", value=float(settings['tax_rate']), min_value=0.0, max_value=100.0, step=0.5)
 
     with col2:
         new_prefix = st.text_input("Invoice Number Prefix", value=settings['invoice_prefix'])
@@ -263,7 +366,7 @@ with st.expander("⚠️ Danger Zone"):
     with col2:
         st.markdown("**Reset Data**")
         if st.button("🗑️ Clear All Session Data", type="secondary"):
-            for key in ['contacts', 'deals', 'projects', 'tasks', 'time_entries', 'invoices', 'email_templates', 'email_campaigns']:
+            for key in ['contacts', 'pipeline_deals', 'proj_projects', 'tasks_list', 'tb_time_entries', 'tb_invoices', 'mkt_campaigns', 'mkt_email_templates']:
                 if key in st.session_state:
                     del st.session_state[key]
-            st.warning("Session data cleared. Refresh to reload sample data.")
+            st.success("Session data cleared. Refresh to reload from database.")

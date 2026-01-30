@@ -9,6 +9,16 @@ from datetime import datetime
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import requests
+from PIL import Image
+from io import BytesIO
+import base64
+import time
+import uuid
+import json
+
+# Page load timing
+_page_load_start = time.time()
 
 # Load environment variables
 env_path = Path(__file__).parent.parent / ".env"
@@ -50,24 +60,82 @@ def db_is_connected():
     """Check if database is connected"""
     return get_db() is not None
 
+@st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
+def get_rotated_image(image_url, rotation_degrees):
+    """Fetch image from URL and rotate it by specified degrees (cached)"""
+    try:
+        print(f"[DEBUG] Rotating image (cache miss): {image_url[:50]}... by {rotation_degrees}°")
+        import time
+        start_time = time.time()
+
+        # Fetch the image with shorter timeout and no retries
+        response = requests.get(image_url, timeout=(3, 10))  # 3s connection, 10s read
+        fetch_time = time.time() - start_time
+        print(f"[DEBUG] Fetch took {fetch_time:.2f}s")
+        if response.status_code != 200:
+            print(f"[DEBUG] Failed to fetch image: HTTP {response.status_code}")
+            return None
+
+        # Open with PIL
+        img = Image.open(BytesIO(response.content))
+        print(f"[DEBUG] Original image size: {img.size}")
+
+        # Rotate the image (PIL rotate: positive = counter-clockwise)
+        # For 90° clockwise rotation (portrait to landscape), we need -90
+        if rotation_degrees != 0:
+            img = img.rotate(-rotation_degrees, expand=True)
+            print(f"[DEBUG] Rotated image size: {img.size}")
+
+        # Convert to bytes for Streamlit
+        buf = BytesIO()
+        img.save(buf, format='JPEG', quality=85)
+        buf.seek(0)
+
+        print(f"[DEBUG] Successfully rotated image")
+        return buf.getvalue()  # Return bytes instead of BytesIO for caching
+    except Exception as e:
+        print(f"[ERROR] Error rotating image: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 # ============================================
-# PAGE-SPECIFIC DATABASE FUNCTIONS
+# CACHING LAYER
 # ============================================
-def db_get_contacts(include_archived=False):
-    """Get all contacts from database"""
+@st.cache_data(ttl=300, show_spinner=False)  # Cache for 5 minutes
+def cached_get_contacts(include_archived=False, _cache_key=None):
+    """Get all contacts from database with caching"""
     db = get_db()
     if not db:
         return None
 
     try:
+        # Get all contacts from database
         query = db.table("contacts").select("*").order("created_at", desc=True)
-        if not include_archived:
-            query = query.neq("archived", True)
         response = query.execute()
-        return response.data if response.data else []
+        result = response.data if response.data else []
+
+        # Filter archived contacts in Python (Supabase query filter was causing issues)
+        if not include_archived and result:
+            result = [c for c in result if not c.get('archived')]
+
+        return result
     except Exception as e:
         print(f"Error getting contacts: {e}")
         return None
+
+def invalidate_contacts_cache():
+    """Clear the contacts cache to force refresh"""
+    cached_get_contacts.clear()
+
+# ============================================
+# PAGE-SPECIFIC DATABASE FUNCTIONS
+# ============================================
+def db_get_contacts(include_archived=False):
+    """Get all contacts from database (uses cache)"""
+    # Use cache key based on session state to allow manual refresh
+    cache_key = st.session_state.get('contacts_cache_version', 0)
+    return cached_get_contacts(include_archived, _cache_key=cache_key)
 
 def db_get_contact(contact_id):
     """Get a single contact by ID"""
@@ -320,7 +388,7 @@ def db_merge_contacts(primary_id, secondary_id):
             merged_counts["notes_merged"] = True
 
         # 6. Fill in any missing fields on primary from secondary
-        fields_to_fill = ['phone', 'company', 'source', 'source_detail']
+        fields_to_fill = ['phone', 'company', 'source', 'source_detail', 'card_image_url']
         update_data = {}
         for field in fields_to_fill:
             if not primary.get(field) and secondary.get(field):
@@ -332,6 +400,15 @@ def db_merge_contacts(primary_id, secondary_id):
         if secondary_tags:
             combined_tags = list(set(primary_tags + secondary_tags))
             update_data['tags'] = combined_tags
+
+        # Merge card images - if both have images, keep both in notes
+        if primary.get('card_image_url') and secondary.get('card_image_url'):
+            # Both have card images - add secondary's to notes
+            merge_timestamp = datetime.now().strftime("%m/%d/%Y %I:%M %p")
+            secondary_name = f"{secondary.get('first_name', '')} {secondary.get('last_name', '')}".strip()
+            image_note = f"\n\n**[{merge_timestamp}] Card image from merged contact {secondary_name}:**\n{secondary.get('card_image_url')}"
+            current_notes = update_data.get('notes', primary.get('notes', '')) or ''
+            update_data['notes'] = current_notes + image_note
 
         if update_data:
             db.table("contacts").update(update_data).eq("id", primary_id).execute()
@@ -350,6 +427,10 @@ def db_merge_contacts(primary_id, secondary_id):
         # 8. Delete the secondary contact (all data has been transferred)
         db.table("contacts").delete().eq("id", secondary_id).execute()
 
+        # 9. Invalidate contacts cache to force refresh
+        import streamlit as st
+        st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
+
         return {
             "success": True,
             "message": f"Successfully merged contacts. Transferred: {merged_counts['deals']} deals, {merged_counts['intakes']} discovery forms, {merged_counts['activities']} activities.",
@@ -359,20 +440,37 @@ def db_merge_contacts(primary_id, secondary_id):
     except Exception as e:
         return {"success": False, "message": f"Merge failed: {str(e)}"}
 
-def db_get_intakes(contact_id=None):
-    """Get client intakes for a contact"""
+@st.cache_data(ttl=1800, show_spinner=False)  # Cache for 30 minutes
+def cached_get_intakes(contact_id=None, _cache_key=None):
+    """Get client intakes for a contact (cached)"""
+    print(f"[DEBUG] cached_get_intakes called for contact_id={contact_id}, cache_key={_cache_key}")
     db = get_db()
     if not db:
+        print("[DEBUG] No database connection")
         return []
 
     try:
-        query = db.table("client_intakes").select("*, contacts(first_name, last_name, company)").order("intake_date", desc=True)
+        # Don't join contacts table - we already have contact info when viewing contact detail
+        print(f"[DEBUG] Querying client_intakes for contact_id={contact_id}")
+        query = db.table("client_intakes").select("*").order("intake_date", desc=True)
         if contact_id:
             query = query.eq("contact_id", contact_id)
+
+        import time
+        start = time.time()
         response = query.execute()
+        elapsed = time.time() - start
+        print(f"[DEBUG] Intakes query took {elapsed:.2f}s, returned {len(response.data) if response.data else 0} results")
+
         return response.data if response.data else []
-    except Exception:
+    except Exception as e:
+        print(f"[ERROR] Error getting intakes: {e}")
         return []
+
+def db_get_intakes(contact_id=None):
+    """Get client intakes for a contact"""
+    cache_key = st.session_state.get('intakes_cache_version', 0)
+    return cached_get_intakes(contact_id, _cache_key=cache_key)
 
 def db_log_activity(activity_type, description, contact_id=None):
     """Log an activity"""
@@ -388,6 +486,136 @@ def db_log_activity(activity_type, description, contact_id=None):
         }).execute()
         return response.data[0] if response.data else None
     except Exception:
+        return None
+
+# ============================================
+# BUSINESS CARD SCANNER FUNCTIONS
+# ============================================
+
+def extract_contact_from_business_card(image_bytes, image_type="image/png"):
+    """
+    Use Claude Vision API to extract contact info from a business card image.
+    Returns dict with first_name, last_name, company, email, phone, title, confidence, raw_text.
+    """
+    try:
+        import anthropic
+    except ImportError:
+        return {"error": "anthropic package not installed. Run: pip install anthropic"}
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return {"error": "ANTHROPIC_API_KEY not configured in environment variables"}
+
+    # Optimize image size to avoid timeouts
+    try:
+        img = Image.open(BytesIO(image_bytes))
+
+        # Resize if image is very large (max 1600px on longest side)
+        max_size = 1600
+        if max(img.size) > max_size:
+            ratio = max_size / max(img.size)
+            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+        # Convert to JPEG with quality 85 to reduce size
+        output = BytesIO()
+        if img.mode in ("RGBA", "LA", "P"):
+            img = img.convert("RGB")
+        img.save(output, format="JPEG", quality=85, optimize=True)
+        image_bytes = output.getvalue()
+        image_type = "image/jpeg"
+    except Exception as e:
+        print(f"[Contact Extraction] Image optimization failed: {e}, using original")
+
+    # Encode image to base64
+    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+
+    extraction_prompt = """Analyze this business card image and extract the contact information.
+
+Return a JSON object with these fields (use null for any field not found):
+{
+    "first_name": "extracted first name",
+    "last_name": "extracted last name",
+    "company": "company/organization name",
+    "email": "email address",
+    "phone": "phone number (preserve formatting)",
+    "title": "job title/position",
+    "website": "website URL if present",
+    "address": "physical address if present",
+    "confidence": 0.0 to 1.0 rating of extraction confidence,
+    "raw_text": "all text visible on the card"
+}
+
+Important:
+- Extract the primary contact's name, not company name as the person's name
+- If multiple phone numbers, prefer mobile/cell
+- If multiple emails, prefer personal over generic (info@, contact@)
+- Clean up any OCR artifacts in the text
+- Return ONLY the JSON object, no other text"""
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key, timeout=60.0)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": image_type,
+                                "data": image_b64
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": extraction_prompt
+                        }
+                    ]
+                }
+            ]
+        )
+
+        result_text = response.content[0].text
+
+        # Handle markdown code blocks
+        if "```json" in result_text:
+            result_text = result_text.split("```json")[1].split("```")[0]
+        elif "```" in result_text:
+            result_text = result_text.split("```")[1].split("```")[0]
+
+        return json.loads(result_text.strip())
+    except json.JSONDecodeError as e:
+        return {"error": f"Failed to parse response: {e}", "raw_text": result_text if 'result_text' in dir() else ""}
+    except Exception as e:
+        return {"error": str(e)}
+
+def upload_card_image_to_supabase(image_bytes, contact_id):
+    """Upload card image to Supabase Storage and return the public URL"""
+    db = get_db()
+    if not db:
+        return None
+    try:
+        # Generate unique filename
+        filename = f"business-cards/{contact_id}_{uuid.uuid4().hex[:8]}.png"
+
+        # Upload to storage bucket 'card-images'
+        response = db.storage.from_("card-images").upload(
+            filename,
+            image_bytes,
+            {"content-type": "image/png", "upsert": "true"}
+        )
+
+        if response:
+            # Get public URL
+            public_url = db.storage.from_("card-images").get_public_url(filename)
+            return public_url
+        return None
+    except Exception as e:
+        print(f"Error uploading card image: {e}")
         return None
 
 # ============================================
@@ -460,67 +688,31 @@ def render_sidebar(current_page="Contacts"):
 render_sidebar()
 
 # ============================================
-# SAMPLE CONTACTS (for demo when no database)
-# ============================================
-SAMPLE_CONTACTS = [
-    {
-        "id": "c-1",
-        "type": "networking",
-        "first_name": "John",
-        "last_name": "Smith",
-        "company": "Smith Consulting",
-        "email": "john@smithconsulting.com",
-        "phone": "(239) 555-0101",
-        "source": "networking",
-        "source_detail": "Cape Coral Chamber - Networking at Noon",
-        "tags": ["Cape Coral Chamber", "Professional Services"],
-        "notes": "Met at Monarca's Mexican restaurant networking event.",
-        "email_status": "active",
-        "created_at": "2026-01-23",
-        "last_contacted": "2026-01-23"
-    },
-    {
-        "id": "c-2",
-        "type": "lead",
-        "first_name": "Sarah",
-        "last_name": "Johnson",
-        "company": "Johnson & Co",
-        "email": "sarah@johnsonco.com",
-        "phone": "(239) 555-0102",
-        "source": "referral",
-        "source_detail": "Referred by Mike Williams",
-        "tags": ["Referral", "Website Development", "Hot Lead"],
-        "notes": "Looking for website redesign with client portal.",
-        "email_status": "active",
-        "created_at": "2026-01-10",
-        "last_contacted": "2026-01-20"
-    },
-]
+# NO SAMPLE DATA - Database only
 
 # ============================================
 # PAGE-SPECIFIC HELPER FUNCTIONS
 # ============================================
 def load_contacts():
-    """Load contacts from database or return sample data"""
+    """Load contacts from database only - no sample data"""
     if db_is_connected():
         try:
             contacts = db_get_contacts()
-            if contacts is not None and len(contacts) > 0:
-                return contacts
-            elif contacts is not None and len(contacts) == 0:
-                return []
-            else:
-                return SAMPLE_CONTACTS
+            return contacts if contacts is not None else []
         except Exception as e:
-            st.warning(f"Could not load from database: {str(e)[:50]}...")
-            return SAMPLE_CONTACTS
-    return SAMPLE_CONTACTS
+            st.error(f"Database error: {str(e)[:50]}...")
+            return []
+    else:
+        st.error("Database not connected. Check your .env file.")
+        return []
 
 def save_contact(contact_id, contact_data):
     """Save contact updates to database"""
     if db_is_connected() and not contact_id.startswith("c-") and not contact_id.startswith("local-"):
         try:
             db_update_contact(contact_id, contact_data)
+            # Invalidate cache after update
+            st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
             return True
         except Exception as e:
             st.error(f"Failed to save: {str(e)[:50]}")
@@ -530,7 +722,10 @@ def create_contact(contact_data):
     """Create a new contact in the database"""
     if db_is_connected():
         try:
-            return db_create_contact(contact_data)
+            result = db_create_contact(contact_data)
+            # Invalidate cache after creation
+            st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
+            return result
         except Exception as e:
             st.error(f"Database error: {str(e)[:50]}")
     return None
@@ -539,7 +734,10 @@ def delete_contact(contact_id):
     """Delete a contact from the database"""
     if db_is_connected() and not contact_id.startswith("c-") and not contact_id.startswith("local-"):
         try:
-            return db_delete_contact(contact_id)
+            result = db_delete_contact(contact_id)
+            # Invalidate cache after deletion
+            st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
+            return result
         except Exception as e:
             st.error(f"Failed to delete: {str(e)[:50]}")
     return False
@@ -582,8 +780,6 @@ def load_archived_contacts():
 # ============================================
 if 'contacts_list' not in st.session_state or st.session_state.get('contacts_need_refresh', True):
     loaded = load_contacts()
-    if db_is_connected() and loaded == SAMPLE_CONTACTS:
-        loaded = load_contacts()
     st.session_state.contacts_list = loaded
     st.session_state.contacts_need_refresh = False
 
@@ -761,12 +957,18 @@ def show_merge_interface(primary_contact):
 # ============================================
 def show_contact_detail(contact_id):
     """Display full contact detail view"""
+    import time
+    detail_start = time.time()
+
     contact = next((c for c in st.session_state.contacts if c['id'] == contact_id), None)
     if not contact:
         st.session_state.contacts_selected = None
         st.session_state.selected_contact = None
         st.rerun()
         return
+
+    lookup_time = time.time() - detail_start
+    st.sidebar.caption(f"⏱️ Lookup: {lookup_time:.2f}s")
 
     # Header
     col1, col2 = st.columns([3, 1])
@@ -782,6 +984,8 @@ def show_contact_detail(contact_id):
             st.rerun()
 
     st.markdown("---")
+    header_time = time.time() - detail_start
+    st.sidebar.caption(f"⏱️ Header: {header_time:.2f}s")
 
     # Two column layout
     col1, col2 = st.columns([2, 1])
@@ -798,24 +1002,77 @@ def show_contact_detail(contact_id):
         with edit_col2:
             new_last = st.text_input("Last Name", contact['last_name'], key="edit_last")
             new_phone = st.text_input("Phone", contact['phone'], key="edit_phone")
+            new_title = st.text_input("Title", contact.get('title', ''), key="edit_title")
 
-        # Save button for contact info
-        if st.button("💾 Save Contact Info", type="primary", key="save_contact_info"):
-            # Get source_detail from session state (will be set in col2)
-            new_source_detail = st.session_state.get('edit_source_detail', contact.get('source_detail', ''))
-            update_data = {
-                "first_name": new_first,
-                "last_name": new_last,
-                "email": new_email,
-                "phone": new_phone,
-                "company": new_company,
-                "source_detail": new_source_detail
-            }
-            contact.update(update_data)
-            if save_contact(contact['id'], update_data):
-                st.success("Contact saved!")
-            elif not db_is_connected():
-                st.info("Changes saved locally (connect database to persist)")
+        # Check if delete confirmation is pending
+        if st.session_state.get('delete_confirm_contact_id') == contact['id']:
+            # Show confirmation dialog - prominently at the top
+            st.error(f"⚠️ **DELETE CONFIRMATION REQUIRED**")
+            st.warning(f"Are you sure you want to permanently delete **{contact['first_name']} {contact['last_name']}**? This cannot be undone!")
+            confirm_col1, confirm_col2 = st.columns(2)
+            with confirm_col1:
+                if st.button("✅ Yes, Delete", key="confirm_delete_final", type="primary", use_container_width=True):
+                    if db_is_connected():
+                        db = get_db()
+                        try:
+                            # Delete the contact
+                            db.table("contacts").delete().eq("id", contact['id']).execute()
+
+                            # Invalidate cache
+                            if 'contacts_cache_version' in st.session_state:
+                                st.session_state.contacts_cache_version += 1
+                            if 'intakes_cache_version' in st.session_state:
+                                st.session_state.intakes_cache_version += 1
+
+                            # Clear session state
+                            if 'selected_contact_id' in st.session_state:
+                                del st.session_state.selected_contact_id
+                            if 'delete_confirm_contact_id' in st.session_state:
+                                del st.session_state.delete_confirm_contact_id
+
+                            st.success(f"✅ Contact deleted!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting contact: {e}")
+                            if 'delete_confirm_contact_id' in st.session_state:
+                                del st.session_state.delete_confirm_contact_id
+                    else:
+                        st.error("Database not connected")
+            with confirm_col2:
+                if st.button("❌ Cancel", key="cancel_delete_btn", use_container_width=True):
+                    del st.session_state.delete_confirm_contact_id
+                    st.rerun()
+        else:
+            # Show action buttons
+            btn_col1, btn_col2 = st.columns([3, 1])
+            with btn_col1:
+                save_btn = st.button("💾 Save Contact Info", type="primary", key="save_contact_info", use_container_width=True)
+            with btn_col2:
+                delete_btn = st.button("🗑️ Delete", key="delete_contact_btn", use_container_width=True)
+
+            if save_btn:
+                # Get source_detail from session state (will be set in col2)
+                new_source_detail = st.session_state.get('edit_source_detail', contact.get('source_detail', ''))
+                update_data = {
+                    "first_name": new_first,
+                    "last_name": new_last,
+                    "email": new_email,
+                    "phone": new_phone,
+                    "title": new_title,
+                    "company": new_company,
+                    "source_detail": new_source_detail
+                }
+                contact.update(update_data)
+                if save_contact(contact['id'], update_data):
+                    st.success("Contact saved!")
+                elif not db_is_connected():
+                    st.info("Changes saved locally (connect database to persist)")
+
+            if delete_btn:
+                # Set delete confirmation flag
+                st.session_state.delete_confirm_contact_id = contact['id']
+                st.rerun()
 
         # Activity Timeline
         st.markdown("### 📅 Recent Activity")
@@ -945,16 +1202,145 @@ def show_contact_detail(contact_id):
             else:
                 st.warning("Please enter a note")
 
+    col1_time = time.time() - detail_start
+    st.sidebar.caption(f"⏱️ Col1 done: {col1_time:.2f}s")
+
     with col2:
-        # Business Card Image
+        # Business Card Section - with upload capability
+        st.markdown("### 📇 Business Card")
         card_image_url = contact.get('card_image_url')
-        if card_image_url:
-            st.markdown("### 📇 Business Card")
-            with st.container(border=True):
+
+        with st.container(border=True):
+            if card_image_url:
                 try:
-                    st.image(card_image_url, use_container_width=True, caption="Original Card")
+                    # Initialize session state for card image index and rotation
+                    if 'card_image_index' not in st.session_state:
+                        st.session_state.card_image_index = 0
+                    if 'card_image_enlarged' not in st.session_state:
+                        st.session_state.card_image_enlarged = False
+                    if f'card_rotation_{contact_id}' not in st.session_state:
+                        st.session_state[f'card_rotation_{contact_id}'] = {}
+
+                    # Get all card images for this contact
+                    card_images = []
+                    cid = contact['id']
+
+                    # Fallback to single image if no images found in storage
+                    if not card_images and card_image_url:
+                        card_images = [card_image_url]
+
+                    # Only display if we have images
+                    if not card_images:
+                        raise Exception("No card image found")
+
+                    # Ensure index is valid
+                    if st.session_state.card_image_index >= len(card_images):
+                        st.session_state.card_image_index = 0
+
+                    # Display current card image
+                    current_img = card_images[st.session_state.card_image_index]
+                    current_img_key = f"img_{st.session_state.card_image_index}"
+
+                    # Get rotation for current image (default 270 for landscape right-side-up)
+                    rotation_dict = st.session_state.get(f'card_rotation_{cid}', {})
+                    current_rotation = rotation_dict.get(current_img_key, 270)
+
+                    # Get rotated image (cached - should be instant after first load)
+                    start = time.time()
+                    rotated_img = get_rotated_image(current_img, current_rotation)
+                    elapsed = time.time() - start
+                    if elapsed > 1:
+                        st.caption(f"⚠️ Image load took {elapsed:.1f}s (should be cached)")
+
+                    # Display image at full container width (always)
+                    if rotated_img:
+                        st.image(rotated_img, use_container_width=True)
+                    else:
+                        st.image(current_img, use_container_width=True)
+
+                    # Pagination if multiple images
+                    if len(card_images) > 1:
+                        st.caption(f"📄 {st.session_state.card_image_index + 1} of {len(card_images)}")
+                        col_prev, col_next = st.columns(2)
+                        with col_prev:
+                            if st.button("◀ Previous", key="prev_card", disabled=st.session_state.card_image_index == 0, use_container_width=True):
+                                st.session_state.card_image_index -= 1
+                                st.rerun()
+                        with col_next:
+                            if st.button("Next ▶", key="next_card", disabled=st.session_state.card_image_index == len(card_images) - 1, use_container_width=True):
+                                st.session_state.card_image_index += 1
+                                st.rerun()
+
+                    # Rotation button
+                    if st.button("↷ Rotate 90°", key="rotate_card", use_container_width=True):
+                        rotation_dict[current_img_key] = (current_rotation + 90) % 360
+                        st.session_state[f'card_rotation_{cid}'] = rotation_dict
+                        st.rerun()
+
                 except Exception as e:
                     st.caption(f"_Could not load card image: {str(e)[:50]}_")
+
+            # Upload/Replace Card option
+            with st.expander("📤 Upload New Card" if card_image_url else "📤 Add Business Card"):
+                uploaded_card = st.file_uploader(
+                    "Upload card image",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key=f"card_upload_{contact['id']}",
+                    label_visibility="collapsed"
+                )
+
+                if uploaded_card is not None:
+                    st.image(uploaded_card, caption="Preview", use_container_width=True)
+
+                    col_upload, col_scan = st.columns(2)
+                    with col_upload:
+                        if st.button("💾 Save Card", type="primary", use_container_width=True, key="save_card_btn"):
+                            with st.spinner("Uploading..."):
+                                image_bytes = uploaded_card.getvalue()
+                                card_url = upload_card_image_to_supabase(image_bytes, contact['id'])
+                                if card_url:
+                                    db_update_contact(contact['id'], {"card_image_url": card_url})
+                                    st.success("Card saved!")
+                                    st.session_state.contacts_need_refresh = True
+                                    st.rerun()
+                                else:
+                                    st.error("Upload failed")
+
+                    with col_scan:
+                        if st.button("🔍 Scan & Update", use_container_width=True, key="scan_update_btn"):
+                            with st.spinner("Scanning with AI..."):
+                                image_bytes = uploaded_card.getvalue()
+                                image_type = f"image/{uploaded_card.type.split('/')[-1]}" if uploaded_card.type and '/' in uploaded_card.type else "image/png"
+
+                                result = extract_contact_from_business_card(image_bytes, image_type)
+
+                                if "error" in result:
+                                    st.error(f"Scan failed: {result['error']}")
+                                else:
+                                    # Upload the image
+                                    card_url = upload_card_image_to_supabase(image_bytes, contact['id'])
+
+                                    # Update contact with scanned data + card URL
+                                    update_data = {}
+                                    if card_url:
+                                        update_data["card_image_url"] = card_url
+                                    if result.get('phone') and not contact.get('phone'):
+                                        update_data["phone"] = result['phone']
+                                    if result.get('email') and not contact.get('email'):
+                                        update_data["email"] = result['email']
+                                    if result.get('title') and not contact.get('title'):
+                                        update_data["title"] = result['title']
+                                    if result.get('company') and not contact.get('company'):
+                                        update_data["company"] = result['company']
+
+                                    if update_data:
+                                        db_update_contact(contact['id'], update_data)
+                                        st.success(f"Card saved & info updated!")
+                                        st.session_state.contacts_need_refresh = True
+                                        st.rerun()
+                                    else:
+                                        st.success("Card saved (no new info to update)")
+                                        st.rerun()
 
         # Type selector
         st.markdown("### 🏷️ Contact Type")
@@ -1001,9 +1387,11 @@ def show_contact_detail(contact_id):
 
         # Email status
         st.markdown("### 📧 Email Status")
-        email_statuses = ["active", "unsubscribed", "bounced"]
-        status_labels = ["✅ Active", "🚫 Unsubscribed", "⚠️ Bounced"]
-        current_status_idx = email_statuses.index(contact.get('email_status', 'active'))
+        email_statuses = ["pending", "active", "unsubscribed", "bounced"]
+        status_labels = ["⏳ Pending", "✅ Active", "🚫 Unsubscribed", "⚠️ Bounced"]
+        current_email_status = contact.get('email_status', 'active')
+        # Handle case where email_status is not in the list
+        current_status_idx = email_statuses.index(current_email_status) if current_email_status in email_statuses else 1  # Default to 'active'
         new_status = st.selectbox("Status", status_labels, index=current_status_idx, key="email_status")
         contact['email_status'] = email_statuses[status_labels.index(new_status)]
 
@@ -1098,6 +1486,13 @@ def show_contact_detail(contact_id):
         else:
             st.caption("_Archive available for database contacts only_")
 
+    col2_time = time.time() - detail_start
+    st.sidebar.caption(f"⏱️ Col2 done: {col2_time:.2f}s")
+
+    # Show total render time
+    total_time = time.time() - detail_start
+    st.sidebar.caption(f"⏱️ Total render: {total_time:.2f}s")
+
 # ============================================
 # NEW CONTACT FORM
 # ============================================
@@ -1114,27 +1509,82 @@ if 'contacts_merge_primary_id' not in st.session_state:
     st.session_state.contacts_merge_primary_id = None
 
 def show_new_contact_form():
-    """Display the new contact form"""
+    """Display the new contact form with business card scanning option"""
     st.markdown("---")
     st.markdown("## New Contact")
+
+    # Initialize session state for scanned card data
+    if 'scanned_card_data' not in st.session_state:
+        st.session_state.scanned_card_data = None
+    if 'scanned_card_image' not in st.session_state:
+        st.session_state.scanned_card_image = None
+
+    # Business Card Upload Section (outside form for immediate processing)
+    with st.container(border=True):
+        st.markdown("#### 📇 Scan Business Card")
+        st.caption("Upload a business card image to auto-fill contact information")
+
+        uploaded_card = st.file_uploader(
+            "Upload business card",
+            type=["png", "jpg", "jpeg", "webp"],
+            key="new_contact_card_upload",
+            label_visibility="collapsed"
+        )
+
+        if uploaded_card is not None:
+            col_img, col_action = st.columns([2, 1])
+            with col_img:
+                st.image(uploaded_card, caption="Uploaded Card", use_container_width=True)
+
+            with col_action:
+                if st.button("🔍 Extract Info", type="primary", use_container_width=True):
+                    with st.spinner("Scanning card with AI..."):
+                        image_bytes = uploaded_card.getvalue()
+                        image_type = f"image/{uploaded_card.type.split('/')[-1]}" if uploaded_card.type and '/' in uploaded_card.type else "image/png"
+
+                        result = extract_contact_from_business_card(image_bytes, image_type)
+
+                        if "error" in result:
+                            st.error(f"Scan failed: {result['error']}")
+                        else:
+                            st.session_state.scanned_card_data = result
+                            st.session_state.scanned_card_image = image_bytes
+                            st.success("Card scanned!")
+                            st.rerun()
+
+        if st.session_state.scanned_card_data:
+            data = st.session_state.scanned_card_data
+            confidence = data.get('confidence', 0)
+            confidence_pct = int(confidence * 100) if confidence else 0
+            st.success(f"Extracted ({confidence_pct}%): **{data.get('first_name', '')} {data.get('last_name', '')}** - {data.get('company', '')}")
+            if st.button("Clear Scanned Data", key="clear_scan"):
+                st.session_state.scanned_card_data = None
+                st.session_state.scanned_card_image = None
+                st.rerun()
+
+    st.markdown("---")
+
+    # Get pre-filled values from scanned card
+    scanned = st.session_state.scanned_card_data or {}
 
     with st.form("new_contact_form"):
         col1, col2 = st.columns(2)
 
         with col1:
-            first_name = st.text_input("First Name *", placeholder="e.g., John")
-            last_name = st.text_input("Last Name *", placeholder="e.g., Smith")
-            email = st.text_input("Email", placeholder="e.g., john@company.com")
-            phone = st.text_input("Phone", placeholder="e.g., (239) 555-0100")
+            first_name = st.text_input("First Name *", value=scanned.get('first_name', '') or '', placeholder="e.g., John")
+            last_name = st.text_input("Last Name *", value=scanned.get('last_name', '') or '', placeholder="e.g., Smith")
+            email = st.text_input("Email", value=scanned.get('email', '') or '', placeholder="e.g., john@company.com")
+            phone = st.text_input("Phone", value=scanned.get('phone', '') or '', placeholder="e.g., (239) 555-0100")
 
         with col2:
-            company = st.text_input("Company", placeholder="e.g., Smith Consulting")
+            company = st.text_input("Company", value=scanned.get('company', '') or '', placeholder="e.g., Smith Consulting")
             type_options = list(CONTACT_TYPES.keys())
             type_labels = [f"{CONTACT_TYPES[t]['icon']} {CONTACT_TYPES[t]['label']}" for t in type_options]
             contact_type = st.selectbox("Contact Type", type_labels, index=1)
             source = st.selectbox("Source", ["Networking", "Referral", "Website", "LinkedIn", "Cold Outreach", "Conference"])
             source_detail = st.text_input("Source Detail", placeholder="e.g., Cape Coral Chamber event")
 
+        title = st.text_input("Title", value=scanned.get('title', '') or '', placeholder="e.g., CEO, Sales Manager")
         notes = st.text_area("Notes", placeholder="Any initial notes about this contact...")
 
         col_submit, col_cancel = st.columns(2)
@@ -1150,6 +1600,7 @@ def show_new_contact_form():
                 "email": email,
                 "phone": phone,
                 "company": company,
+                "title": title,
                 "type": type_options[type_labels.index(contact_type)],
                 "source": source.lower().replace(" ", "_"),
                 "source_detail": source_detail,
@@ -1160,7 +1611,15 @@ def show_new_contact_form():
 
             result = create_contact(contact_data)
             if result:
+                # Upload card image if we have one
+                if st.session_state.scanned_card_image and result.get('id'):
+                    card_url = upload_card_image_to_supabase(st.session_state.scanned_card_image, result['id'])
+                    if card_url:
+                        db_update_contact(result['id'], {"card_image_url": card_url})
+
                 st.success(f"Contact '{first_name} {last_name}' created!")
+                st.session_state.scanned_card_data = None
+                st.session_state.scanned_card_image = None
                 st.session_state.contacts_need_refresh = True
                 st.session_state.contacts_show_new_form = False
                 st.rerun()
@@ -1170,12 +1629,16 @@ def show_new_contact_form():
                 contact_data["last_contacted"] = datetime.now().strftime("%Y-%m-%d")
                 st.session_state.contacts.append(contact_data)
                 st.success(f"Contact '{first_name} {last_name}' created (local only)")
+                st.session_state.scanned_card_data = None
+                st.session_state.scanned_card_image = None
                 st.session_state.contacts_show_new_form = False
                 st.rerun()
             else:
                 st.error("Failed to create contact")
 
         if cancelled:
+            st.session_state.scanned_card_data = None
+            st.session_state.scanned_card_image = None
             st.session_state.contacts_show_new_form = False
             st.rerun()
 
@@ -1189,7 +1652,7 @@ with st.sidebar:
     if db_is_connected():
         st.success("Database connected", icon="✅")
     else:
-        st.warning("Using sample data", icon="⚠️")
+        st.error("Database not connected - check .env file", icon="❌")
 
 # Show detail view if contact selected
 if st.session_state.contacts_selected:
@@ -1284,10 +1747,10 @@ else:
         if search:
             search_lower = search.lower()
             filtered_contacts = [c for c in filtered_contacts if
-                search_lower in c['first_name'].lower() or
-                search_lower in c['last_name'].lower() or
-                search_lower in c.get('company', '').lower() or
-                search_lower in c.get('email', '').lower()]
+                search_lower in (c.get('first_name') or '').lower() or
+                search_lower in (c.get('last_name') or '').lower() or
+                search_lower in (c.get('company') or '').lower() or
+                search_lower in (c.get('email') or '').lower()]
 
         if type_filter != "All Types":
             type_key = next(k for k, v in CONTACT_TYPES.items() if v['label'] == type_filter)
@@ -1337,3 +1800,7 @@ else:
                         st.session_state.contacts_selected = contact['id']
                         st.session_state.selected_contact = contact['id']
                         st.rerun()
+
+# Show page load time in sidebar (for debugging)
+_page_load_time = time.time() - _page_load_start
+st.sidebar.caption(f"⏱️ Page load: {_page_load_time:.2f}s")

@@ -1,0 +1,11 @@
+-- ============================================================
+-- FIX: Enable RLS on MPT-CRM (qgtjpdviboxxlrivwcan)
+-- Date: 2026-01-29
+-- Tables: ALL 16 public tables
+-- Pattern: auth.role() = 'authenticated' (single-tenant company CRM)
+-- ============================================================
+-- No per-user columns exist — this is MPT's internal CRM.
+-- Policy: Block anon key, allow any authenticated user full CRUD.
+-- Applied via supabase-apply-rls-generic.mjs
+-- All 16 tables: RLS enabled + authenticated user CRUD + service_role
+-- Verification: 16/16 tables secured, 0 exposed

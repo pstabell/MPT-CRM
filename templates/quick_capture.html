@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quick Capture - MPT-CRM</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .camera-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #card-images {
+            display: none;
+        }
+
+        #preview, #back-preview {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        #back-preview {
+            display: none;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.processing {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .counter {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .counter h2 {
+            font-size: 48px;
+            color: #667eea;
+            margin: 0;
+        }
+
+        .counter p {
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        canvas {
+            display: none;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+
+        .info-box p {
+            margin: 0;
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ Quick Capture</h1>
+            <p>Snap cards fast, process later in CRM</p>
+        </div>
+
+        <div class="content">
+            <!-- Card Counter -->
+            <div class="counter">
+                <h2 id="card-count">0</h2>
+                <p>cards captured</p>
+            </div>
+
+            <!-- Info Box -->
+            <div class="info-box">
+                <h4>How it works:</h4>
+                <p>1. Take photo of card (front + back)<br>
+                2. Repeat for all cards (~5 sec each)<br>
+                3. Process in CRM later with AI extraction</p>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status" class="status"></div>
+
+            <!-- Event Name (optional) -->
+            <div class="form-group">
+                <label>Event Name (optional)</label>
+                <input type="text" id="event-name" placeholder="e.g., Tech Conference 2026">
+            </div>
+
+            <!-- Camera Section -->
+            <div id="camera-section" class="camera-section">
+                <div id="card-images">
+                    <img id="preview" alt="Card front">
+                    <img id="back-preview" alt="Card back">
+                </div>
+
+                <input type="file" id="file-input" accept="image/*" capture="environment" style="display: none;">
+
+                <button id="upload-front" class="btn btn-primary">
+                    📸 Snap Front Side
+                </button>
+
+                <button id="upload-back" class="btn btn-secondary hidden">
+                    📸 Snap Back Side (Optional)
+                </button>
+
+                <button id="save-card" class="btn btn-success hidden">
+                    ✓ Save & Next Card
+                </button>
+
+                <button id="skip-back" class="btn btn-secondary hidden" style="font-size: 14px;">
+                    Skip back side
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const preview = document.getElementById('preview');
+        const backPreview = document.getElementById('back-preview');
+        const fileInput = document.getElementById('file-input');
+        const uploadFrontBtn = document.getElementById('upload-front');
+        const uploadBackBtn = document.getElementById('upload-back');
+        const saveCardBtn = document.getElementById('save-card');
+        const skipBackBtn = document.getElementById('skip-back');
+        const status = document.getElementById('status');
+        const cardCount = document.getElementById('card-count');
+        const cardImages = document.getElementById('card-images');
+
+        let capturedFront = null;
+        let capturedBack = null;
+        let scanningBack = false;
+        let totalCards = 0;
+
+        // Upload front side
+        uploadFrontBtn.addEventListener('click', () => {
+            scanningBack = false;
+            fileInput.click();
+        });
+
+        // Upload back side
+        uploadBackBtn.addEventListener('click', () => {
+            scanningBack = true;
+            fileInput.click();
+        });
+
+        // Process uploaded image
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Resize if too large
+                    let width = img.width;
+                    let height = img.height;
+                    const maxSize = 1600;
+
+                    if (width > maxSize || height > maxSize) {
+                        if (width > height) {
+                            height = (height / width) * maxSize;
+                            width = maxSize;
+                        } else {
+                            width = (width / height) * maxSize;
+                            height = maxSize;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+                    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+
+                    if (scanningBack) {
+                        // Back side captured
+                        capturedBack = imageData;
+                        backPreview.src = imageData;
+                        backPreview.style.display = 'block';
+                        uploadBackBtn.classList.add('hidden');
+                        skipBackBtn.classList.add('hidden');
+                        saveCardBtn.classList.remove('hidden');
+                        showStatus('✓ Both sides captured! Tap Save & Next.', 'success');
+                    } else {
+                        // Front side captured
+                        capturedFront = imageData;
+                        preview.src = imageData;
+                        cardImages.style.display = 'block';
+                        uploadFrontBtn.classList.add('hidden');
+                        uploadBackBtn.classList.remove('hidden');
+                        skipBackBtn.classList.remove('hidden');
+                        showStatus('✓ Front captured! Scan back or skip.', 'success');
+                    }
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+            fileInput.value = '';
+        });
+
+        // Skip back side
+        skipBackBtn.addEventListener('click', () => {
+            uploadBackBtn.classList.add('hidden');
+            skipBackBtn.classList.add('hidden');
+            saveCardBtn.classList.remove('hidden');
+            showStatus('✓ Front only. Tap Save & Next.', 'success');
+        });
+
+        // Save card and reset for next
+        saveCardBtn.addEventListener('click', async () => {
+            if (!capturedFront) {
+                showStatus('Error: No front image captured.', 'error');
+                return;
+            }
+
+            showStatus('💾 Saving card...', 'processing');
+            saveCardBtn.disabled = true;
+
+            try {
+                const response = await fetch('/quick-capture', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        front_image: capturedFront,
+                        back_image: capturedBack,
+                        event_name: document.getElementById('event-name').value
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    totalCards++;
+                    cardCount.textContent = totalCards;
+                    showStatus(`✅ Card #${totalCards} saved! Ready for next...`, 'success');
+
+                    // Reset for next card
+                    setTimeout(() => {
+                        resetForm();
+                    }, 1500);
+                } else {
+                    showStatus('Error: ' + result.error, 'error');
+                    saveCardBtn.disabled = false;
+                }
+            } catch (err) {
+                showStatus('Save failed: ' + err.message, 'error');
+                saveCardBtn.disabled = false;
+            }
+        });
+
+        function resetForm() {
+            capturedFront = null;
+            capturedBack = null;
+            scanningBack = false;
+            cardImages.style.display = 'none';
+            backPreview.style.display = 'none';
+            uploadFrontBtn.classList.remove('hidden');
+            uploadBackBtn.classList.add('hidden');
+            skipBackBtn.classList.add('hidden');
+            saveCardBtn.classList.add('hidden');
+            saveCardBtn.disabled = false;
+            status.style.display = 'none';
+        }
+
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status ' + type;
+            status.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,29 +1,133 @@
 """
 MPT-CRM Tasks Page
 Manage tasks with priorities, due dates, and associations to contacts/deals/projects
+
+SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
 """
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-import sys
-from pathlib import Path
+import os
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.navigation import render_sidebar, render_sidebar_stats
+# ============================================
+# DATABASE CONNECTION (self-contained)
+# ============================================
+try:
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
 
+@st.cache_resource(show_spinner=False)
+def get_db():
+    """Create and cache Supabase client"""
+    if not SUPABASE_AVAILABLE:
+        return None
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if url and key:
+        try:
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None
+
+def db_is_connected():
+    """Check if database is connected"""
+    return get_db() is not None
+
+# ============================================
+# NAVIGATION SIDEBAR (self-contained)
+# ============================================
+HIDE_STREAMLIT_NAV = """
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #1a1a2e;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label span {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+</style>
+"""
+
+PAGE_CONFIG = {
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+}
+
+def render_sidebar(current_page="Tasks"):
+    """Render the navigation sidebar"""
+    st.markdown(HIDE_STREAMLIT_NAV, unsafe_allow_html=True)
+
+    with st.sidebar:
+        # Logo/Title
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("---")
+
+        # Navigation using radio buttons
+        pages = [f"{config['icon']} {name}" for name, config in PAGE_CONFIG.items()]
+        current_index = list(PAGE_CONFIG.keys()).index(current_page) if current_page in PAGE_CONFIG else 0
+
+        selected = st.radio("Navigation", pages, index=current_index, label_visibility="collapsed")
+
+        # Handle navigation
+        selected_name = selected.split(" ", 1)[1] if " " in selected else selected
+        if selected_name != current_page:
+            config = PAGE_CONFIG.get(selected_name)
+            if config and config['path']:
+                st.switch_page(config['path'])
+
+        st.markdown("---")
+
+def render_sidebar_stats(stats: dict):
+    """Render stats in the sidebar"""
+    with st.sidebar:
+        st.markdown("### Quick Stats")
+        for label, value in stats.items():
+            st.metric(label, value)
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 st.set_page_config(
     page_title="MPT-CRM - Tasks",
-    page_icon="✅",
+    page_icon="favicon.jpg",
     layout="wide"
 )
 
-# Render shared sidebar
+# ============================================
+# RENDER SIDEBAR
+# ============================================
 render_sidebar("Tasks")
 
-# Initialize session state for tasks
-if 'tasks' not in st.session_state:
-    st.session_state.tasks = [
+# ============================================
+# INITIALIZE SESSION STATE
+# ============================================
+if 'tasks_list' not in st.session_state:
+    st.session_state.tasks_list = [
         {
             "id": "task-1",
             "title": "Follow up with John Smith",
@@ -140,7 +244,9 @@ def get_due_status(due_date_str):
         return f"📅 {due_date_str}", "gray"
 
 
-# Main page
+# ============================================
+# MAIN PAGE
+# ============================================
 st.title("✅ Tasks")
 
 # Toolbar
@@ -167,13 +273,21 @@ with toolbar_col4:
     show_new_task = st.button("➕ New Task", type="primary")
 
 # New task form
-if show_new_task or st.session_state.get('show_new_task_form'):
-    st.session_state.show_new_task_form = True
+if show_new_task or st.session_state.get('tasks_show_new_form'):
+    st.session_state.tasks_show_new_form = True
+
+    # Get pre-filled values from session state (set by Contacts page)
+    prefill_contact_id = st.session_state.get('new_task_contact_id', None)
+    prefill_contact_name = st.session_state.get('new_task_contact_name', '')
 
     with st.container(border=True):
         st.markdown("### ➕ New Task")
 
+        if prefill_contact_id:
+            st.info(f"Creating task for: **{prefill_contact_name}**")
+
         new_title = st.text_input("Task Title", key="new_task_title")
+        new_contact = st.text_input("Contact Name", value=prefill_contact_name, key="new_task_contact", disabled=bool(prefill_contact_id))
 
         col1, col2 = st.columns(2)
         with col1:
@@ -192,31 +306,39 @@ if show_new_task or st.session_state.get('show_new_task_form'):
             if st.button("Create Task", type="primary"):
                 if new_title:
                     new_task = {
-                        "id": f"task-{len(st.session_state.tasks) + 1}",
+                        "id": f"task-{len(st.session_state.tasks_list) + 1}",
                         "title": new_title,
                         "description": new_desc,
                         "status": "pending",
                         "priority": new_priority,
                         "due_date": new_due.strftime("%Y-%m-%d"),
-                        "contact_name": None,
-                        "contact_id": None,
+                        "contact_name": prefill_contact_name if prefill_contact_id else (new_contact if new_contact else None),
+                        "contact_id": prefill_contact_id,
                         "deal_id": None,
                         "project_id": None,
                         "created_at": date.today().strftime("%Y-%m-%d")
                     }
-                    st.session_state.tasks.append(new_task)
-                    st.session_state.show_new_task_form = False
+                    st.session_state.tasks_list.append(new_task)
+                    st.session_state.tasks_show_new_form = False
+                    # Clear prefill values
+                    for key in ['new_task_contact_id', 'new_task_contact_name']:
+                        if key in st.session_state:
+                            del st.session_state[key]
                     st.success("Task created!")
                     st.rerun()
         with btn_col2:
             if st.button("Cancel"):
-                st.session_state.show_new_task_form = False
+                st.session_state.tasks_show_new_form = False
+                # Clear prefill values
+                for key in ['new_task_contact_id', 'new_task_contact_name']:
+                    if key in st.session_state:
+                        del st.session_state[key]
                 st.rerun()
 
 # Stats
-pending_tasks = [t for t in st.session_state.tasks if t['status'] == 'pending']
-in_progress = [t for t in st.session_state.tasks if t['status'] == 'in_progress']
-overdue = [t for t in st.session_state.tasks if t['status'] in ['pending', 'in_progress'] and t.get('due_date') and datetime.strptime(t['due_date'], "%Y-%m-%d").date() < date.today()]
+pending_tasks = [t for t in st.session_state.tasks_list if t['status'] == 'pending']
+in_progress = [t for t in st.session_state.tasks_list if t['status'] == 'in_progress']
+overdue = [t for t in st.session_state.tasks_list if t['status'] in ['pending', 'in_progress'] and t.get('due_date') and datetime.strptime(t['due_date'], "%Y-%m-%d").date() < date.today()]
 
 render_sidebar_stats({
     "Pending": str(len(pending_tasks)),
@@ -233,13 +355,13 @@ with stat_cols[1]:
 with stat_cols[2]:
     st.metric("🔴 Overdue", len(overdue))
 with stat_cols[3]:
-    completed_today = len([t for t in st.session_state.tasks if t['status'] == 'completed' and t.get('completed_at') == date.today().strftime("%Y-%m-%d")])
+    completed_today = len([t for t in st.session_state.tasks_list if t['status'] == 'completed' and t.get('completed_at') == date.today().strftime("%Y-%m-%d")])
     st.metric("✅ Completed Today", completed_today)
 
 st.markdown("---")
 
 # Filter tasks
-filtered_tasks = st.session_state.tasks
+filtered_tasks = st.session_state.tasks_list
 
 if search:
     search_lower = search.lower()

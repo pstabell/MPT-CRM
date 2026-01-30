@@ -1,40 +1,147 @@
 """
 MPT-CRM Reports Page
 Dashboard analytics, pipeline reports, and activity summaries
+
+SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
 """
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-import sys
-from pathlib import Path
+import os
 
-# Add project root to path for shared imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from shared.navigation import render_sidebar, render_sidebar_stats
+# ============================================
+# DATABASE CONNECTION (self-contained)
+# ============================================
+try:
+    from supabase import create_client
+    SUPABASE_AVAILABLE = True
+except ImportError:
+    SUPABASE_AVAILABLE = False
 
+@st.cache_resource(show_spinner=False)
+def get_db():
+    """Create and cache Supabase client"""
+    if not SUPABASE_AVAILABLE:
+        return None
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if url and key:
+        try:
+            return create_client(url, key)
+        except Exception:
+            return None
+    return None
+
+def db_is_connected():
+    """Check if database is connected"""
+    return get_db() is not None
+
+# ============================================
+# NAVIGATION SIDEBAR (self-contained)
+# ============================================
+HIDE_STREAMLIT_NAV = """
+<style>
+    [data-testid="stSidebarNav"] {
+        display: none !important;
+    }
+    section[data-testid="stSidebar"] {
+        background-color: #1a1a2e;
+    }
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white;
+    }
+    section[data-testid="stSidebar"] .stRadio label span {
+        color: white !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricLabel"] {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+        color: white !important;
+    }
+</style>
+"""
+
+PAGE_CONFIG = {
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+}
+
+def render_sidebar(current_page="Reports"):
+    """Render the navigation sidebar"""
+    st.markdown(HIDE_STREAMLIT_NAV, unsafe_allow_html=True)
+
+    with st.sidebar:
+        # Logo/Title
+        st.image("logo.jpg", use_container_width=True)
+        st.markdown("---")
+
+        # Navigation using radio buttons
+        pages = [f"{config['icon']} {name}" for name, config in PAGE_CONFIG.items()]
+        current_index = list(PAGE_CONFIG.keys()).index(current_page) if current_page in PAGE_CONFIG else 0
+
+        selected = st.radio("Navigation", pages, index=current_index, label_visibility="collapsed")
+
+        # Handle navigation
+        selected_name = selected.split(" ", 1)[1] if " " in selected else selected
+        if selected_name != current_page:
+            config = PAGE_CONFIG.get(selected_name)
+            if config and config['path']:
+                st.switch_page(config['path'])
+
+        st.markdown("---")
+
+def render_sidebar_stats(stats: dict):
+    """Render stats in the sidebar"""
+    with st.sidebar:
+        st.markdown("### Quick Stats")
+        for label, value in stats.items():
+            st.metric(label, value)
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 st.set_page_config(
     page_title="MPT-CRM - Reports",
-    page_icon="📈",
+    page_icon="favicon.jpg",
     layout="wide"
 )
 
-# Render shared sidebar
+# ============================================
+# RENDER SIDEBAR
+# ============================================
 render_sidebar("Reports")
 
-# Main page
+# ============================================
+# INITIALIZE SESSION STATE (use page-specific prefixes)
+# ============================================
+# Get data from session state with fallbacks
+contacts = st.session_state.get('contacts', [])
+deals = st.session_state.get('pipeline_deals', [])
+projects = st.session_state.get('proj_projects', [])
+tasks = st.session_state.get('tasks_list', [])
+time_entries = st.session_state.get('tb_time_entries', [])
+
+# ============================================
+# MAIN PAGE
+# ============================================
 st.title("📈 Reports & Analytics")
 
 # Date range selector
 col1, col2 = st.columns([3, 1])
 with col2:
     report_range = st.selectbox("Time Period", ["This Month", "Last 30 Days", "This Quarter", "This Year", "All Time"])
-
-# Get data from session state (fallback to empty lists)
-contacts = st.session_state.get('contacts', [])
-deals = st.session_state.get('deals', [])
-projects = st.session_state.get('projects', [])
-tasks = st.session_state.get('tasks', [])
-time_entries = st.session_state.get('time_entries', [])
 
 # Tabs for different reports
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "💼 Pipeline", "👥 Contacts", "⏱️ Time & Revenue"])
@@ -53,7 +160,7 @@ with tab1:
 
     with metric_col2:
         active_deals = [d for d in deals if d.get('stage') not in ['won', 'lost']]
-        pipeline_value = sum(d.get('value', 0) for d in active_deals)
+        pipeline_value = sum(d.get('value', 0) or 0 for d in active_deals)
         st.metric("Pipeline Value", f"${pipeline_value:,.0f}")
 
     with metric_col3:
@@ -73,12 +180,12 @@ with tab1:
         st.markdown("### 💼 Deal Pipeline")
 
         # Pipeline stages breakdown
-        stages = ['discovery', 'proposal', 'negotiation', 'won', 'lost']
-        stage_labels = ['Discovery', 'Proposal', 'Negotiation', 'Won', 'Lost']
+        stages = ['lead', 'qualified', 'proposal', 'negotiation', 'contract', 'won', 'lost']
+        stage_labels = ['Lead', 'Qualified', 'Proposal', 'Negotiation', 'Contract', 'Won', 'Lost']
 
         for stage, label in zip(stages, stage_labels):
             stage_deals = [d for d in deals if d.get('stage') == stage]
-            stage_value = sum(d.get('value', 0) for d in stage_deals)
+            stage_value = sum(d.get('value', 0) or 0 for d in stage_deals)
 
             with st.container(border=True):
                 inner_col1, inner_col2 = st.columns([3, 1])
@@ -136,10 +243,10 @@ with tab2:
     with col1:
         st.metric("Win Rate", f"{win_rate:.0f}%")
     with col2:
-        won_value = sum(d.get('value', 0) for d in won_deals)
+        won_value = sum(d.get('value', 0) or 0 for d in won_deals)
         st.metric("Total Won", f"${won_value:,.0f}")
     with col3:
-        lost_value = sum(d.get('value', 0) for d in lost_deals)
+        lost_value = sum(d.get('value', 0) or 0 for d in lost_deals)
         st.metric("Total Lost", f"${lost_value:,.0f}")
 
     st.markdown("---")
@@ -149,7 +256,7 @@ with tab2:
 
     total_deals = len(deals) if deals else 1  # Avoid division by zero
 
-    for stage in ['discovery', 'proposal', 'negotiation']:
+    for stage in ['lead', 'qualified', 'proposal', 'negotiation', 'contract']:
         stage_deals = [d for d in deals if d.get('stage') == stage]
         percentage = len(stage_deals) / total_deals * 100 if total_deals > 0 else 0
 
@@ -162,7 +269,7 @@ with tab2:
     st.markdown("### Top Deals by Value")
 
     if deals:
-        sorted_deals = sorted(deals, key=lambda x: x.get('value', 0), reverse=True)[:5]
+        sorted_deals = sorted(deals, key=lambda x: x.get('value', 0) or 0, reverse=True)[:5]
         for deal in sorted_deals:
             with st.container(border=True):
                 col1, col2 = st.columns([3, 1])
@@ -256,7 +363,8 @@ with tab4:
     for entry in time_entries:
         proj_name = entry.get('project_name', 'Unknown')
         if entry.get('billable', True):
-            project_revenue[proj_name] = project_revenue.get(proj_name, 0) + entry.get('hours', 0) * default_rate
+            rate = entry.get('hourly_rate', default_rate)
+            project_revenue[proj_name] = project_revenue.get(proj_name, 0) + entry.get('hours', 0) * rate
 
     if project_revenue:
         sorted_projects = sorted(project_revenue.items(), key=lambda x: x[1], reverse=True)
@@ -270,7 +378,9 @@ with tab4:
     else:
         st.info("No billable time tracked yet.")
 
-# Sidebar stats
+# ============================================
+# SIDEBAR STATS
+# ============================================
 render_sidebar_stats({
     "Total Contacts": str(len(contacts)),
     "Active Deals": str(len(active_deals)),

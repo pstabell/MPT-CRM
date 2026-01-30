@@ -238,6 +238,41 @@ def db_log_activity(activity_type, description, contact_id=None):
     except Exception:
         return None
 
+def enroll_in_campaign(contact_id, event_name=""):
+    """Enroll contact in 6-week networking drip campaign"""
+    try:
+        # Calculate schedule
+        schedule = []
+        days = [0, 7, 14, 30, 45]
+        purposes = ["thank_you", "value_add", "reconnect", "check_in", "referral_ask"]
+
+        for i, day in enumerate(days):
+            scheduled_date = datetime.now() + timedelta(days=day)
+            schedule.append({
+                "day": day,
+                "purpose": purposes[i],
+                "scheduled_for": scheduled_date.isoformat()
+            })
+
+        enrollment_data = {
+            "contact_id": contact_id,
+            "campaign_id": "6week_networking_drip",
+            "campaign_name": "6-Week Networking Drip",
+            "status": "active",
+            "current_step": 0,
+            "total_steps": 5,
+            "step_schedule": json.dumps(schedule),
+            "source": "mobile_scanner",
+            "source_detail": event_name,
+            "emails_sent": 0
+        }
+
+        return db_create_enrollment(enrollment_data)
+
+    except Exception as e:
+        print(f"Error enrolling in campaign: {e}")
+        return None
+
 # ============================================
 # PDF TO IMAGE CONVERSION
 # ============================================
@@ -444,10 +479,10 @@ def grid_crop_cards(image_bytes, card_count):
             cols = 3
             rows = (card_count + cols - 1) // cols
 
-        # Calculate cell dimensions with margins
-        # Business card scanners have some spacing between cards
-        margin_x = int(img_width * 0.03)  # 3% outer margin
-        margin_y = int(img_height * 0.03)
+        # Calculate cell dimensions with minimal margins
+        # Tightly packed cards need very small margins
+        margin_x = int(img_width * 0.01)  # 1% outer margin
+        margin_y = int(img_height * 0.01)
 
         usable_width = img_width - (2 * margin_x)
         usable_height = img_height - (2 * margin_y)
@@ -455,10 +490,10 @@ def grid_crop_cards(image_bytes, card_count):
         cell_width = usable_width // cols
         cell_height = usable_height // rows
 
-        # Inset from cell edges to avoid bleeding into adjacent cards
-        # This makes each card slightly smaller than the cell to create separation
-        inset_x = int(cell_width * 0.08)  # 8% inset from each side
-        inset_y = int(cell_height * 0.08)  # 8% inset from top/bottom
+        # Very small inset to avoid bleeding into adjacent cards
+        # Reduced from 8% to 2% to capture full cards
+        inset_x = int(cell_width * 0.02)  # 2% inset from each side
+        inset_y = int(cell_height * 0.02)  # 2% inset from top/bottom
 
         print(f"[Grid Crop] Image: {img_width}x{img_height}, Grid: {cols}x{rows}, Cell: {cell_width}x{cell_height}, Inset: {inset_x}x{inset_y}")
 
@@ -512,23 +547,22 @@ def process_page_for_cards(image_bytes, image_type="image/png", expected_count=0
 
         print(f"[Card Processing] AI detected {ai_card_count} cards (expected {expected_count})")
 
-        # If AI found the right number or close to it, use AI detection
-        if ai_card_count >= expected_count * 0.7:  # At least 70% of expected
-            cards = detection_result.get("cards", [])
-            if cards:
-                cropped_cards = []
-                for i, bbox in enumerate(cards):
-                    if bbox.get("width", 0) > 5 and bbox.get("height", 0) > 5:
-                        cropped = crop_card_from_image(image_bytes, bbox)
-                        if cropped:
-                            cropped_cards.append(cropped)
+        # Use AI detection results if we got any cards
+        cards = detection_result.get("cards", [])
+        if cards and ai_card_count > 0:
+            cropped_cards = []
+            for i, bbox in enumerate(cards):
+                if bbox.get("width", 0) > 5 and bbox.get("height", 0) > 5:
+                    cropped = crop_card_from_image(image_bytes, bbox)
+                    if cropped:
+                        cropped_cards.append(cropped)
 
-                if len(cropped_cards) >= expected_count * 0.7:
-                    print(f"[Card Processing] AI detection successful: {len(cropped_cards)} cards")
-                    return cropped_cards
+            if len(cropped_cards) > 0:
+                print(f"[Card Processing] AI detection successful: {len(cropped_cards)} cards (expected {expected_count})")
+                return cropped_cards
 
-        # Fall back to grid if AI didn't find enough cards
-        print(f"[Card Processing] AI detection insufficient, falling back to grid cropping")
+        # Only fall back to grid if AI completely failed
+        print(f"[Card Processing] AI detection found {ai_card_count} cards, falling back to grid cropping")
         return grid_crop_cards(image_bytes, expected_count)
 
     # Check image dimensions to see if this looks like a multi-card scan
@@ -693,6 +727,29 @@ Important:
         return {"error": f"Failed to parse response: {e}", "raw_text": result_text if 'result_text' in dir() else ""}
     except Exception as e:
         return {"error": str(e)}
+
+def extract_contact_from_card(image_url):
+    """
+    Wrapper function that accepts an image URL and extracts contact info.
+    Fetches the image from the URL and calls the main extraction function.
+    """
+    import requests
+    try:
+        # Fetch image from URL
+        response = requests.get(image_url, timeout=10)
+        if response.status_code != 200:
+            return {"error": f"Failed to fetch image: HTTP {response.status_code}"}
+
+        image_bytes = response.content
+
+        # Detect content type
+        content_type = response.headers.get('Content-Type', 'image/jpeg')
+
+        # Call main extraction function
+        return extract_contact_from_business_card(image_bytes, content_type)
+
+    except Exception as e:
+        return {"error": f"Failed to fetch image: {str(e)}"}
 
 # ============================================
 # SENDGRID EMAIL SENDING
@@ -1009,102 +1066,7 @@ render_sidebar("Marketing")
 # INITIALIZE SESSION STATE
 # ============================================
 if 'mkt_campaigns' not in st.session_state:
-    st.session_state.mkt_campaigns = [
-        {
-            "id": "camp-1",
-            "name": "New Networking Contact",
-            "type": "drip",
-            "status": "active",
-            "trigger": "Contact added with type=Networking",
-            "target_types": ["networking"],
-            "emails": [
-                {"day": 0, "subject": "Great meeting you at {{event_name}}!", "status": "active"},
-                {"day": 3, "subject": "Quick tip: Streamline your business operations", "status": "active"},
-                {"day": 7, "subject": "Let's grab coffee", "status": "active"},
-                {"day": 21, "subject": "Staying in touch", "status": "active"},
-            ],
-            "enrollments": 12,
-            "sent": 38,
-            "opened": 28,
-            "clicked": 8,
-            "created_at": "2026-01-15"
-        },
-        {
-            "id": "camp-2",
-            "name": "Proposal Follow-up",
-            "type": "drip",
-            "status": "active",
-            "trigger": "Deal moves to Proposal stage",
-            "target_types": ["lead"],
-            "emails": [
-                {"day": 2, "subject": "Following up on your proposal", "status": "active"},
-                {"day": 5, "subject": "Why clients choose Metro Point Technology", "status": "active"},
-                {"day": 10, "subject": "Checking in on your decision", "status": "active"},
-                {"day": 14, "subject": "Final thoughts on your project", "status": "active"},
-            ],
-            "enrollments": 5,
-            "sent": 14,
-            "opened": 11,
-            "clicked": 4,
-            "created_at": "2026-01-10"
-        },
-        {
-            "id": "camp-3",
-            "name": "New Client Welcome",
-            "type": "drip",
-            "status": "active",
-            "trigger": "Deal won",
-            "target_types": ["client"],
-            "emails": [
-                {"day": 0, "subject": "Welcome to Metro Point Technology!", "status": "active"},
-                {"day": 3, "subject": "Getting started with your project", "status": "active"},
-                {"day": 7, "subject": "First week check-in", "status": "active"},
-                {"day": 30, "subject": "One month milestone", "status": "active"},
-                {"day": 90, "subject": "We'd love your feedback!", "status": "active"},
-            ],
-            "enrollments": 3,
-            "sent": 8,
-            "opened": 8,
-            "clicked": 2,
-            "created_at": "2026-01-05"
-        },
-        {
-            "id": "camp-4",
-            "name": "Lost Deal Re-engagement",
-            "type": "drip",
-            "status": "paused",
-            "trigger": "Deal lost (30 days after)",
-            "target_types": ["prospect"],
-            "emails": [
-                {"day": 0, "subject": "Circumstances change - let's reconnect", "status": "active"},
-                {"day": 30, "subject": "New case study: How we helped {{industry}} company", "status": "active"},
-                {"day": 60, "subject": "Quick question about your project", "status": "active"},
-            ],
-            "enrollments": 2,
-            "sent": 3,
-            "opened": 1,
-            "clicked": 0,
-            "created_at": "2026-01-08"
-        },
-        {
-            "id": "camp-5",
-            "name": "Prospect Nurture",
-            "type": "drip",
-            "status": "draft",
-            "trigger": "Manual enrollment",
-            "target_types": ["prospect", "networking"],
-            "emails": [
-                {"day": 0, "subject": "5 ways to automate your business", "status": "draft"},
-                {"day": 14, "subject": "Client spotlight: Insurance agency transformation", "status": "draft"},
-                {"day": 28, "subject": "Is your software holding you back?", "status": "draft"},
-            ],
-            "enrollments": 0,
-            "sent": 0,
-            "opened": 0,
-            "clicked": 0,
-            "created_at": "2026-01-20"
-        },
-    ]
+    st.session_state.mkt_campaigns = []
 
 if 'mkt_email_templates' not in st.session_state:
     st.session_state.mkt_email_templates = [
@@ -1461,7 +1423,7 @@ elif st.session_state.mkt_selected_template:
     show_template_detail(st.session_state.mkt_selected_template)
 else:
     # Tab navigation
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "🔄 Campaigns", "✉️ Templates", "📇 Card Scanner", "⚙️ Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Dashboard", "🔄 Campaigns", "✉️ Templates", "📇 Card Scanner", "🔍 Process Cards", "⚙️ Settings"])
 
     with tab1:
         # Marketing Dashboard
@@ -1577,12 +1539,44 @@ else:
             results = st.session_state.mkt_import_results
             st.success(f"**Import Complete!** {results['contacts_created']} contacts imported successfully")
 
-            if results.get('emails_sent', 0) > 0:
-                st.info(f"📧 {results['emails_sent']} welcome emails sent")
+            # Summary stats
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            with col_stat1:
+                st.metric("Contacts Created", results.get('contacts_created', 0))
+            with col_stat2:
+                st.metric("Enrolled in Campaign", results.get('enrollments_created', 0))
+            with col_stat3:
+                st.metric("Welcome Emails Sent", results.get('emails_sent', 0))
+
+            # Show skipped contacts if any
+            if results.get('skipped'):
+                with st.expander(f"⚠️ {len(results['skipped'])} Contacts Skipped", expanded=True):
+                    st.warning("The following contacts were skipped because they already exist in your database:")
+                    for skip in results['skipped']:
+                        st.markdown(f"- **{skip['name']}** ({skip['email']}) - {skip['reason']}")
+                    st.caption("💡 Tip: To add card info to existing contacts, select 'merge' from the dropdown during review.")
+
+            # Show merged contacts if any
+            if results.get('merged'):
+                with st.expander(f"🔀 {len(results['merged'])} Contacts Merged"):
+                    st.info("The following cards were merged into existing contacts:")
+                    for merge in results['merged']:
+                        st.markdown(f"- **{merge['name']}** → merged with **{merge['merged_with']}**")
+
+            # Show errors if any
+            if results.get('errors'):
+                with st.expander(f"❌ {len(results['errors'])} Errors", expanded=True):
+                    st.error("Some issues occurred during import:")
+                    for error in results['errors']:
+                        st.markdown(f"- {error}")
+
+            # Detailed import log
+            if results.get('import_log'):
+                with st.expander("📋 Detailed Import Log", expanded=False):
+                    for log_entry in results['import_log']:
+                        st.text(log_entry)
 
             if results.get('enrollments_created', 0) > 0:
-                st.info(f"🔄 {results['enrollments_created']} contacts enrolled in 6-week networking campaign")
-
                 # Show email schedule
                 with st.expander("📅 View Email Schedule", expanded=True):
                     schedule = calculate_drip_schedule()
@@ -1825,7 +1819,10 @@ else:
                             "contacts_created": 0,
                             "emails_sent": 0,
                             "enrollments_created": 0,
-                            "errors": []
+                            "errors": [],
+                            "skipped": [],
+                            "merged": [],
+                            "import_log": []
                         }
 
                         progress_bar = st.progress(0)
@@ -1839,8 +1836,15 @@ else:
 
                             # Skip if exact email match exists and user didn't choose to merge
                             if contact_data.get('is_exact_email_match'):
+                                skip_reason = f"Duplicate email already exists"
+                                skip_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip()
                                 print(f"[Import] SKIPPING - exact email match: {contact_data['email']}")
-                                results['errors'].append(f"Skipped {contact_data['email']} - contact already exists (select 'merge' to add info)")
+                                results['skipped'].append({
+                                    "name": skip_name,
+                                    "email": contact_data.get('email', 'No email'),
+                                    "reason": skip_reason
+                                })
+                                results['import_log'].append(f"❌ Skipped: {skip_name} ({contact_data.get('email', 'no email')}) - {skip_reason}")
                                 continue
 
                             print(f"[Import] No duplicate detected, proceeding with contact creation")
@@ -1850,6 +1854,7 @@ else:
                             if merge_contact:
                                 # Update existing contact with additional info from this card
                                 contact_id = merge_contact['id']
+                                merge_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip()
                                 existing_notes = merge_contact.get('notes', '') or ''
                                 new_notes = f"{existing_notes}\n\n--- Additional Card ({datetime.now().strftime('%Y-%m-%d')}) ---\nTitle: {contact_data.get('title', '')}\nPhone: {contact_data.get('phone', '')}\nEmail: {contact_data.get('email', '')}"
 
@@ -1869,6 +1874,12 @@ else:
                                     contact_id
                                 )
                                 results['contacts_created'] += 1  # Count as processed
+                                results['merged'].append({
+                                    "name": merge_name,
+                                    "email": contact_data.get('email', 'No email'),
+                                    "merged_with": f"{merge_contact.get('first_name', '')} {merge_contact.get('last_name', '')}".strip()
+                                })
+                                results['import_log'].append(f"🔀 Merged: {merge_name} into existing contact {merge_contact.get('first_name', '')} {merge_contact.get('last_name', '')}")
                             else:
                                 # Create new contact in database
                                 new_contact = {
@@ -1892,7 +1903,9 @@ else:
                                 if created:
                                     results['contacts_created'] += 1
                                     contact_id = created['id']
+                                    contact_name = f"{contact_data['first_name']} {contact_data['last_name']}"
                                     print(f"[Import] Contact created successfully with ID: {contact_id}")
+                                    results['import_log'].append(f"✅ Created: {contact_name} ({contact_data.get('email', 'no email')})")
 
                                     # Log activity
                                     db_log_activity(
@@ -1902,7 +1915,9 @@ else:
                                     )
                                 else:
                                     print(f"[Import] FAILED to create contact: {contact_data['first_name']} {contact_data['last_name']}")
-                                    results['errors'].append(f"Failed to create contact: {contact_data['first_name']} {contact_data['last_name']}")
+                                    contact_name = f"{contact_data['first_name']} {contact_data['last_name']}"
+                                    results['errors'].append(f"Failed to create: {contact_name}")
+                                    results['import_log'].append(f"❌ Error: Failed to create {contact_name}")
                                     continue
 
                             # Upload card image to Supabase Storage (if selected)
@@ -1917,6 +1932,7 @@ else:
                                         db_update_contact(contact_id, {"card_image_url": image_url})
 
                             # Create campaign enrollment (for both new and merged contacts)
+                            contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip()
                             if contact_data.get('enroll', True):
                                 schedule = calculate_drip_schedule()
                                 enrollment_data = {
@@ -1935,6 +1951,11 @@ else:
                                 enrollment = db_create_enrollment(enrollment_data)
                                 if enrollment:
                                     results['enrollments_created'] += 1
+                                    results['import_log'].append(f"📧 Enrolled: {contact_name} in 6-week drip campaign")
+                                else:
+                                    results['import_log'].append(f"⚠️ Warning: Failed to enroll {contact_name} in campaign")
+                            else:
+                                results['import_log'].append(f"⏭️ Skipped enrollment: {contact_name} (not selected for campaign)")
 
                             # Send first email (for both new and merged contacts)
                             if contact_data.get('send_email', True) and contact_data.get('email'):
@@ -1952,13 +1973,18 @@ else:
 
                                 if email_result.get('success'):
                                     results['emails_sent'] += 1
+                                    results['import_log'].append(f"📨 Email sent: {contact_name}")
                                     db_log_activity(
                                         "email_sent",
                                         f"Welcome email sent: {subject}",
                                         contact_id
                                     )
                                 else:
-                                    results['errors'].append(f"Email failed for {contact_data['email']}: {email_result.get('error')}")
+                                    error_msg = f"Email failed for {contact_data['email']}: {email_result.get('error')}"
+                                    results['errors'].append(error_msg)
+                                    results['import_log'].append(f"❌ Email error: {contact_name} - {email_result.get('error')}")
+                            elif contact_data.get('send_email', True) and not contact_data.get('email'):
+                                results['import_log'].append(f"⚠️ No email: {contact_name} - cannot send welcome email")
 
                         progress_bar.empty()
                         status_text.empty()
@@ -2079,50 +2105,159 @@ else:
                                         image_bytes_list.append(card_bytes)
 
                             detect_progress.empty()
-                            st.info(f"📇 Found {len(all_images)} individual card(s). Extracting contact information...")
 
-                            # Extract contacts from each image
-                            scanned_contacts = []
-                            progress = st.progress(0)
-
-                            for i, img_data in enumerate(all_images):
-                                progress.progress((i + 1) / len(all_images))
-
-                                with st.spinner(f"Scanning card {i + 1} of {len(all_images)}..."):
-                                    result = extract_contact_from_business_card(
-                                        img_data['image_bytes'],
-                                        img_data.get('type', 'image/png')
-                                    )
-
-                                    if "error" in result:
-                                        st.warning(f"Card {i + 1}: {result['error']}")
-                                        # Add placeholder with error
-                                        scanned_contacts.append({
-                                            "first_name": "",
-                                            "last_name": "",
-                                            "company": "",
-                                            "email": "",
-                                            "phone": "",
-                                            "title": "",
-                                            "confidence": 0.0,
-                                            "error": result['error'],
-                                            "raw_text": result.get('raw_text', '')
-                                        })
-                                    else:
-                                        scanned_contacts.append(result)
-
-                            progress.empty()
-
-                            # Store results in session state
-                            st.session_state.mkt_scanned_contacts = scanned_contacts
-                            st.session_state.mkt_card_images = image_bytes_list
-                            st.session_state.mkt_scanning_in_progress = False
-
+                            # Store raw page and cropped cards for manual adjustment
+                            st.session_state.mkt_raw_page_images = raw_page_images
+                            st.session_state.mkt_cropped_cards = all_images
+                            st.session_state.mkt_manual_crop_mode = True
                             st.rerun()
                         else:
                             st.error("No valid images found in uploaded files")
 
-            # Info section
+        # Manual crop adjustment interface - REDESIGNED
+        if st.session_state.get('mkt_manual_crop_mode'):
+            from PIL import Image
+
+            st.markdown("### ✂️ Manual Card Cropping")
+            st.info("👇 View the full scanned page below. For each card, enter the crop coordinates to capture just that card.")
+
+            raw_pages = st.session_state.mkt_raw_page_images
+            expected_count = st.session_state.get('mkt_expected_card_count', 10)
+
+            # Initialize crop boxes if not exists
+            if 'mkt_crop_boxes' not in st.session_state:
+                st.session_state.mkt_crop_boxes = []
+
+            if not raw_pages:
+                st.error("No page image available")
+                st.session_state.mkt_manual_crop_mode = False
+                st.rerun()
+
+            # Get the first page (assuming single page for now)
+            page_img_bytes = raw_pages[0]['image_bytes']
+            page_img = Image.open(BytesIO(page_img_bytes))
+            page_width, page_height = page_img.size
+
+            # Display the full page prominently
+            st.markdown(f"**Full Scanned Page** ({page_width} × {page_height} pixels)")
+            st.image(page_img_bytes, use_container_width=False, width=800)
+
+            st.markdown("---")
+            st.markdown(f"### Define {expected_count} Card Crop Boxes")
+            st.caption(f"💡 Tip: Look at the page above and note the pixel coordinates around each card. Enter them below.")
+
+            # Number of cards to extract
+            num_cards = st.number_input("Number of cards to extract", min_value=1, max_value=20, value=expected_count, key="num_cards_to_crop")
+
+            crop_boxes = []
+
+            for i in range(num_cards):
+                st.markdown(f"#### 📇 Card {i + 1}")
+                col1, col2, col3, col4 = st.columns(4)
+
+                # Default values for 2x5 grid
+                default_cell_width = page_width // 2
+                default_cell_height = page_height // 5
+                col_idx = i % 2
+                row_idx = i // 2
+
+                default_left = col_idx * default_cell_width + 50
+                default_top = row_idx * default_cell_height + 50
+                default_right = default_left + default_cell_width - 100
+                default_bottom = default_top + default_cell_height - 100
+
+                with col1:
+                    left = st.number_input(f"Left (X)", min_value=0, max_value=page_width, value=default_left, key=f"crop_left_{i}")
+                with col2:
+                    top = st.number_input(f"Top (Y)", min_value=0, max_value=page_height, value=default_top, key=f"crop_top_{i}")
+                with col3:
+                    right = st.number_input(f"Right (X)", min_value=0, max_value=page_width, value=default_right, key=f"crop_right_{i}")
+                with col4:
+                    bottom = st.number_input(f"Bottom (Y)", min_value=0, max_value=page_height, value=default_bottom, key=f"crop_bottom_{i}")
+
+                # Preview this crop
+                if right > left and bottom > top:
+                    try:
+                        cropped = page_img.crop((left, top, right, bottom))
+                        st.image(cropped, caption=f"Preview Card {i + 1}", width=300)
+                        crop_boxes.append((left, top, right, bottom))
+                    except Exception as e:
+                        st.warning(f"Invalid crop coordinates: {e}")
+                else:
+                    st.warning("Right must be > Left and Bottom must be > Top")
+
+                st.markdown("---")
+
+            # Generate cropped cards
+            adjusted_cards = []
+            for i, (left, top, right, bottom) in enumerate(crop_boxes):
+                try:
+                    cropped = page_img.crop((left, top, right, bottom))
+                    output = BytesIO()
+                    cropped.save(output, format="PNG")
+                    adjusted_cards.append(output.getvalue())
+                except Exception as e:
+                    st.error(f"Failed to crop card {i + 1}: {e}")
+
+            st.markdown("---")
+            st.success(f"✅ {len(adjusted_cards)} cards ready to scan")
+
+            col_back, col_continue = st.columns(2)
+            with col_back:
+                if st.button("← Back to Upload"):
+                    st.session_state.mkt_manual_crop_mode = False
+                    st.session_state.mkt_cropped_cards = []
+                    st.session_state.mkt_raw_page_images = []
+                    st.rerun()
+
+            with col_continue:
+                if st.button("✅ Continue to Scan", type="primary"):
+                    st.session_state.mkt_manual_crop_mode = False
+
+                    # Extract contacts from adjusted images
+                    st.info(f"📇 Extracting contact information from {len(adjusted_cards)} cards...")
+                    scanned_contacts = []
+                    progress = st.progress(0)
+
+                    for i in range(len(adjusted_cards)):
+                        progress.progress((i + 1) / len(adjusted_cards))
+
+                        with st.spinner(f"Scanning card {i + 1} of {len(adjusted_cards)}..."):
+                            result = extract_contact_from_business_card(
+                                adjusted_cards[i],
+                                'image/png'
+                            )
+
+                            if "error" in result:
+                                st.warning(f"Card {i + 1}: {result['error']}")
+                                # Add placeholder with error
+                                scanned_contacts.append({
+                                    "first_name": "",
+                                    "last_name": "",
+                                    "company": "",
+                                    "email": "",
+                                    "phone": "",
+                                    "title": "",
+                                    "confidence": 0.0,
+                                    "error": result['error'],
+                                    "raw_text": result.get('raw_text', '')
+                                })
+                            else:
+                                scanned_contacts.append(result)
+
+                    progress.empty()
+
+                    # Store results in session state
+                    st.session_state.mkt_scanned_contacts = scanned_contacts
+                    st.session_state.mkt_card_images = adjusted_cards
+                    st.session_state.mkt_scanning_in_progress = False
+                    st.session_state.mkt_cropped_cards = []
+                    st.session_state.mkt_raw_page_images = []
+
+                    st.rerun()
+
+        # Info section (only show when not in manual crop mode)
+        if not st.session_state.get('mkt_manual_crop_mode'):
             st.markdown("---")
             st.markdown("#### How It Works")
             col1, col2, col3 = st.columns(3)
@@ -2149,6 +2284,192 @@ else:
                         st.markdown("---")
 
     with tab5:
+        # Process Cards - Queue System
+        st.markdown("### 🔍 Process Cards Queue")
+        st.markdown("Cards captured with Quick Capture mode on mobile. Extract contact info with AI and import to CRM.")
+
+        if not db_is_connected():
+            st.error("❌ Database not connected. Please check your Supabase configuration.")
+        else:
+            # Get unprocessed contacts
+            db = get_db()
+
+            # Add retry button if there was a previous error
+            if 'process_cards_error' in st.session_state:
+                st.error(f"Previous error: {st.session_state.process_cards_error}")
+                if st.button("🔄 Retry Loading Cards"):
+                    del st.session_state.process_cards_error
+                    st.rerun()
+
+            try:
+                # Query contacts that need processing (first_name starts with [Unprocessed])
+                with st.spinner("Loading cards from queue..."):
+                    import time
+                    # Retry logic for connection timeouts
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            response = db.table("contacts").select("*").ilike("first_name", "[Unprocessed]%").order("created_at", desc=True).execute()
+                            unprocessed_cards = response.data if response.data else []
+                            # Clear any previous errors on success
+                            if 'process_cards_error' in st.session_state:
+                                del st.session_state.process_cards_error
+                            break
+                        except Exception as retry_err:
+                            if attempt < max_retries - 1:
+                                st.warning(f"Connection timeout (attempt {attempt + 1}/{max_retries}), retrying...")
+                                time.sleep(2)
+                            else:
+                                raise retry_err
+
+                if not unprocessed_cards:
+                    st.info("📭 No cards in queue. Use Quick Capture on mobile to snap cards at events!")
+                    st.markdown("#### How to Use Quick Capture:")
+                    st.markdown("""
+                    1. Open Quick Capture on your phone: `http://YOUR-IP:5000/quick`
+                    2. Snap front/back photos of business cards (5 sec each)
+                    3. Cards appear here automatically
+                    4. Extract contact info with AI and import
+                    """)
+                else:
+                    st.success(f"📬 {len(unprocessed_cards)} cards ready to process")
+
+                    # Process cards one at a time
+                    for idx, card in enumerate(unprocessed_cards):
+                        with st.container(border=True):
+                            col1, col2 = st.columns([1, 2])
+
+                            with col1:
+                                # Display card images (front and back)
+                                if card.get('card_image_url'):
+                                    contact_id = card['id']
+
+                                    # Try to get all images for this contact
+                                    try:
+                                        files_response = db.storage.from_("card-images").list("business-cards")
+                                        # Filter images for this contact
+                                        contact_images = [f for f in files_response if f['name'].startswith(f"{contact_id}_")]
+
+                                        if contact_images:
+                                            for img_idx, img_file in enumerate(contact_images):
+                                                img_url = db.storage.from_("card-images").get_public_url(f"business-cards/{img_file['name']}")
+                                                side_label = "Front" if img_idx == 0 else "Back"
+                                                st.image(img_url, caption=f"📄 {side_label} Side", use_container_width=True)
+                                        else:
+                                            # Fallback to primary image
+                                            st.image(card['card_image_url'], caption="📄 Business Card", use_container_width=True)
+                                    except Exception as img_err:
+                                        # Fallback to primary image if storage query fails
+                                        st.image(card['card_image_url'], caption="📄 Business Card", use_container_width=True)
+                                else:
+                                    st.warning("No image available")
+
+                                st.caption(f"Captured: {card.get('created_at', 'Unknown')[:10]}")
+                                if card.get('source_detail'):
+                                    st.caption(f"Event: {card['source_detail']}")
+
+                            with col2:
+                                st.markdown(f"**Card #{idx + 1}**")
+
+                                # Action buttons
+                                btn_col1, btn_col2 = st.columns(2)
+                                with btn_col1:
+                                    extract_btn = st.button(f"🤖 Extract Info", key=f"extract_{card['id']}", use_container_width=True)
+                                with btn_col2:
+                                    delete_btn = st.button(f"🗑️ Delete", key=f"delete_{card['id']}", use_container_width=True, type="secondary")
+
+                                # Handle delete
+                                if delete_btn:
+                                    try:
+                                        # Delete the contact
+                                        db.table("contacts").delete().eq("id", card['id']).execute()
+                                        st.success(f"✅ Card #{idx + 1} deleted")
+                                        # Clear any extracted data
+                                        if f'extracted_{card["id"]}' in st.session_state:
+                                            del st.session_state[f'extracted_{card["id"]}']
+                                        st.rerun()
+                                    except Exception as del_err:
+                                        st.error(f"Error deleting card: {del_err}")
+
+                                # Handle extract
+                                if extract_btn:
+                                    with st.spinner("Extracting contact info with Claude Vision..."):
+                                        # Call Claude Vision API
+                                        extracted_data = extract_contact_from_card(card['card_image_url'])
+
+                                        if extracted_data:
+                                            st.session_state[f'extracted_{card["id"]}'] = extracted_data
+                                            st.rerun()
+                                        else:
+                                            st.error("Failed to extract contact info. Please enter manually.")
+
+                                # Show extracted data if available
+                                if f'extracted_{card["id"]}' in st.session_state:
+                                    extracted = st.session_state[f'extracted_{card["id"]}']
+
+                                    st.markdown("#### Extracted Info (Review & Edit)")
+
+                                    with st.form(key=f"form_{card['id']}"):
+                                        first_name = st.text_input("First Name", value=extracted.get('first_name', ''))
+                                        last_name = st.text_input("Last Name", value=extracted.get('last_name', ''))
+                                        company = st.text_input("Company", value=extracted.get('company', ''))
+                                        title = st.text_input("Title", value=extracted.get('title', ''))
+                                        email = st.text_input("Email", value=extracted.get('email', ''))
+                                        phone = st.text_input("Phone", value=extracted.get('phone', ''))
+
+                                        enroll = st.checkbox("Enroll in 6-week networking campaign", value=True)
+
+                                        col_a, col_b = st.columns(2)
+                                        with col_a:
+                                            submit = st.form_submit_button("✅ Save Contact", type="primary", use_container_width=True)
+                                        with col_b:
+                                            skip = st.form_submit_button("⏭️ Skip", use_container_width=True)
+
+                                        if submit:
+                                            # Update the contact with extracted data
+                                            update_data = {
+                                                "first_name": first_name,
+                                                "last_name": last_name,
+                                                "company": company,
+                                                "email": email,
+                                                "phone": phone,
+                                                "type": "networking",
+                                                "source": "mobile_scanner_processed",
+                                                "notes": f"Title: {title}\nProcessed from Quick Capture on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                                                "email_status": "active"
+                                            }
+
+                                            try:
+                                                db.table("contacts").update(update_data).eq("id", card['id']).execute()
+
+                                                # Enroll in campaign if requested
+                                                if enroll:
+                                                    enroll_in_campaign(card['id'], card.get('source_detail', ''))
+
+                                                st.success(f"✅ Contact saved: {first_name} {last_name}")
+                                                del st.session_state[f'extracted_{card["id"]}']
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error saving contact: {e}")
+
+                                        if skip:
+                                            # Delete the unprocessed card
+                                            try:
+                                                db.table("contacts").delete().eq("id", card['id']).execute()
+                                                st.success("Card skipped and removed from queue")
+                                                if f'extracted_{card["id"]}' in st.session_state:
+                                                    del st.session_state[f'extracted_{card["id"]}']
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"Error skipping card: {e}")
+
+            except Exception as e:
+                error_msg = str(e)
+                st.session_state.process_cards_error = error_msg
+                st.error(f"Error loading queue: {error_msg}")
+                st.info("💡 **Troubleshooting:** This error usually means a network timeout. Try:\n1. Refresh the page\n2. Check your internet connection\n3. Click the 'Retry' button above")
+
+    with tab6:
         # SendGrid settings
         st.markdown("### ⚙️ SendGrid Configuration")
 
