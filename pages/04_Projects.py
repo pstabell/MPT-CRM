@@ -207,7 +207,7 @@ def show_project_detail(project_id):
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown(f"## {status_info['icon']} {project['name']}")
-        st.markdown(f"**Client:** {project['client']}")
+        st.markdown(f"**Client:** {(project.get('client') or project.get('client_name') or 'No Client')}")
     with col2:
         if st.button("← Back to Projects"):
             st.session_state.proj_selected_project = None
@@ -334,7 +334,7 @@ def show_project_detail(project_id):
             invoice_text = f"""INVOICE
 {'='*50}
 From: Metro Point Technology LLC
-To: {project.get('client', 'Client')}
+To: {(project.get('client') or project.get('client_name') or 'Client')}
 Date: {datetime.now().strftime('%B %d, %Y')}
 Project: {project.get('name', 'Project')}
 
@@ -374,7 +374,7 @@ Support@MetroPointTech.com | (239) 600-8159
             st.markdown(f"""
             **Project Report: {project.get('name', 'N/A')}**
             - **Status:** {project.get('status', 'N/A')}
-            - **Client:** {project.get('client', 'N/A')}
+            - **Client:** {(project.get('client') or project.get('client_name') or 'N/A')}
             - **Budget:** ${budget:,.2f}
             - **Hours Logged:** {hours_logged:.1f}
             - **Amount Earned:** ${amount_earned:,.2f}
@@ -438,7 +438,7 @@ else:
         search_lower = search.lower()
         filtered_projects = [p for p in filtered_projects if
             search_lower in p['name'].lower() or
-            search_lower in p['client'].lower()]
+            search_lower in (p.get('client') or p.get('client_name') or '').lower()]
 
     if status_filter != "All Status":
         status_key = next(k for k, v in PROJECT_STATUS.items() if f"{v['icon']} {v['label']}" == status_filter)
@@ -459,7 +459,7 @@ else:
 
             with col1:
                 st.markdown(f"**{status_info['icon']} {project['name']}**")
-                st.caption(f"🏢 {project['client']}")
+                st.caption(f"🏢 {(project.get('client') or project.get('client_name') or 'No Client')}")
 
             with col2:
                 if project.get('target_end_date'):
