@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Settings Page
 Configure integrations, user preferences, and system settings

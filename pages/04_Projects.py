@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
@@ -395,7 +396,7 @@ Support@MetroPointTech.com | (239) 600-8159
             st.download_button(
                 label="📥 Download Invoice",
                 data=invoice_text,
-                file_name=f"Invoice_{project.get('name', 'Project').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.txt",
+                file_name=f"Invoice_{(project.get('name') or 'Project').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.txt",
                 mime="text/plain",
                 key=f"dl_invoice_{project['id']}"
             )

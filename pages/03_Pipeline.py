@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Sales Pipeline
 Drag-and-drop Kanban board for Metro Point Technology
@@ -585,7 +586,7 @@ else:
     if search:
         search_lower = search.lower()
         filtered_deals = [d for d in filtered_deals if
-            search_lower in d.get('title', '').lower() or
+            search_lower in (d.get('title') or '').lower() or
             search_lower in (d.get('company_name') or '').lower() or
             search_lower in (d.get('contact_name') or '').lower()]
 

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Mobile Business Card Scanner - Flask Web App
 Companion to MPT-CRM for mobile card scanning

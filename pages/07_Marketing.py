@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Marketing Page
 Drip campaigns, email templates, SendGrid integration, and Business Card Scanner

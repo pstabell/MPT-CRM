@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM - Metro Point Technology Customer Relationship Management
 Main application entry point for Streamlit multi-page app

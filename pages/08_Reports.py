@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Reports Page
 Dashboard analytics, pipeline reports, and activity summaries

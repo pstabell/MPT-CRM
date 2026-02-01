@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Tasks Page
 Manage tasks with priorities, due dates, and associations to contacts/deals/projects

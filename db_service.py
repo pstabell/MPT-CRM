@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 db_service.py — Centralized Database Service Layer for MPT-CRM
 ==============================================================

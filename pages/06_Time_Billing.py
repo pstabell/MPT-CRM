@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 MPT-CRM Time & Billing Page
 Track time entries, generate invoices, and manage billing
