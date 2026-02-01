@@ -4,203 +4,18 @@ Drag-and-drop Kanban board for Metro Point Technology
 Using streamlit-sortables for draggable cards between columns
 Connected to Supabase for data persistence
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 from streamlit_sortables import sort_items
 from datetime import datetime, timedelta
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-
-# Load environment variables
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
-
-# ============================================
-# PAGE-SPECIFIC DATABASE FUNCTIONS
-# ============================================
-def db_get_deals():
-    """Get all deals from database"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("deals").select("*, contacts(id, first_name, last_name, company)").execute()
-        return response.data if response.data else []
-    except Exception as e:
-        st.error(f"Failed to load deals: {str(e)}")
-        return None
-
-def db_create_deal(deal_data: dict):
-    """Create a new deal in database"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("deals").insert(deal_data).execute()
-        if response.data and len(response.data) > 0:
-            return response.data[0]
-        st.error("Deal creation failed - no data returned")
-        return None
-    except Exception as e:
-        st.error(f"Failed to create deal: {str(e)}")
-        return None
-
-def db_update_deal(deal_id: str, deal_data: dict):
-    """Update a deal in database"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("deals").update(deal_data).eq("id", deal_id).execute()
-        if response.data and len(response.data) > 0:
-            return response.data[0]
-        return None
-    except Exception as e:
-        st.error(f"Failed to update deal: {str(e)}")
-        return None
-
-def db_update_deal_stage(deal_id: str, new_stage: str):
-    """Update deal stage in database"""
-    db = get_db()
-    if not db:
-        return False
-
-    try:
-        response = db.table("deals").update({"stage": new_stage}).eq("id", deal_id).execute()
-        # Verify the update was successful
-        if response.data and len(response.data) > 0:
-            return True
-        return False
-    except Exception as e:
-        st.error(f"Failed to update deal stage: {str(e)}")
-        return False
-
-def db_get_deal_tasks(deal_id: str):
-    """Get tasks for a deal"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("deal_tasks").select("*").eq("deal_id", deal_id).execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_add_deal_task(deal_id: str, title: str):
-    """Add a task to a deal"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("deal_tasks").insert({
-            "deal_id": deal_id,
-            "title": title,
-            "is_complete": False
-        }).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_toggle_deal_task(task_id: str, is_complete: bool):
-    """Toggle task completion status"""
-    db = get_db()
-    if not db:
-        return False
-
-    try:
-        db.table("deal_tasks").update({"is_complete": is_complete}).eq("id", task_id).execute()
-        return True
-    except Exception:
-        return False
-
-def db_delete_deal(deal_id: str):
-    """Delete a deal from database"""
-    db = get_db()
-    if not db:
-        return False
-
-    try:
-        db.table("deals").delete().eq("id", deal_id).execute()
-        return True
-    except Exception:
-        return False
-
-def db_test_connection():
-    """Test database connection"""
-    db = get_db()
-    if not db:
-        return False, "No database connection"
-
-    try:
-        db.table("deals").select("id").limit(1).execute()
-        return True, "Connection successful"
-    except Exception as e:
-        return False, str(e)
-
-def db_get_contacts():
-    """Get all active contacts from database for selection"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        # Get all contacts with archived field to filter
-        response = db.table("contacts").select("id, first_name, last_name, company, archived").order("first_name").execute()
-        if response.data:
-            # Filter out archived contacts (archived=True), keep NULL and False
-            return [c for c in response.data if c.get('archived') != True]
-        return []
-    except Exception as e:
-        st.error(f"Failed to load contacts: {str(e)}")
-        return []
-
-def db_update_contact_type(contact_id: str, contact_type: str):
-    """Update a contact's type in the database"""
-    db = get_db()
-    if not db:
-        return False
-
-    try:
-        response = db.table("contacts").update({"contact_type": contact_type}).eq("id", contact_id).execute()
-        return response.data and len(response.data) > 0
-    except Exception as e:
-        st.error(f"Failed to update contact type: {str(e)}")
-        return False
+from db_service import (
+    db_is_connected, reset_db_connection, db_test_connection,
+    db_get_deals, db_create_deal, db_update_deal, db_update_deal_stage,
+    db_delete_deal, db_get_deal_tasks, db_add_deal_task, db_toggle_deal_task,
+    db_get_contacts, db_update_contact_type,
+)
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -307,9 +122,8 @@ st.markdown("""
 # ============================================
 def load_deals():
     """Load deals from database"""
-    db = get_db()
-    if db is not None:
-        deals = db_get_deals()
+    if db_is_connected():
+        deals = db_get_deals(include_contacts=True)
         return deals if deals is not None else []
     # No database connection - return empty list (no sample data)
     return []
@@ -748,7 +562,7 @@ with toolbar_col2:
 with toolbar_col3:
     if st.button("🔄 Refresh", use_container_width=True):
         # Clear cached database connection and deals
-        get_db.clear()
+        reset_db_connection()
         if 'pipeline_deals' in st.session_state:
             del st.session_state['pipeline_deals']
         st.session_state.pipeline_deals_need_refresh = True

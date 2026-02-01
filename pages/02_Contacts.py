@@ -1,14 +1,13 @@
 """
 MPT-CRM Contacts Page
 Manage contacts with types, tags, and full detail views
-SELF-CONTAINED - No imports from services/ or shared/ folders
+
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 from datetime import datetime
 import os
-from pathlib import Path
-from dotenv import load_dotenv
 import requests
 from PIL import Image
 from io import BytesIO
@@ -16,20 +15,21 @@ import base64
 import time
 import uuid
 import json
+import db_service
+from db_service import (
+    db_is_connected,
+    db_get_contact, db_create_contact, db_update_contact,
+    db_delete_contact, db_archive_contact, db_unarchive_contact,
+    db_get_archived_contacts, db_find_potential_duplicates,
+    db_merge_contacts, db_log_activity,
+    db_get_contact_email_sends, db_get_contact_activities,
+    upload_card_image_to_supabase,
+)
+from db_service import db_get_contacts as _raw_get_contacts
+from db_service import db_get_intakes as _raw_get_intakes
 
 # Page load timing
 _page_load_start = time.time()
-
-# Load environment variables
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-# Try to import supabase
-try:
-    from supabase import create_client, Client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
 
 st.set_page_config(
     page_title="MPT-CRM - Contacts",
@@ -38,28 +38,35 @@ st.set_page_config(
 )
 
 # ============================================
-# DATABASE CONNECTION (self-contained)
+# CACHING LAYER — wraps db_service functions
 # ============================================
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
+@st.cache_data(ttl=300, show_spinner=False)
+def cached_get_contacts(include_archived=False, _cache_key=None):
+    """Get all contacts from database with caching"""
+    return _raw_get_contacts(include_archived)
 
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
+def invalidate_contacts_cache():
+    """Clear the contacts cache to force refresh"""
+    cached_get_contacts.clear()
 
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
+def db_get_contacts(include_archived=False):
+    """Get all contacts from database (uses cache)"""
+    cache_key = st.session_state.get('contacts_cache_version', 0)
+    return cached_get_contacts(include_archived, _cache_key=cache_key)
 
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
+@st.cache_data(ttl=1800, show_spinner=False)
+def cached_get_intakes(contact_id=None, _cache_key=None):
+    """Get client intakes for a contact (cached)"""
+    return _raw_get_intakes(contact_id)
 
+def db_get_intakes(contact_id=None):
+    """Get client intakes for a contact"""
+    cache_key = st.session_state.get('intakes_cache_version', 0)
+    return cached_get_intakes(contact_id, _cache_key=cache_key)
+
+# ============================================
+# IMAGE HELPERS
+# ============================================
 @st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
 def get_rotated_image(image_url, rotation_degrees):
     """Fetch image from URL and rotate it by specified degrees (cached)"""
@@ -100,396 +107,7 @@ def get_rotated_image(image_url, rotation_degrees):
         return None
 
 # ============================================
-# CACHING LAYER
-# ============================================
-@st.cache_data(ttl=300, show_spinner=False)  # Cache for 5 minutes
-def cached_get_contacts(include_archived=False, _cache_key=None):
-    """Get all contacts from database with caching"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        # Get all contacts from database
-        query = db.table("contacts").select("*").order("created_at", desc=True)
-        response = query.execute()
-        result = response.data if response.data else []
-
-        # Filter archived contacts in Python (Supabase query filter was causing issues)
-        if not include_archived and result:
-            result = [c for c in result if not c.get('archived')]
-
-        return result
-    except Exception as e:
-        print(f"Error getting contacts: {e}")
-        return None
-
-def invalidate_contacts_cache():
-    """Clear the contacts cache to force refresh"""
-    cached_get_contacts.clear()
-
-# ============================================
-# PAGE-SPECIFIC DATABASE FUNCTIONS
-# ============================================
-def db_get_contacts(include_archived=False):
-    """Get all contacts from database (uses cache)"""
-    # Use cache key based on session state to allow manual refresh
-    cache_key = st.session_state.get('contacts_cache_version', 0)
-    return cached_get_contacts(include_archived, _cache_key=cache_key)
-
-def db_get_contact(contact_id):
-    """Get a single contact by ID"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").select("*").eq("id", contact_id).single().execute()
-        return response.data
-    except Exception:
-        return None
-
-def db_create_contact(contact_data):
-    """Create a new contact"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").insert(contact_data).execute()
-        return response.data[0] if response.data else None
-    except Exception as e:
-        print(f"Error creating contact: {e}")
-        return None
-
-def db_update_contact(contact_id, contact_data):
-    """Update a contact"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").update(contact_data).eq("id", contact_id).execute()
-        return response.data[0] if response.data else None
-    except Exception as e:
-        print(f"Error updating contact: {e}")
-        return None
-
-def db_delete_contact(contact_id):
-    """Delete a contact"""
-    db = get_db()
-    if not db:
-        return False
-
-    try:
-        db.table("contacts").delete().eq("id", contact_id).execute()
-        return True
-    except Exception:
-        return False
-
-def db_archive_contact(contact_id):
-    """Archive a contact (soft delete)"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").update({
-            "archived": True,
-            "archived_at": datetime.now().isoformat()
-        }).eq("id", contact_id).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_unarchive_contact(contact_id):
-    """Restore an archived contact"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").update({
-            "archived": False,
-            "archived_at": None
-        }).eq("id", contact_id).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_get_archived_contacts():
-    """Get archived contacts"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("contacts").select("*").eq("archived", True).order("archived_at", desc=True).execute()
-        return response.data if response.data else []
-    except Exception:
-        return []
-
-def db_find_potential_duplicates(contact_id):
-    """
-    Find potential duplicate contacts for a given contact.
-    Matching priority: name -> company -> email
-    Returns list of potential matches with match_reason
-    """
-    db = get_db()
-    if not db:
-        return []
-
-    # Get the source contact
-    try:
-        response = db.table("contacts").select("*").eq("id", contact_id).single().execute()
-        source = response.data
-        if not source:
-            return []
-    except Exception:
-        return []
-
-    potential_duplicates = []
-    seen_ids = {contact_id}  # Don't include the source contact
-
-    first_name = (source.get('first_name') or '').strip().lower()
-    last_name = (source.get('last_name') or '').strip().lower()
-    company = (source.get('company') or '').strip().lower()
-    email = (source.get('email') or '').strip().lower()
-
-    try:
-        # Get all non-archived contacts
-        all_contacts = db.table("contacts").select("*").neq("archived", True).execute()
-        contacts = all_contacts.data if all_contacts.data else []
-
-        for c in contacts:
-            if c['id'] in seen_ids:
-                continue
-
-            c_first = (c.get('first_name') or '').strip().lower()
-            c_last = (c.get('last_name') or '').strip().lower()
-            c_company = (c.get('company') or '').strip().lower()
-            c_email = (c.get('email') or '').strip().lower()
-
-            match_reasons = []
-
-            # Priority 1: Name match (first AND last)
-            if first_name and last_name and c_first and c_last:
-                if first_name == c_first and last_name == c_last:
-                    match_reasons.append("Same name")
-
-            # Priority 2: Company match
-            if company and c_company and len(company) > 2:
-                if company == c_company:
-                    match_reasons.append("Same company")
-                elif company in c_company or c_company in company:
-                    match_reasons.append("Similar company")
-
-            # Priority 3: Email match
-            if email and c_email and '@' in email:
-                if email == c_email:
-                    match_reasons.append("Same email")
-
-            if match_reasons:
-                c['match_reasons'] = match_reasons
-                potential_duplicates.append(c)
-                seen_ids.add(c['id'])
-
-        # Sort by number of match reasons (more matches = more likely duplicate)
-        potential_duplicates.sort(key=lambda x: len(x.get('match_reasons', [])), reverse=True)
-
-        return potential_duplicates
-    except Exception as e:
-        print(f"Error finding duplicates: {e}")
-        return []
-
-def db_merge_contacts(primary_id, secondary_id):
-    """
-    Merge secondary contact INTO primary contact.
-    - Transfers all related records (deals, intakes, activities) to primary
-    - Merges notes from both contacts
-    - Deletes secondary contact after transfer
-    Returns: {"success": True/False, "message": "...", "merged_counts": {...}}
-    """
-    db = get_db()
-    if not db:
-        return {"success": False, "message": "Database not connected"}
-
-    try:
-        # Get both contacts
-        primary = db.table("contacts").select("*").eq("id", primary_id).single().execute().data
-        secondary = db.table("contacts").select("*").eq("id", secondary_id).single().execute().data
-
-        if not primary:
-            return {"success": False, "message": "Primary contact not found"}
-        if not secondary:
-            return {"success": False, "message": "Secondary contact not found"}
-
-        merged_counts = {
-            "deals": 0,
-            "intakes": 0,
-            "activities": 0,
-            "notes_merged": False
-        }
-
-        # 1. Transfer all deals from secondary to primary
-        try:
-            deals_response = db.table("deals").select("id").eq("contact_id", secondary_id).execute()
-            if deals_response.data:
-                for deal in deals_response.data:
-                    db.table("deals").update({"contact_id": primary_id}).eq("id", deal['id']).execute()
-                    merged_counts["deals"] += 1
-        except Exception as e:
-            print(f"Error transferring deals: {e}")
-
-        # 2. Transfer all intakes (discovery forms) from secondary to primary
-        try:
-            intakes_response = db.table("client_intakes").select("id").eq("contact_id", secondary_id).execute()
-            if intakes_response.data:
-                for intake in intakes_response.data:
-                    db.table("client_intakes").update({"contact_id": primary_id}).eq("id", intake['id']).execute()
-                    merged_counts["intakes"] += 1
-        except Exception as e:
-            print(f"Error transferring intakes: {e}")
-
-        # 3. Transfer all activities from secondary to primary
-        try:
-            activities_response = db.table("activities").select("id").eq("contact_id", secondary_id).execute()
-            if activities_response.data:
-                for activity in activities_response.data:
-                    db.table("activities").update({"contact_id": primary_id}).eq("id", activity['id']).execute()
-                    merged_counts["activities"] += 1
-        except Exception as e:
-            print(f"Error transferring activities: {e}")
-
-        # 4. Transfer campaign enrollments from secondary to primary
-        try:
-            enrollments_response = db.table("campaign_enrollments").select("id").eq("contact_id", secondary_id).execute()
-            if enrollments_response.data:
-                for enrollment in enrollments_response.data:
-                    db.table("campaign_enrollments").update({"contact_id": primary_id}).eq("id", enrollment['id']).execute()
-        except Exception:
-            pass  # Table might not exist
-
-        # 5. Merge notes - prepend secondary's notes to primary's notes with timestamp
-        primary_notes = primary.get('notes') or ''
-        secondary_notes = secondary.get('notes') or ''
-
-        if secondary_notes:
-            merge_timestamp = datetime.now().strftime("%m/%d/%Y %I:%M %p")
-            secondary_name = f"{secondary.get('first_name', '')} {secondary.get('last_name', '')}".strip()
-            merge_header = f"**[{merge_timestamp}] Notes merged from: {secondary_name}**"
-
-            if primary_notes:
-                merged_notes = f"{merge_header}\n{secondary_notes}\n\n---\n\n{primary_notes}"
-            else:
-                merged_notes = f"{merge_header}\n{secondary_notes}"
-
-            db.table("contacts").update({"notes": merged_notes}).eq("id", primary_id).execute()
-            merged_counts["notes_merged"] = True
-
-        # 6. Fill in any missing fields on primary from secondary
-        fields_to_fill = ['phone', 'company', 'source', 'source_detail', 'card_image_url']
-        update_data = {}
-        for field in fields_to_fill:
-            if not primary.get(field) and secondary.get(field):
-                update_data[field] = secondary.get(field)
-
-        # Merge tags
-        primary_tags = primary.get('tags') or []
-        secondary_tags = secondary.get('tags') or []
-        if secondary_tags:
-            combined_tags = list(set(primary_tags + secondary_tags))
-            update_data['tags'] = combined_tags
-
-        # Merge card images - if both have images, keep both in notes
-        if primary.get('card_image_url') and secondary.get('card_image_url'):
-            # Both have card images - add secondary's to notes
-            merge_timestamp = datetime.now().strftime("%m/%d/%Y %I:%M %p")
-            secondary_name = f"{secondary.get('first_name', '')} {secondary.get('last_name', '')}".strip()
-            image_note = f"\n\n**[{merge_timestamp}] Card image from merged contact {secondary_name}:**\n{secondary.get('card_image_url')}"
-            current_notes = update_data.get('notes', primary.get('notes', '')) or ''
-            update_data['notes'] = current_notes + image_note
-
-        if update_data:
-            db.table("contacts").update(update_data).eq("id", primary_id).execute()
-
-        # 7. Log the merge activity
-        try:
-            secondary_name = f"{secondary.get('first_name', '')} {secondary.get('last_name', '')}".strip()
-            db.table("activities").insert({
-                "type": "contact_merged",
-                "description": f"Merged contact '{secondary_name}' into this contact. Transferred: {merged_counts['deals']} deals, {merged_counts['intakes']} discovery forms, {merged_counts['activities']} activities.",
-                "contact_id": primary_id
-            }).execute()
-        except Exception:
-            pass
-
-        # 8. Delete the secondary contact (all data has been transferred)
-        db.table("contacts").delete().eq("id", secondary_id).execute()
-
-        # 9. Invalidate contacts cache to force refresh
-        import streamlit as st
-        st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
-
-        return {
-            "success": True,
-            "message": f"Successfully merged contacts. Transferred: {merged_counts['deals']} deals, {merged_counts['intakes']} discovery forms, {merged_counts['activities']} activities.",
-            "merged_counts": merged_counts
-        }
-
-    except Exception as e:
-        return {"success": False, "message": f"Merge failed: {str(e)}"}
-
-@st.cache_data(ttl=1800, show_spinner=False)  # Cache for 30 minutes
-def cached_get_intakes(contact_id=None, _cache_key=None):
-    """Get client intakes for a contact (cached)"""
-    print(f"[DEBUG] cached_get_intakes called for contact_id={contact_id}, cache_key={_cache_key}")
-    db = get_db()
-    if not db:
-        print("[DEBUG] No database connection")
-        return []
-
-    try:
-        # Don't join contacts table - we already have contact info when viewing contact detail
-        print(f"[DEBUG] Querying client_intakes for contact_id={contact_id}")
-        query = db.table("client_intakes").select("*").order("intake_date", desc=True)
-        if contact_id:
-            query = query.eq("contact_id", contact_id)
-
-        import time
-        start = time.time()
-        response = query.execute()
-        elapsed = time.time() - start
-        print(f"[DEBUG] Intakes query took {elapsed:.2f}s, returned {len(response.data) if response.data else 0} results")
-
-        return response.data if response.data else []
-    except Exception as e:
-        print(f"[ERROR] Error getting intakes: {e}")
-        return []
-
-def db_get_intakes(contact_id=None):
-    """Get client intakes for a contact"""
-    cache_key = st.session_state.get('intakes_cache_version', 0)
-    return cached_get_intakes(contact_id, _cache_key=cache_key)
-
-def db_log_activity(activity_type, description, contact_id=None):
-    """Log an activity"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("activities").insert({
-            "type": activity_type,
-            "description": description,
-            "contact_id": contact_id
-        }).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-# ============================================
-# BUSINESS CARD SCANNER FUNCTIONS
+# BUSINESS CARD SCANNER FUNCTIONS (AI/Vision — NOT database operations)
 # ============================================
 
 def extract_contact_from_business_card(image_bytes, image_type="image/png"):
@@ -593,30 +211,7 @@ Important:
     except Exception as e:
         return {"error": str(e)}
 
-def upload_card_image_to_supabase(image_bytes, contact_id):
-    """Upload card image to Supabase Storage and return the public URL"""
-    db = get_db()
-    if not db:
-        return None
-    try:
-        # Generate unique filename
-        filename = f"business-cards/{contact_id}_{uuid.uuid4().hex[:8]}.png"
-
-        # Upload to storage bucket 'card-images'
-        response = db.storage.from_("card-images").upload(
-            filename,
-            image_bytes,
-            {"content-type": "image/png", "upsert": "true"}
-        )
-
-        if response:
-            # Get public URL
-            public_url = db.storage.from_("card-images").get_public_url(filename)
-            return public_url
-        return None
-    except Exception as e:
-        print(f"Error uploading card image: {e}")
-        return None
+# upload_card_image_to_supabase is imported from db_service
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -879,6 +474,7 @@ def show_merge_interface(primary_contact):
                             result = db_merge_contacts(primary_contact['id'], dup['id'])
                             if result['success']:
                                 st.success(result['message'])
+                                st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
                                 st.session_state.contacts_need_refresh = True
                                 st.session_state.contacts_show_merge = False
                                 st.session_state[f"confirm_merge_{dup['id']}"] = False
@@ -1013,10 +609,9 @@ def show_contact_detail(contact_id):
             with confirm_col1:
                 if st.button("✅ Yes, Delete", key="confirm_delete_final", type="primary", use_container_width=True):
                     if db_is_connected():
-                        db = get_db()
                         try:
                             # Delete the contact
-                            db.table("contacts").delete().eq("id", contact['id']).execute()
+                            db_delete_contact(contact['id'])
 
                             # Invalidate cache
                             if 'contacts_cache_version' in st.session_state:
@@ -1081,11 +676,10 @@ def show_contact_detail(contact_id):
             activities = []
             if db_is_connected():
                 try:
-                    db = get_db()
                     # Get email sends
-                    sends_resp = db.table("email_sends").select("*").eq("contact_id", contact['id']).order("sent_at", desc=True).limit(5).execute()
-                    if sends_resp.data:
-                        for send in sends_resp.data:
+                    sends_data = db_get_contact_email_sends(contact['id'], limit=5)
+                    if sends_data:
+                        for send in sends_data:
                             sent_date = send.get('sent_at', 'Unknown')
                             if sent_date and sent_date != 'Unknown':
                                 try:
@@ -1095,9 +689,9 @@ def show_contact_detail(contact_id):
                             activities.append(f"📧 Email sent — {send.get('subject', 'No subject')} — {sent_date}")
 
                     # Get activities table
-                    act_resp = db.table("activities").select("*").eq("contact_id", contact['id']).order("created_at", desc=True).limit(5).execute()
-                    if act_resp.data:
-                        for act in act_resp.data:
+                    act_data = db_get_contact_activities(contact['id'], limit=5)
+                    if act_data:
+                        for act in act_data:
                             act_date = act.get('created_at', '')
                             if act_date:
                                 try:

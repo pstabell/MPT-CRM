@@ -2,12 +2,13 @@
 Mobile Business Card Scanner - Flask Web App
 Companion to MPT-CRM for mobile card scanning
 Simple, fast manual entry (no OCR complexity, no API keys needed)
+
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 from flask import Flask, render_template, request, jsonify
 import os
 from dotenv import load_dotenv
-from supabase import create_client
 from datetime import datetime, timedelta
 import json
 import base64
@@ -18,58 +19,32 @@ import uuid
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-
-# Initialize clients
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_ANON_KEY")
+# Import ALL database operations from the centralized service layer
+from db_service import (
+    get_db, db_is_connected,
+    db_get_contact, db_create_contact, db_update_contact,
+    db_find_duplicate_contact, db_create_enrollment,
+    upload_card_image_to_supabase,
 )
+
+app = Flask(__name__)
 
 print("Mobile scanner ready!")
 
+
 def find_duplicate_contact(first_name, last_name, email, company):
-    """Find existing contact by email, name, or company"""
-    try:
-        # Check by email first (strongest match)
-        if email:
-            response = supabase.table("contacts").select("*").eq("email", email).execute()
-            if response.data:
-                return response.data[0]
+    """Find existing contact by email, name, or company (delegates to db_service)"""
+    return db_find_duplicate_contact(first_name, last_name, email, company)
 
-        # Check by name + company
-        if first_name and last_name and company:
-            response = supabase.table("contacts").select("*")\
-                .eq("first_name", first_name)\
-                .eq("last_name", last_name)\
-                .eq("company", company)\
-                .execute()
-            if response.data:
-                return response.data[0]
-
-        # Check by name only
-        if first_name and last_name:
-            response = supabase.table("contacts").select("*")\
-                .eq("first_name", first_name)\
-                .eq("last_name", last_name)\
-                .execute()
-            if response.data:
-                return response.data[0]
-
-        return None
-    except Exception as e:
-        print(f"Error checking duplicates: {e}")
-        return None
 
 def update_contact(contact_id, contact_data):
     """Update existing contact with new card info"""
     try:
         # Get existing contact
-        existing = supabase.table("contacts").select("*").eq("id", contact_id).execute()
-        if not existing.data:
+        existing_contact = db_get_contact(contact_id)
+        if not existing_contact:
             return {"success": False, "error": "Contact not found"}
 
-        existing_contact = existing.data[0]
         existing_notes = existing_contact.get('notes', '') or ''
 
         # Append new card info to notes
@@ -89,11 +64,12 @@ def update_contact(contact_id, contact_data):
         if not existing_contact.get('company') and contact_data.get('company'):
             update_data['company'] = contact_data['company']
 
-        response = supabase.table("contacts").update(update_data).eq("id", contact_id).execute()
-        return {"success": True, "contact": response.data[0], "updated": True}
+        result = db_update_contact(contact_id, update_data)
+        return {"success": True, "contact": result, "updated": True}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
+
 
 def create_contact(contact_data):
     """Create contact in Supabase (or update if duplicate found)"""
@@ -125,14 +101,18 @@ def create_contact(contact_data):
             "email_status": "active"
         }
 
-        response = supabase.table("contacts").insert(new_contact).execute()
-        return {"success": True, "contact": response.data[0], "updated": False}
+        result = db_create_contact(new_contact)
+        return {"success": bool(result), "contact": result, "updated": False}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
 def upload_card_image(image_base64, contact_id):
-    """Upload business card image to Supabase Storage with auto-rotation"""
+    """Upload business card image to Supabase Storage with auto-rotation.
+
+    Handles base64 decoding and image processing before delegating to db_service.
+    """
     try:
         # Decode base64 image
         if ',' in image_base64:
@@ -156,26 +136,15 @@ def upload_card_image(image_base64, contact_id):
         output = BytesIO()
         image.save(output, format='JPEG', quality=85)
         output.seek(0)
+        image_bytes = output.getvalue()
 
-        # Generate unique filename
-        filename = f"business-cards/{contact_id}_{uuid.uuid4().hex[:8]}.jpg"
+        # Delegate actual upload to db_service
+        return upload_card_image_to_supabase(image_bytes, contact_id, file_ext="jpg")
 
-        # Upload to Supabase Storage
-        response = supabase.storage.from_("card-images").upload(
-            filename,
-            output.getvalue(),
-            {"content-type": "image/jpeg", "upsert": "true"}
-        )
-
-        if response:
-            # Get public URL
-            public_url = supabase.storage.from_("card-images").get_public_url(filename)
-            return public_url
-
-        return None
     except Exception as e:
-        print(f"Error uploading card image: {e}")
+        print(f"Error processing card image: {e}")
         return None
+
 
 def enroll_in_campaign(contact_id, event_name=""):
     """Enroll contact in 6-week networking drip campaign"""
@@ -206,21 +175,26 @@ def enroll_in_campaign(contact_id, event_name=""):
             "emails_sent": 0
         }
 
-        response = supabase.table("campaign_enrollments").insert(enrollment_data).execute()
-        return {"success": True, "enrollment": response.data[0]}
+        result = db_create_enrollment(enrollment_data)
+        if result:
+            return {"success": True, "enrollment": result}
+        return {"success": False, "error": "Enrollment creation failed"}
 
     except Exception as e:
         return {"success": False, "error": str(e)}
+
 
 @app.route('/')
 def index():
     """Main mobile scanner page"""
     return render_template('mobile_scanner.html')
 
+
 @app.route('/quick')
 def quick():
     """Quick Capture mode - rapid card scanning"""
     return render_template('quick_capture.html')
+
 
 @app.route('/scan', methods=['POST'])
 def scan_card():
@@ -241,6 +215,7 @@ def scan_card():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/quick-capture', methods=['POST'])
 def quick_capture():
@@ -271,8 +246,11 @@ def quick_capture():
             "email_status": "pending"
         }
 
-        response = supabase.table("contacts").insert(stub_contact).execute()
-        contact_id = response.data[0]['id']
+        result = db_create_contact(stub_contact)
+        if not result:
+            return jsonify({"success": False, "error": "Failed to create contact"}), 500
+
+        contact_id = result['id']
         print(f"[Quick Capture] Contact created: {contact_id}")
 
         # Upload card images
@@ -288,7 +266,6 @@ def quick_capture():
                     print("[Quick Capture] WARNING: Front upload returned None")
             except Exception as img_err:
                 print(f"[Quick Capture] ERROR uploading front: {img_err}")
-                # Continue anyway - we have the contact
 
         if back_image:
             print("[Quick Capture] Uploading back image...")
@@ -301,14 +278,11 @@ def quick_capture():
                     print("[Quick Capture] WARNING: Back upload returned None")
             except Exception as img_err:
                 print(f"[Quick Capture] ERROR uploading back: {img_err}")
-                # Continue anyway
 
         # Update contact with card image URL
         if card_image_urls:
             print("[Quick Capture] Updating contact with image URL...")
-            supabase.table("contacts").update({
-                "card_image_url": card_image_urls[0]
-            }).eq("id", contact_id).execute()
+            db_update_contact(contact_id, {"card_image_url": card_image_urls[0]})
 
         print(f"[Quick Capture] SUCCESS - {len(card_image_urls)} images saved")
         return jsonify({
@@ -323,6 +297,7 @@ def quick_capture():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/import', methods=['POST'])
 def import_contact():
@@ -357,9 +332,7 @@ def import_contact():
 
         # Update contact with card image URL (use first image as primary)
         if card_image_urls:
-            supabase.table("contacts").update({
-                "card_image_url": card_image_urls[0]
-            }).eq("id", contact_id).execute()
+            db_update_contact(contact_id, {"card_image_url": card_image_urls[0]})
 
         # Enroll in campaign if requested
         if enroll:
@@ -381,6 +354,7 @@ def import_contact():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 if __name__ == '__main__':
     # Run on all network interfaces so you can access from phone

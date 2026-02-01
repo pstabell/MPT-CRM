@@ -2,39 +2,12 @@
 MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-import os
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
+from db_service import db_is_connected, db_get_contact_email
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -431,10 +404,9 @@ Support@MetroPointTech.com | (239) 600-8159
             # Look up contact email
             if project.get('contact_id') and db_is_connected():
                 try:
-                    db = get_db()
-                    contact = db.table("contacts").select("email, first_name").eq("id", project['contact_id']).single().execute()
-                    if contact.data and contact.data.get('email'):
-                        st.info(f"📧 Draft email to: {contact.data['email']}")
+                    contact_info = db_get_contact_email(project['contact_id'])
+                    if contact_info and contact_info.get('email'):
+                        st.info(f"📧 Draft email to: {contact_info['email']}")
                         st.caption("Use the Marketing page to send emails with templates.")
                     else:
                         st.warning("No email found for this project's contact.")

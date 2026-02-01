@@ -3,123 +3,14 @@ MPT-CRM - Metro Point Technology Customer Relationship Management
 Main application entry point for Streamlit multi-page app
 Connected to Supabase for real-time data
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 import streamlit as st
-import os
 from datetime import datetime, timedelta
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
-
-# ============================================
-# PAGE-SPECIFIC DATABASE FUNCTIONS
-# ============================================
-def db_get_dashboard_stats():
-    """Get dashboard statistics from database"""
-    db = get_db()
-    if not db:
-        return {
-            "total_contacts": 0,
-            "active_deals": 0,
-            "pipeline_value": 0,
-            "won_this_month": 0
-        }
-
-    try:
-        # Get total contacts (non-archived)
-        contacts_resp = db.table("contacts").select("id", count="exact").neq("archived", True).execute()
-        total_contacts = contacts_resp.count if contacts_resp.count else 0
-
-        # Get active deals (not won or lost)
-        deals_resp = db.table("deals").select("id, value, stage").execute()
-        deals = deals_resp.data or []
-
-        active_deals = [d for d in deals if d.get('stage') not in ['won', 'lost']]
-        active_deal_count = len(active_deals)
-        pipeline_value = sum(d.get('value', 0) or 0 for d in active_deals)
-
-        # Get won this month
-        first_of_month = datetime.now().replace(day=1).strftime("%Y-%m-%d")
-        won_deals = [d for d in deals if d.get('stage') == 'won']
-        won_this_month = sum(d.get('value', 0) or 0 for d in won_deals)
-
-        return {
-            "total_contacts": total_contacts,
-            "active_deals": active_deal_count,
-            "pipeline_value": pipeline_value,
-            "won_this_month": won_this_month
-        }
-    except Exception:
-        return {
-            "total_contacts": 0,
-            "active_deals": 0,
-            "pipeline_value": 0,
-            "won_this_month": 0
-        }
-
-def db_get_activities(limit=5):
-    """Get recent activities from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("activities").select("*").order("created_at", desc=True).limit(limit).execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_get_tasks(due_date=None):
-    """Get tasks from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        query = db.table("tasks").select("*").neq("status", "completed")
-        if due_date:
-            query = query.lte("due_date", due_date)
-        response = query.order("due_date").execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_get_deals():
-    """Get deals from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("deals").select("*").execute()
-        return response.data or []
-    except Exception:
-        return []
+from db_service import (
+    db_is_connected,
+    db_get_dashboard_stats, db_get_activities, db_get_tasks, db_get_deals,
+)
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)

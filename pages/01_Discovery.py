@@ -5,172 +5,24 @@ Quick access when the phone rings - search for existing clients or start fresh
 
 NOTE: Always use Teams for discovery meetings to record and enable screen sharing.
 
-SELF-CONTAINED - No imports from services/ or shared/ folders
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 from datetime import datetime, date
-import os
 from pathlib import Path
-from dotenv import load_dotenv
-
-# Load environment variables
-env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-# Try to import supabase
-try:
-    from supabase import create_client, Client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
+from db_service import (
+    db_is_connected,
+    db_get_contacts, db_get_contact, db_create_contact, db_update_contact,
+    db_get_intakes, db_get_intake, db_create_intake, db_update_intake,
+    db_log_activity, db_create_deal,
+)
 
 st.set_page_config(
     page_title="MPT-CRM - Discovery Call",
     page_icon="favicon.jpg",
     layout="wide"
 )
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
-
-# ============================================
-# PAGE-SPECIFIC DATABASE FUNCTIONS
-# ============================================
-def db_get_contacts():
-    """Get all contacts"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("contacts").select("*").neq("archived", True).order("created_at", desc=True).execute()
-        return response.data if response.data else []
-    except Exception:
-        return []
-
-def db_get_contact(contact_id):
-    """Get a single contact"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").select("*").eq("id", contact_id).single().execute()
-        return response.data
-    except Exception:
-        return None
-
-def db_create_contact(contact_data):
-    """Create a new contact"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").insert(contact_data).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_update_contact(contact_id, contact_data):
-    """Update a contact"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("contacts").update(contact_data).eq("id", contact_id).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_get_intakes(contact_id=None):
-    """Get client intakes"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        query = db.table("client_intakes").select("*, contacts(first_name, last_name, company)").order("intake_date", desc=True)
-        if contact_id:
-            query = query.eq("contact_id", contact_id)
-        response = query.execute()
-        return response.data if response.data else []
-    except Exception:
-        return []
-
-def db_get_intake(intake_id):
-    """Get a single intake with contact info"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("client_intakes").select("*, contacts(*)").eq("id", intake_id).single().execute()
-        return response.data
-    except Exception:
-        return None
-
-def db_create_intake(intake_data):
-    """Create a new intake"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("client_intakes").insert(intake_data).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_update_intake(intake_id, intake_data):
-    """Update an intake"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("client_intakes").update(intake_data).eq("id", intake_id).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_log_activity(activity_type, description, contact_id=None):
-    """Log an activity"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("activities").insert({
-            "type": activity_type,
-            "description": description,
-            "contact_id": contact_id
-        }).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -1182,7 +1034,6 @@ with col2:
             st.warning("Save Client Info first to create a deal.")
         elif db_is_connected():
             try:
-                db = get_db()
                 deal_data = {
                     "contact_id": st.session_state.get('current_contact_id'),
                     "title": f"{', '.join(project_types[:2]) if project_types else 'New Project'} - {company_name or first_name}",
@@ -1191,8 +1042,8 @@ with col2:
                     "description": desired_outcome or pain_points or "Created from Discovery Call",
                     "expected_close": None,
                 }
-                response = db.table("deals").insert(deal_data).execute()
-                if response.data:
+                result = db_create_deal(deal_data)
+                if result:
                     st.success(f"✅ Deal created: {deal_data['title']}")
                 else:
                     st.error("Failed to create deal.")
@@ -1316,13 +1167,12 @@ www.MetroPointTechnology.com
             # Save to database if connected
             if db_is_connected():
                 try:
-                    db = get_db()
                     intake_id = st.session_state.get('current_intake_id')
                     if intake_id:
-                        db.table("client_intakes").update({
+                        db_update_intake(intake_id, {
                             "status": "proposal_pending",
                             "next_steps": f"Proposal generated: {proposal_title} - ${project_total:,.0f}"
-                        }).eq("id", intake_id).execute()
+                        })
                 except Exception:
                     pass
 

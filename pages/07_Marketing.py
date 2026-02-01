@@ -2,7 +2,7 @@
 MPT-CRM Marketing Page
 Drip campaigns, email templates, SendGrid integration, and Business Card Scanner
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
@@ -16,227 +16,20 @@ import re
 # Load environment variables from .env file
 from dotenv import load_dotenv
 # Clear any existing keys from system environment to ensure .env is used
-for key in ["ANTHROPIC_API_KEY", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SENDGRID_API_KEY"]:
+for key in ["ANTHROPIC_API_KEY", "SENDGRID_API_KEY"]:
     if key in os.environ:
         del os.environ[key]
 # Now load from .env file
 load_dotenv()
 
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        print("[DB] Supabase package not available")
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    print(f"[DB] Supabase URL loaded: {url[:30] if url else 'None'}...")
-    print(f"[DB] Supabase key loaded: {len(key) if key else 0} characters")
-    if url and key:
-        try:
-            client = create_client(url, key)
-            print("[DB] Supabase client created successfully")
-            return client
-        except Exception as e:
-            print(f"[DB] Error creating Supabase client: {e}")
-            return None
-    print("[DB] Missing SUPABASE_URL or SUPABASE_ANON_KEY")
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
-
-# ============================================
-# DATABASE FUNCTIONS FOR CARD SCANNER
-# ============================================
-
-def db_create_contact(contact_data):
-    """Create a new contact in the database"""
-    db = get_db()
-    if not db:
-        print("[DB] Database connection failed - get_db() returned None")
-        return None
-    try:
-        print(f"[DB] Inserting contact: {contact_data.get('first_name')} {contact_data.get('last_name')}")
-        response = db.table("contacts").insert(contact_data).execute()
-        print(f"[DB] Insert response: {response.data}")
-        return response.data[0] if response.data else None
-    except Exception as e:
-        print(f"[DB] ERROR creating contact: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-def db_check_contact_exists(email):
-    """Check if a contact with this email already exists"""
-    db = get_db()
-    if not db or not email:
-        return None
-    try:
-        response = db.table("contacts").select("id, first_name, last_name, email").eq("email", email).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_check_contacts_by_company(company_name):
-    """Check if contacts with similar company name exist"""
-    db = get_db()
-    if not db or not company_name:
-        return []
-    try:
-        # Use ilike for case-insensitive partial match
-        response = db.table("contacts").select("id, first_name, last_name, email, company, phone").ilike("company", f"%{company_name}%").execute()
-        return response.data if response.data else []
-    except Exception:
-        return []
-
-def db_find_potential_duplicates_by_card(first_name, last_name, company, email):
-    """
-    Find potential duplicate contacts for a business card.
-    Matching priority: name -> company -> email
-    Returns list of potential matches with match_reason
-    """
-    db = get_db()
-    if not db:
-        return []
-
-    first_name = (first_name or '').strip().lower()
-    last_name = (last_name or '').strip().lower()
-    company = (company or '').strip().lower()
-    email = (email or '').strip().lower()
-
-    potential_duplicates = []
-    seen_ids = set()
-
-    try:
-        # Get all non-archived contacts
-        all_contacts = db.table("contacts").select("id, first_name, last_name, email, company, phone, notes").neq("archived", True).execute()
-        contacts = all_contacts.data if all_contacts.data else []
-
-        for c in contacts:
-            c_first = (c.get('first_name') or '').strip().lower()
-            c_last = (c.get('last_name') or '').strip().lower()
-            c_company = (c.get('company') or '').strip().lower()
-            c_email = (c.get('email') or '').strip().lower()
-
-            match_reasons = []
-            match_priority = 0  # Lower = higher priority
-
-            # Priority 1: Name match (first AND last) - HIGHEST
-            if first_name and last_name and c_first and c_last:
-                if first_name == c_first and last_name == c_last:
-                    match_reasons.append("Same name")
-                    match_priority = 1
-
-            # Priority 2: Company match
-            if company and c_company and len(company) > 2:
-                if company == c_company:
-                    match_reasons.append("Same company")
-                    if match_priority == 0:
-                        match_priority = 2
-                elif company in c_company or c_company in company:
-                    match_reasons.append("Similar company")
-                    if match_priority == 0:
-                        match_priority = 3
-
-            # Priority 3: Email match - LOWEST (but still a match)
-            if email and c_email and '@' in email:
-                if email == c_email:
-                    match_reasons.append("Same email")
-                    if match_priority == 0:
-                        match_priority = 4
-
-            if match_reasons:
-                c['match_reasons'] = match_reasons
-                c['match_priority'] = match_priority
-                potential_duplicates.append(c)
-                seen_ids.add(c['id'])
-
-        # Sort by priority (lower number = higher priority match)
-        # Name matches first, then company, then email
-        potential_duplicates.sort(key=lambda x: (x.get('match_priority', 99), -len(x.get('match_reasons', []))))
-
-        return potential_duplicates
-    except Exception as e:
-        print(f"Error finding duplicates: {e}")
-        return []
-
-def db_update_contact(contact_id, update_data):
-    """Update an existing contact"""
-    db = get_db()
-    if not db:
-        return None
-    try:
-        response = db.table("contacts").update(update_data).eq("id", contact_id).execute()
-        return response.data[0] if response.data else None
-    except Exception as e:
-        print(f"Error updating contact: {e}")
-        return None
-
-def upload_card_image_to_supabase(image_bytes, contact_id):
-    """Upload card image to Supabase Storage and return the public URL"""
-    db = get_db()
-    if not db:
-        return None
-    try:
-        # Generate unique filename
-        filename = f"business-cards/{contact_id}.png"
-
-        # Upload to storage bucket 'card-images'
-        # Note: You need to create this bucket in Supabase Dashboard > Storage
-        response = db.storage.from_("card-images").upload(
-            filename,
-            image_bytes,
-            {"content-type": "image/png", "upsert": "true"}
-        )
-
-        if response:
-            # Get public URL
-            public_url = db.storage.from_("card-images").get_public_url(filename)
-            return public_url
-        return None
-    except Exception as e:
-        print(f"Error uploading card image: {e}")
-        return None
-
-def db_create_enrollment(enrollment_data):
-    """Create a campaign enrollment record"""
-    db = get_db()
-    if not db:
-        return None
-    try:
-        response = db.table("campaign_enrollments").insert(enrollment_data).execute()
-        return response.data[0] if response.data else None
-    except Exception as e:
-        print(f"Error creating enrollment: {e}")
-        return None
-
-def db_log_activity(activity_type, description, contact_id=None):
-    """Log an activity to the activities table"""
-    db = get_db()
-    if not db:
-        return None
-    try:
-        activity = {
-            "type": activity_type,
-            "description": description,
-        }
-        if contact_id:
-            activity["contact_id"] = contact_id
-        response = db.table("activities").insert(activity).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
+from db_service import (
+    db_is_connected,
+    db_create_contact, db_check_contact_exists, db_check_contacts_by_company,
+    db_find_potential_duplicates_by_card, db_update_contact,
+    upload_card_image_to_supabase, db_create_enrollment, db_log_activity,
+    db_get_unprocessed_cards, db_list_card_images, db_get_card_image_url,
+    db_delete_contact,
+)
 
 def enroll_in_campaign(contact_id, event_name=""):
     """Enroll contact in 6-week networking drip campaign"""
@@ -2291,9 +2084,6 @@ else:
         if not db_is_connected():
             st.error("❌ Database not connected. Please check your Supabase configuration.")
         else:
-            # Get unprocessed contacts
-            db = get_db()
-
             # Add retry button if there was a previous error
             if 'process_cards_error' in st.session_state:
                 st.error(f"Previous error: {st.session_state.process_cards_error}")
@@ -2309,8 +2099,7 @@ else:
                     max_retries = 3
                     for attempt in range(max_retries):
                         try:
-                            response = db.table("contacts").select("*").ilike("first_name", "[Unprocessed]%").order("created_at", desc=True).execute()
-                            unprocessed_cards = response.data if response.data else []
+                            unprocessed_cards = db_get_unprocessed_cards()
                             # Clear any previous errors on success
                             if 'process_cards_error' in st.session_state:
                                 del st.session_state.process_cards_error
@@ -2346,13 +2135,11 @@ else:
 
                                     # Try to get all images for this contact
                                     try:
-                                        files_response = db.storage.from_("card-images").list("business-cards")
-                                        # Filter images for this contact
-                                        contact_images = [f for f in files_response if f['name'].startswith(f"{contact_id}_")]
+                                        contact_images = db_list_card_images(contact_id)
 
                                         if contact_images:
                                             for img_idx, img_file in enumerate(contact_images):
-                                                img_url = db.storage.from_("card-images").get_public_url(f"business-cards/{img_file['name']}")
+                                                img_url = db_get_card_image_url(img_file['name'])
                                                 side_label = "Front" if img_idx == 0 else "Back"
                                                 st.image(img_url, caption=f"📄 {side_label} Side", use_container_width=True)
                                         else:
@@ -2382,7 +2169,7 @@ else:
                                 if delete_btn:
                                     try:
                                         # Delete the contact
-                                        db.table("contacts").delete().eq("id", card['id']).execute()
+                                        db_delete_contact(card['id'])
                                         st.success(f"✅ Card #{idx + 1} deleted")
                                         # Clear any extracted data
                                         if f'extracted_{card["id"]}' in st.session_state:
@@ -2440,7 +2227,7 @@ else:
                                             }
 
                                             try:
-                                                db.table("contacts").update(update_data).eq("id", card['id']).execute()
+                                                db_update_contact(card['id'], update_data)
 
                                                 # Enroll in campaign if requested
                                                 if enroll:
@@ -2455,7 +2242,7 @@ else:
                                         if skip:
                                             # Delete the unprocessed card
                                             try:
-                                                db.table("contacts").delete().eq("id", card['id']).execute()
+                                                db_delete_contact(card['id'])
                                                 st.success("Card skipped and removed from queue")
                                                 if f'extracted_{card["id"]}' in st.session_state:
                                                     del st.session_state[f'extracted_{card["id"]}']

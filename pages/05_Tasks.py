@@ -2,39 +2,12 @@
 MPT-CRM Tasks Page
 Manage tasks with priorities, due dates, and associations to contacts/deals/projects
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-import os
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
+from db_service import db_is_connected
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)

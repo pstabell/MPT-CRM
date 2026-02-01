@@ -250,4 +250,90 @@ MPT-CRM/
 
 ---
 
+## Architecture: Centralized Database Service Layer
+
+### THE PROBLEM
+
+Before this refactor, **every page had its own copy of the database code**. Each of the 9+ page
+files (01_Discovery through 09_Settings) plus `app.py` and `mobile_scanner.py` contained:
+
+- Its own `get_db()` / `create_client()` connection setup
+- Its own `db_get_*`, `db_create_*`, `db_update_*`, `db_delete_*` functions
+- Raw `.table()` and `.select()` Supabase calls inline with UI logic
+
+This created a **"fix one page, break another"** nightmare:
+- The same query existed in 3-4 different files with subtle differences
+- A schema change meant hunting through every file to update every call
+- Debugging a data issue meant reading thousands of lines across 10+ files
+- Weeks were wasted in loops of "fix Contacts → break Pipeline → fix Pipeline → break Discovery"
+
+### THE SOLUTION
+
+**`db_service.py`** — a single centralized service layer that owns ALL database operations.
+
+```
+Architecture:
+
+    ┌──────────────────────┐
+    │   Streamlit Pages    │   ← UI only (layout, widgets, display)
+    │  (01–09 + app.py)    │
+    └──────────┬───────────┘
+               │  from db_service import db_get_*, db_create_*, ...
+               ▼
+    ┌──────────────────────┐
+    │    db_service.py     │   ← ALL database logic lives here
+    │  (50+ functions)     │
+    │  Single source of    │
+    │  truth for DB ops    │
+    └──────────┬───────────┘
+               │  supabase.table(...).select/insert/update/delete
+               ▼
+    ┌──────────────────────┐
+    │      Supabase        │   ← PostgreSQL database + Storage
+    └──────────────────────┘
+```
+
+### THE RULE
+
+> **Pages are islands.** They handle UI only.
+> **`db_service.py` is the single source of truth** for ALL database operations.
+> Pages NEVER import `supabase`, call `create_client`, or use raw `.table()` queries.
+
+Every page follows this pattern:
+```python
+from db_service import db_get_contacts, db_create_contact, db_is_connected
+
+# UI code only — no raw DB calls
+if db_is_connected():
+    contacts = db_get_contacts()
+    st.dataframe(contacts)
+```
+
+### How to Add New Database Operations
+
+1. **Add the function to `db_service.py`** in the appropriate section
+2. **Follow the naming convention**: `db_get_*`, `db_create_*`, `db_update_*`, `db_delete_*`
+3. **Add a docstring** with Args and Returns
+4. **Use try/except** with sensible defaults (empty list, None, False)
+5. **Import it in the page** that needs it: `from db_service import db_new_function`
+6. **Never** put raw `.table()` calls in page files
+
+### db_service.py Sections
+
+| Section | Functions | Purpose |
+|---------|-----------|---------|
+| Connection | `get_db`, `db_is_connected`, `reset_db_connection`, `db_test_connection` | Supabase client management |
+| Contacts | `db_get_contacts`, `db_get_contact`, `db_create_contact`, `db_update_contact`, `db_delete_contact`, `db_archive_contact`, `db_unarchive_contact`, `db_get_archived_contacts`, `db_check_contact_exists`, `db_check_contacts_by_company`, `db_find_duplicate_contact`, `db_find_potential_duplicates`, `db_find_potential_duplicates_by_card`, `db_merge_contacts`, `db_update_contact_type`, `db_get_contact_email` | All contact CRUD + dedup + merge |
+| Deals / Pipeline | `db_get_deals`, `db_create_deal`, `db_update_deal`, `db_update_deal_stage`, `db_delete_deal`, `db_get_deal_tasks`, `db_add_deal_task`, `db_toggle_deal_task` | Pipeline management |
+| Discovery / Intakes | `db_get_intakes`, `db_get_intake`, `db_create_intake`, `db_update_intake` | Client discovery forms |
+| Activities | `db_get_activities`, `db_log_activity`, `db_get_contact_email_sends`, `db_get_contact_activities` | Activity tracking |
+| Tasks | `db_get_tasks` | Task queries |
+| Time & Billing | `db_get_time_entries`, `db_create_time_entry`, `db_get_invoices`, `db_update_invoice`, `db_create_invoice`, `db_get_projects` | Time tracking and invoicing |
+| Marketing | `db_create_enrollment` | Campaign management |
+| Business Cards | `upload_card_image_to_supabase`, `db_list_card_images`, `db_get_card_image_url`, `db_get_unprocessed_cards` | Card scanning storage |
+| Dashboard | `db_get_dashboard_stats` | Aggregated stats |
+| Settings | `db_export_all_tables` | Data export |
+
+---
+
 *Document maintained by Claude Code for Metro Point Technology*

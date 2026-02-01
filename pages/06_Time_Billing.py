@@ -2,114 +2,17 @@
 MPT-CRM Time & Billing Page
 Track time entries, generate invoices, and manage billing
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-import os
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
-
-# ============================================
-# PAGE-SPECIFIC DATABASE FUNCTIONS
-# ============================================
-def db_get_contacts():
-    """Get all contacts from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("contacts").select("*").neq("archived", True).execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_get_projects():
-    """Get all projects from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("projects").select("*").execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_get_time_entries():
-    """Get all time entries from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("time_entries").select("*, projects(id, name, client_id)").execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_create_time_entry(entry_data: dict):
-    """Create a new time entry in database"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("time_entries").insert(entry_data).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
-
-def db_get_invoices():
-    """Get all invoices from database"""
-    db = get_db()
-    if not db:
-        return []
-
-    try:
-        response = db.table("invoices").select("*").execute()
-        return response.data or []
-    except Exception:
-        return []
-
-def db_update_invoice(invoice_id: str, data: dict):
-    """Update an invoice in database"""
-    db = get_db()
-    if not db:
-        return None
-
-    try:
-        response = db.table("invoices").update(data).eq("id", invoice_id).execute()
-        return response.data[0] if response.data else None
-    except Exception:
-        return None
+from db_service import (
+    db_is_connected,
+    db_get_contacts, db_get_projects, db_get_time_entries,
+    db_create_time_entry, db_get_invoices, db_update_invoice,
+    db_create_invoice,
+)
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -508,11 +411,7 @@ with tab2:
                     }
                     # Save to database if connected
                     if db_is_connected():
-                        try:
-                            db = get_db()
-                            db.table("invoices").insert(new_invoice).execute()
-                        except Exception:
-                            pass
+                        db_create_invoice(new_invoice)
                     # Add to session state
                     if 'tb_invoices' not in st.session_state:
                         st.session_state.tb_invoices = []

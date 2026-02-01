@@ -2,40 +2,14 @@
 MPT-CRM Settings Page
 Configure integrations, user preferences, and system settings
 
-SELF-CONTAINED PAGE: All code is inline per CLAUDE.md rules
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
 import os
 from datetime import datetime
 from pathlib import Path
-
-# ============================================
-# DATABASE CONNECTION (self-contained)
-# ============================================
-try:
-    from supabase import create_client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-
-@st.cache_resource(show_spinner=False)
-def get_db():
-    """Create and cache Supabase client"""
-    if not SUPABASE_AVAILABLE:
-        return None
-    url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_ANON_KEY")
-    if url and key:
-        try:
-            return create_client(url, key)
-        except Exception:
-            return None
-    return None
-
-def db_is_connected():
-    """Check if database is connected"""
-    return get_db() is not None
+from db_service import db_is_connected, db_test_connection, db_export_all_tables
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -186,12 +160,11 @@ with tab2:
         if db_is_connected():
             st.success("✅ Connected to Supabase")
             if st.button("Test Connection"):
-                try:
-                    db = get_db()
-                    db.table("contacts").select("id").limit(1).execute()
+                success, message = db_test_connection()
+                if success:
                     st.success("Connection test passed!")
-                except Exception as e:
-                    st.error(f"Connection test failed: {str(e)[:100]}")
+                else:
+                    st.error(f"Connection test failed: {message[:100]}")
         else:
             st.warning("⚠️ Not connected")
             st.markdown("Enter your Supabase credentials to enable persistent data storage.")
@@ -371,14 +344,7 @@ with st.expander("⚠️ Danger Zone"):
             if db_is_connected():
                 try:
                     import json
-                    db = get_db()
-                    export = {}
-                    for table in ["contacts", "deals", "projects", "tasks", "time_entries", "invoices", "email_templates", "email_campaigns", "email_sends", "activities"]:
-                        try:
-                            resp = db.table(table).select("*").execute()
-                            export[table] = resp.data if resp.data else []
-                        except Exception:
-                            export[table] = []
+                    export = db_export_all_tables()
                     export_json = json.dumps(export, indent=2, default=str)
                     st.download_button(
                         label="📥 Download Export",
