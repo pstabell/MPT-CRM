@@ -8,7 +8,7 @@ Database operations are handled by db_service.py — the single source of truth.
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-from db_service import db_is_connected
+from db_service import db_is_connected, db_get_tasks
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -100,88 +100,9 @@ render_sidebar("Tasks")
 # ============================================
 # INITIALIZE SESSION STATE
 # ============================================
-if 'tasks_list' not in st.session_state:
-    st.session_state.tasks_list = [
-        {
-            "id": "task-1",
-            "title": "Follow up with John Smith",
-            "description": "Send networking follow-up email after Chamber meeting",
-            "status": "pending",
-            "priority": "high",
-            "due_date": (date.today() + timedelta(days=1)).strftime("%Y-%m-%d"),
-            "contact_name": "John Smith",
-            "contact_id": "c-1",
-            "deal_id": None,
-            "project_id": None,
-            "created_at": "2026-01-23"
-        },
-        {
-            "id": "task-2",
-            "title": "Send proposal to Sarah Johnson",
-            "description": "Website redesign proposal with client portal specs",
-            "status": "in_progress",
-            "priority": "urgent",
-            "due_date": date.today().strftime("%Y-%m-%d"),
-            "contact_name": "Sarah Johnson",
-            "contact_id": "c-2",
-            "deal_id": "deal-2",
-            "project_id": None,
-            "created_at": "2026-01-22"
-        },
-        {
-            "id": "task-3",
-            "title": "Complete CRM database design",
-            "description": "Finish database schema for Williams Insurance CRM",
-            "status": "in_progress",
-            "priority": "high",
-            "due_date": (date.today() + timedelta(days=3)).strftime("%Y-%m-%d"),
-            "contact_name": "Mike Williams",
-            "contact_id": "c-3",
-            "deal_id": None,
-            "project_id": "proj-1",
-            "created_at": "2026-01-20"
-        },
-        {
-            "id": "task-4",
-            "title": "Schedule discovery call with David Chen",
-            "description": "Discuss mobile app requirements for field team",
-            "status": "pending",
-            "priority": "medium",
-            "due_date": (date.today() + timedelta(days=5)).strftime("%Y-%m-%d"),
-            "contact_name": "David Chen",
-            "contact_id": "c-6",
-            "deal_id": None,
-            "project_id": None,
-            "created_at": "2026-01-21"
-        },
-        {
-            "id": "task-5",
-            "title": "Review data migration scripts",
-            "description": "Test and validate migration scripts before production run",
-            "status": "pending",
-            "priority": "medium",
-            "due_date": (date.today() + timedelta(days=2)).strftime("%Y-%m-%d"),
-            "contact_name": "Robert Taylor",
-            "contact_id": "c-4",
-            "deal_id": None,
-            "project_id": "proj-2",
-            "created_at": "2026-01-22"
-        },
-        {
-            "id": "task-6",
-            "title": "Send thank you note to Amanda",
-            "description": "Thank Amanda for the referral to Johnson & Co",
-            "status": "completed",
-            "priority": "low",
-            "due_date": "2026-01-22",
-            "contact_name": "Amanda White",
-            "contact_id": "c-7",
-            "deal_id": None,
-            "project_id": None,
-            "created_at": "2026-01-20",
-            "completed_at": "2026-01-22"
-        },
-    ]
+if 'tasks_list' not in st.session_state or st.session_state.get('tasks_needs_refresh', True):
+    st.session_state.tasks_list = db_get_tasks()
+    st.session_state.tasks_needs_refresh = False
 
 # Task status definitions
 TASK_STATUS = {
