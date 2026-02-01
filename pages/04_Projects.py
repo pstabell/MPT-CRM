@@ -8,7 +8,7 @@ Database operations are handled by db_service.py — the single source of truth.
 
 import streamlit as st
 from datetime import datetime, date, timedelta
-from db_service import db_is_connected, db_get_contact_email
+from db_service import db_is_connected, db_get_contact_email, db_get_projects, db_get_time_entries
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -98,61 +98,15 @@ st.set_page_config(
 render_sidebar("Projects")
 
 # ============================================
-# INITIALIZE SESSION STATE
+# LOAD DATA FROM SUPABASE
 # ============================================
-if 'proj_projects' not in st.session_state:
-    st.session_state.proj_projects = [
-        {
-            "id": "proj-1",
-            "name": "Williams Insurance CRM",
-            "client": "Williams Insurance",
-            "client_id": "c-3",
-            "status": "active",
-            "description": "Custom CRM for insurance agency operations with policy tracking and client management.",
-            "start_date": "2026-01-15",
-            "target_end_date": "2026-03-15",
-            "budget": 15000,
-            "hours_logged": 24.5,
-            "hourly_rate": 150
-        },
-        {
-            "id": "proj-2",
-            "name": "Taylor Data Migration",
-            "client": "Taylor & Associates",
-            "client_id": "c-4",
-            "status": "active",
-            "description": "Migrate legacy data from Excel spreadsheets to new cloud-based system.",
-            "start_date": "2026-01-10",
-            "target_end_date": "2026-02-10",
-            "budget": 8500,
-            "hours_logged": 18,
-            "hourly_rate": 150
-        },
-        {
-            "id": "proj-3",
-            "name": "Johnson Website Redesign",
-            "client": "Johnson & Co",
-            "client_id": "c-2",
-            "status": "planning",
-            "description": "Complete website redesign with client portal integration.",
-            "start_date": None,
-            "target_end_date": "2026-04-01",
-            "budget": 12000,
-            "hours_logged": 0,
-            "hourly_rate": 150
-        },
-    ]
+if 'proj_projects' not in st.session_state or st.session_state.get('proj_needs_refresh', True):
+    st.session_state.proj_projects = db_get_projects()
+    st.session_state.proj_needs_refresh = False
 
-if 'proj_time_entries' not in st.session_state:
-    st.session_state.proj_time_entries = [
-        {"id": "te-1", "project_id": "proj-1", "date": "2026-01-20", "hours": 4.5, "description": "Database schema design and setup", "billable": True},
-        {"id": "te-2", "project_id": "proj-1", "date": "2026-01-21", "hours": 6, "description": "API development for contact management", "billable": True},
-        {"id": "te-3", "project_id": "proj-1", "date": "2026-01-22", "hours": 5.5, "description": "Frontend UI components", "billable": True},
-        {"id": "te-4", "project_id": "proj-1", "date": "2026-01-23", "hours": 8.5, "description": "Policy tracking module", "billable": True},
-        {"id": "te-5", "project_id": "proj-2", "date": "2026-01-15", "hours": 6, "description": "Data analysis and mapping", "billable": True},
-        {"id": "te-6", "project_id": "proj-2", "date": "2026-01-16", "hours": 8, "description": "Migration script development", "billable": True},
-        {"id": "te-7", "project_id": "proj-2", "date": "2026-01-17", "hours": 4, "description": "Testing and validation", "billable": True},
-    ]
+if 'proj_time_entries' not in st.session_state or st.session_state.get('proj_te_needs_refresh', True):
+    st.session_state.proj_time_entries = db_get_time_entries()
+    st.session_state.proj_te_needs_refresh = False
 
 if 'proj_selected_project' not in st.session_state:
     st.session_state.proj_selected_project = None
