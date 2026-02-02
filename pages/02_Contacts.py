@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 MPT-CRM Contacts Page
 Manage contacts with types, tags, and full detail views
@@ -249,6 +248,7 @@ PAGE_CONFIG = {
     "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
     "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
     "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
     "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
@@ -741,7 +741,7 @@ def show_contact_detail(contact_id):
                         st.markdown(f"**{deal_title}**")
 
                         deal_value = deal.get('value', 0) or 0
-                        deal_stage = (deal.get('stage') or 'lead').replace('_', ' ').title()
+                        deal_stage = deal.get('stage', 'lead').replace('_', ' ').title()
                         value_str = f"${deal_value:,.0f}" if deal_value else "No value"
                         st.caption(f"💰 {value_str} | Stage: {deal_stage}")
 

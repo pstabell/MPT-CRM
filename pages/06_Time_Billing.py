@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 MPT-CRM Time & Billing Page
 Track time entries, generate invoices, and manage billing
@@ -50,6 +49,7 @@ PAGE_CONFIG = {
     "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
     "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
     "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
     "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
@@ -112,18 +112,31 @@ with st.sidebar:
 # ============================================
 # INITIALIZE SESSION STATE
 # ============================================
-if 'tb_invoices' not in st.session_state or st.session_state.get('tb_inv_needs_refresh', True):
-    st.session_state.tb_invoices = db_get_invoices()
-    st.session_state.tb_inv_needs_refresh = False
+if 'tb_invoices' not in st.session_state:
+    st.session_state.tb_invoices = [
+        {
+            "id": "inv-1",
+            "invoice_number": "INV-2026-001",
+            "client": "Taylor & Associates",
+            "client_id": "c-4",
+            "project": "Taylor Data Migration",
+            "project_id": "proj-2",
+            "status": "sent",
+            "subtotal": 2700,
+            "tax_rate": 0,
+            "total": 2700,
+            "due_date": "2026-02-15",
+            "created_at": "2026-01-20",
+            "sent_at": "2026-01-20"
+        },
+    ]
 
 # Use time_entries with page-specific prefix
-if 'tb_time_entries' not in st.session_state or st.session_state.get('tb_te_needs_refresh', True):
-    st.session_state.tb_time_entries = db_get_time_entries()
-    st.session_state.tb_te_needs_refresh = False
+if 'tb_time_entries' not in st.session_state:
+    st.session_state.tb_time_entries = []
 
-if 'tb_projects' not in st.session_state or st.session_state.get('tb_proj_needs_refresh', True):
-    st.session_state.tb_projects = db_get_projects()
-    st.session_state.tb_proj_needs_refresh = False
+if 'tb_projects' not in st.session_state:
+    st.session_state.tb_projects = []
 
 # Invoice status definitions
 INVOICE_STATUS = {

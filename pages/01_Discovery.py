@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 MPT-CRM Discovery Call
 Live call companion for capturing project scope during client conversations
@@ -60,6 +59,7 @@ PAGE_CONFIG = {
     "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
     "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
     "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
     "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
@@ -204,7 +204,7 @@ def save_client_info_to_db(data):
 
     try:
         # Prepare contact data
-        source_val = (data.get('source') or '').lower().replace(" ", "_").replace("/", "_")
+        source_val = data.get('source', '').lower().replace(" ", "_").replace("/", "_")
         if source_val == "-- select --" or not source_val:
             source_val = "other"
 
@@ -379,11 +379,11 @@ if search_query:
     search_lower = search_query.lower()
     matching_clients = [
         c for c in clients
-        if search_lower in (c.get('first_name') or '').lower()
-        or search_lower in (c.get('last_name') or '').lower()
-        or search_lower in (c.get('company') or '').lower()
-        or search_lower in (c.get('email') or '').lower()
-        or search_lower in (c.get('phone') or '').replace('-', '').replace(' ', '')
+        if search_lower in c.get('first_name', '').lower()
+        or search_lower in c.get('last_name', '').lower()
+        or search_lower in c.get('company', '').lower()
+        or search_lower in c.get('email', '').lower()
+        or search_lower in c.get('phone', '').replace('-', '').replace(' ', '')
     ]
 
     if matching_clients:

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 db_service.py — Centralized Database Service Layer for MPT-CRM
 ==============================================================
@@ -1253,6 +1252,110 @@ def db_update_invoice(invoice_id, data):
         return None
 
 
+def db_create_project(project_data):
+    """Create a new project record.
+
+    Args:
+        project_data: dict with project fields (name, client_name, project_type,
+                      hourly_rate, estimated_hours, etc.)
+
+    Returns:
+        dict or None: The created project record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("projects").insert(project_data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error creating project: {e}")
+        return None
+
+
+def db_update_project(project_id, project_data):
+    """Update an existing project.
+
+    Args:
+        project_id: The UUID of the project.
+        project_data: dict of fields to update.
+
+    Returns:
+        dict or None: The updated project record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("projects").update(project_data).eq("id", project_id).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error updating project {project_id}: {e}")
+        return None
+
+
+def db_delete_project(project_id):
+    """Delete a project from the database.
+
+    Args:
+        project_id: The UUID of the project.
+
+    Returns:
+        bool: True if deleted successfully.
+    """
+    db = get_db()
+    if not db:
+        return False
+    try:
+        db.table("projects").delete().eq("id", project_id).execute()
+        return True
+    except Exception as e:
+        print(f"[db_service] Error deleting project {project_id}: {e}")
+        return False
+
+
+def db_get_project(project_id):
+    """Get a single project by ID.
+
+    Args:
+        project_id: The UUID of the project.
+
+    Returns:
+        dict or None: The project record, or None if not found.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("projects").select("*").eq("id", project_id).single().execute()
+        return response.data
+    except Exception as e:
+        print(f"[db_service] Error getting project {project_id}: {e}")
+        return None
+
+
+def db_get_project_time_entries(project_id):
+    """Get all time entries for a specific project.
+
+    Args:
+        project_id: The UUID of the project.
+
+    Returns:
+        list[dict]: Time entry records for the project.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("time_entries").select("*").eq(
+            "project_id", project_id
+        ).order("date", desc=True).execute()
+        return response.data or []
+    except Exception as e:
+        print(f"[db_service] Error getting time entries for project {project_id}: {e}")
+        return []
+
+
 # ============================================================
 # 8. MARKETING / CAMPAIGNS
 # ============================================================
@@ -1424,3 +1527,91 @@ def db_export_all_tables():
         except Exception:
             export[table] = []
     return export
+
+
+# ============================================================
+# 12. SERVICE TICKETS
+# ============================================================
+
+def db_get_service_tickets(ticket_type=None):
+    """Get service tickets, optionally filtered by type.
+
+    Args:
+        ticket_type: Optional. Filter by 'change_order', 'maintenance', or 'service'.
+
+    Returns:
+        list[dict]: Service ticket records.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        query = db.table("service_tickets").select("*").order("created_at", desc=True)
+        if ticket_type:
+            query = query.eq("ticket_type", ticket_type)
+        response = query.execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting service tickets: {e}")
+        return []
+
+
+def db_get_service_ticket(ticket_id):
+    """Get a single service ticket by ID.
+
+    Args:
+        ticket_id: The UUID of the service ticket.
+
+    Returns:
+        dict or None: The service ticket record, or None if not found.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("service_tickets").select("*").eq("id", ticket_id).single().execute()
+        return response.data
+    except Exception as e:
+        print(f"[db_service] Error getting service ticket {ticket_id}: {e}")
+        return None
+
+
+def db_create_service_ticket(ticket_data):
+    """Create a new service ticket.
+
+    Args:
+        ticket_data: dict with ticket fields (title, ticket_type, project_id, etc.)
+
+    Returns:
+        dict or None: The created ticket record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("service_tickets").insert(ticket_data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error creating service ticket: {e}")
+        return None
+
+
+def db_update_service_ticket(ticket_id, ticket_data):
+    """Update an existing service ticket.
+
+    Args:
+        ticket_id: The UUID of the service ticket.
+        ticket_data: dict of fields to update.
+
+    Returns:
+        dict or None: The updated ticket record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("service_tickets").update(ticket_data).eq("id", ticket_id).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error updating service ticket {ticket_id}: {e}")
+        return None

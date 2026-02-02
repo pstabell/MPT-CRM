@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 MPT-CRM - Metro Point Technology Customer Relationship Management
 Main application entry point for Streamlit multi-page app
@@ -48,6 +47,7 @@ PAGE_CONFIG = {
     "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
     "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
     "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
     "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
