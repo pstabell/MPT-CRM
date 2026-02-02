@@ -29,6 +29,8 @@ Sections:
     9.  Business Cards / Storage
     10. Dashboard
     11. Settings / Export
+    12. Service Tickets
+    13. Drip Campaign / Scheduler
 """
 
 import os
@@ -1615,3 +1617,304 @@ def db_update_service_ticket(ticket_id, ticket_data):
     except Exception as e:
         print(f"[db_service] Error updating service ticket {ticket_id}: {e}")
         return None
+
+
+# ============================================================
+# 13. DRIP CAMPAIGN / SCHEDULER
+# ============================================================
+
+def db_get_active_enrollments():
+    """Get all active campaign enrollments that may need emails sent.
+
+    Returns:
+        list[dict]: Active enrollment records with contact info joined.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("campaign_enrollments").select(
+            "*, contacts(id, first_name, last_name, email, company, phone, type, email_status, source_detail)"
+        ).eq("status", "active").execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting active enrollments: {e}")
+        return []
+
+
+def db_get_enrollment(enrollment_id):
+    """Get a single enrollment by ID.
+
+    Args:
+        enrollment_id: The UUID of the enrollment.
+
+    Returns:
+        dict or None: The enrollment record, or None if not found.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("campaign_enrollments").select(
+            "*, contacts(id, first_name, last_name, email, company, phone, type, email_status, source_detail)"
+        ).eq("id", enrollment_id).single().execute()
+        return response.data
+    except Exception as e:
+        print(f"[db_service] Error getting enrollment {enrollment_id}: {e}")
+        return None
+
+
+def db_get_enrollments_for_contact(contact_id):
+    """Get all enrollments for a specific contact.
+
+    Args:
+        contact_id: The UUID of the contact.
+
+    Returns:
+        list[dict]: Enrollment records for that contact.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("campaign_enrollments").select("*").eq(
+            "contact_id", contact_id
+        ).order("created_at", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting enrollments for contact {contact_id}: {e}")
+        return []
+
+
+def db_update_enrollment(enrollment_id, data):
+    """Update a campaign enrollment record.
+
+    Args:
+        enrollment_id: The UUID of the enrollment.
+        data: dict of fields to update.
+
+    Returns:
+        dict or None: The updated enrollment, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("campaign_enrollments").update(data).eq(
+            "id", enrollment_id
+        ).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error updating enrollment {enrollment_id}: {e}")
+        return None
+
+
+def db_pause_enrollments_for_contact(contact_id, campaign_id=None):
+    """Pause all active enrollments for a contact (or specific campaign).
+
+    Used when switching campaigns due to contact type change.
+
+    Args:
+        contact_id: The UUID of the contact.
+        campaign_id: Optional. Only pause enrollments for this campaign.
+
+    Returns:
+        int: Number of enrollments paused.
+    """
+    db = get_db()
+    if not db:
+        return 0
+    try:
+        query = db.table("campaign_enrollments").update({
+            "status": "paused"
+        }).eq("contact_id", contact_id).eq("status", "active")
+
+        if campaign_id:
+            query = query.eq("campaign_id", campaign_id)
+
+        response = query.execute()
+        return len(response.data) if response.data else 0
+    except Exception as e:
+        print(f"[db_service] Error pausing enrollments for contact {contact_id}: {e}")
+        return 0
+
+
+def db_complete_enrollment(enrollment_id):
+    """Mark an enrollment as completed.
+
+    Args:
+        enrollment_id: The UUID of the enrollment.
+
+    Returns:
+        dict or None: The updated enrollment, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("campaign_enrollments").update({
+            "status": "completed"
+        }).eq("id", enrollment_id).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error completing enrollment {enrollment_id}: {e}")
+        return None
+
+
+def db_record_email_send(contact_id, subject, sendgrid_message_id=None, enrollment_id=None):
+    """Record an email send in the email_sends table.
+
+    Args:
+        contact_id: The UUID of the contact.
+        subject: The email subject line.
+        sendgrid_message_id: Optional SendGrid message ID for tracking.
+        enrollment_id: Optional enrollment ID if from a drip campaign.
+
+    Returns:
+        dict or None: The created email_send record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        send_data = {
+            "contact_id": contact_id,
+            "subject": subject,
+            "status": "sent",
+            "sent_at": datetime.now().isoformat(),
+        }
+        if sendgrid_message_id:
+            send_data["sendgrid_message_id"] = sendgrid_message_id
+        response = db.table("email_sends").insert(send_data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error recording email send: {e}")
+        return None
+
+
+def db_get_drip_campaign_template(campaign_id):
+    """Get a drip campaign template by campaign_id.
+
+    Args:
+        campaign_id: The campaign identifier string (e.g. 'networking-drip-6week').
+
+    Returns:
+        dict or None: The campaign template record, or None if not found.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("drip_campaign_templates").select("*").eq(
+            "campaign_id", campaign_id
+        ).single().execute()
+        return response.data
+    except Exception as e:
+        print(f"[db_service] Error getting drip campaign template {campaign_id}: {e}")
+        return None
+
+
+def db_update_contact_and_switch_campaign(contact_id, new_type, old_type=None):
+    """Update a contact's type and handle campaign switching.
+
+    When a contact's type changes (e.g., networking → lead → prospect → client),
+    pause current campaign enrollments and enroll in the appropriate new campaign.
+
+    Campaign mapping:
+        networking → networking-drip-6week (Day 0, 3, 7, 14, 21, 28, 35, 42)
+        lead       → lead-nurture (future)
+        prospect   → prospect-nurture (future)
+        client     → client-welcome (future)
+
+    Args:
+        contact_id: The UUID of the contact.
+        new_type: The new contact type string.
+        old_type: The previous contact type (if known).
+
+    Returns:
+        dict: {"success": bool, "message": str, "paused": int, "enrolled": bool}
+    """
+    result = {"success": False, "message": "", "paused": 0, "enrolled": False}
+
+    # Update the contact type
+    updated = db_update_contact(contact_id, {"type": new_type})
+    if not updated:
+        result["message"] = "Failed to update contact type"
+        return result
+
+    result["success"] = True
+
+    # Pause any active enrollments from the old campaign
+    if old_type and old_type != new_type:
+        paused = db_pause_enrollments_for_contact(contact_id)
+        result["paused"] = paused
+
+        # Log the type change
+        db_log_activity(
+            "contact_type_changed",
+            f"Contact type changed from '{old_type}' to '{new_type}'. {paused} campaign(s) paused.",
+            contact_id
+        )
+
+        # Campaign mapping — only networking has a drip campaign right now
+        # Future: add lead-nurture, prospect-nurture, client-welcome campaigns
+        CAMPAIGN_MAP = {
+            "networking": "networking-drip-6week",
+            # "lead": "lead-nurture",
+            # "prospect": "prospect-nurture",
+            # "client": "client-welcome",
+        }
+
+        new_campaign_id = CAMPAIGN_MAP.get(new_type)
+        if new_campaign_id:
+            # Enroll in new campaign
+            from datetime import timedelta
+            import json as _json
+
+            # Build schedule based on campaign
+            if new_campaign_id == "networking-drip-6week":
+                days = [0, 3, 7, 14, 21, 28, 35, 42]
+                purposes = ["thank_you", "value_add", "coffee_invite", "check_in",
+                           "expertise_share", "reconnect", "referral_soft", "referral_ask"]
+            else:
+                days = [0, 7, 14, 30]
+                purposes = ["welcome", "value", "check_in", "next_steps"]
+
+            schedule = []
+            now = datetime.now()
+            for i, day in enumerate(days):
+                scheduled_date = now + timedelta(days=day)
+                schedule.append({
+                    "step": i,
+                    "day": day,
+                    "purpose": purposes[i] if i < len(purposes) else f"step_{i}",
+                    "scheduled_for": scheduled_date.isoformat(),
+                    "sent_at": None
+                })
+
+            enrollment_data = {
+                "contact_id": contact_id,
+                "campaign_id": new_campaign_id,
+                "campaign_name": "Networking Follow-Up (6 Week)",
+                "status": "active",
+                "current_step": 0,
+                "total_steps": len(days),
+                "step_schedule": _json.dumps(schedule),
+                "source": "auto_campaign_switch",
+                "source_detail": f"Type changed from {old_type} to {new_type}",
+                "emails_sent": 0
+            }
+
+            enrollment = db_create_enrollment(enrollment_data)
+            if enrollment:
+                result["enrolled"] = True
+                result["message"] = f"Type changed to '{new_type}'. {paused} old campaign(s) paused, enrolled in new campaign."
+            else:
+                result["message"] = f"Type changed to '{new_type}'. {paused} old campaign(s) paused. Failed to enroll in new campaign."
+        else:
+            result["message"] = f"Type changed to '{new_type}'. {paused} old campaign(s) paused. No auto-campaign for this type."
+
+    else:
+        result["message"] = f"Contact type set to '{new_type}'."
+
+    return result
