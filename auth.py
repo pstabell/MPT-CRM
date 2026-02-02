@@ -13,9 +13,19 @@ Usage in any page:
 """
 
 import os
+import random
+from datetime import datetime, timedelta
 import streamlit as st
 
-from db_service import db_get_setting, db_set_setting, db_hash_password
+from db_service import (
+    db_get_setting,
+    db_set_setting,
+    db_hash_password,
+    db_set_password_reset,
+    db_get_password_reset,
+    db_clear_password_reset,
+    db_send_password_reset_email,
+)
 
 try:
     from dotenv import load_dotenv
@@ -34,6 +44,32 @@ def _get_credentials():
 def _get_stored_password_hash():
     """Get the stored password hash from settings, if available."""
     return db_get_setting("auth_password_hash")
+
+
+def _get_admin_email():
+    """Get configured admin email for password reset verification."""
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if not admin_email:
+        admin_email = os.getenv("SENDGRID_FROM_EMAIL", "")
+    return (admin_email or "").strip()
+
+
+def _generate_reset_code():
+    """Generate a 6-digit reset code."""
+    return f"{random.SystemRandom().randint(0, 999999):06d}"
+
+
+def _parse_iso_datetime(value):
+    """Parse an ISO datetime string into a naive datetime."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo:
+            parsed = parsed.replace(tzinfo=None)
+        return parsed
+    except Exception:
+        return None
 
 
 def _verify_current_password(plain_password):
@@ -64,6 +100,11 @@ def login_page():
 
     col1, col2, col3 = st.columns([1, 2, 1])
 
+    if "auth_flow" not in st.session_state:
+        st.session_state["auth_flow"] = "login"
+    if "reset_success" not in st.session_state:
+        st.session_state["reset_success"] = False
+
     with col2:
         st.markdown("<br><br>", unsafe_allow_html=True)
 
@@ -73,40 +114,139 @@ def login_page():
         except Exception:
             st.title("MPT-CRM")
 
-        st.markdown("### Sign In")
-        st.markdown("---")
+        if st.session_state["auth_flow"] == "login":
+            st.markdown("### Sign In")
+            st.markdown("---")
 
-        with st.form("login_form"):
-            username = st.text_input("Username", key="login_username")
-            password = st.text_input("Password", type="password", key="login_password")
-            submitted = st.form_submit_button("Sign In", type="primary", use_container_width=True)
+            if st.session_state.get("reset_success"):
+                st.success("Password reset successfully. Please sign in.")
+                st.session_state["reset_success"] = False
 
-            if submitted:
-                expected_user, expected_pass = _get_credentials()
-                stored_hash = _get_stored_password_hash()
+            with st.form("login_form"):
+                username = st.text_input("Username", key="login_username")
+                password = st.text_input("Password", type="password", key="login_password")
+                submitted = st.form_submit_button("Sign In", type="primary", use_container_width=True)
 
-                if not stored_hash and not expected_pass:
-                    st.error("Authentication not configured. Set AUTH_PASSWORD in .env file.")
-                    return False
+                if submitted:
+                    expected_user, expected_pass = _get_credentials()
+                    stored_hash = _get_stored_password_hash()
 
-                if stored_hash:
-                    is_valid = username == expected_user and db_hash_password(password) == stored_hash
-                    if is_valid:
+                    if not stored_hash and not expected_pass:
+                        st.error("Authentication not configured. Set AUTH_PASSWORD in .env file.")
+                        return False
+
+                    if stored_hash:
+                        is_valid = username == expected_user and db_hash_password(password) == stored_hash
+                        if is_valid:
+                            st.session_state["authenticated"] = True
+                            st.session_state["auth_user"] = username
+                            st.session_state["auth_needs_password_change"] = False
+                            st.rerun()
+                        else:
+                            st.error("Invalid username or password")
+                            return False
+                    elif username == expected_user and password == expected_pass:
                         st.session_state["authenticated"] = True
                         st.session_state["auth_user"] = username
-                        st.session_state["auth_needs_password_change"] = False
+                        st.session_state["auth_needs_password_change"] = True
                         st.rerun()
                     else:
                         st.error("Invalid username or password")
                         return False
-                elif username == expected_user and password == expected_pass:
-                    st.session_state["authenticated"] = True
-                    st.session_state["auth_user"] = username
-                    st.session_state["auth_needs_password_change"] = True
+
+            if st.button("Forgot Password?", use_container_width=True):
+                st.session_state["auth_flow"] = "forgot_email"
+                st.rerun()
+
+        elif st.session_state["auth_flow"] == "forgot_email":
+            st.markdown("### Forgot Password")
+            st.markdown("---")
+
+            admin_email = _get_admin_email()
+            with st.form("forgot_password_form"):
+                email = st.text_input("Admin email", key="reset_email")
+                submitted = st.form_submit_button("Send Reset Code", type="primary", use_container_width=True)
+
+                if submitted:
+                    if not admin_email:
+                        st.error("Admin email is not configured. Set ADMIN_EMAIL in .env.")
+                        return False
+                    if not email or email.strip().lower() != admin_email.lower():
+                        st.error("Email does not match the configured admin email.")
+                        return False
+
+                    reset_code = _generate_reset_code()
+                    expires_at = datetime.now() + timedelta(minutes=15)
+                    saved = db_set_password_reset(reset_code, expires_at)
+                    if not saved:
+                        st.error("Unable to store reset code. Check database connection.")
+                        return False
+
+                    send_result = db_send_password_reset_email(
+                        to_email=admin_email,
+                        reset_code=reset_code,
+                        expires_minutes=15
+                    )
+                    if not send_result.get("success"):
+                        db_clear_password_reset()
+                        st.error(f"Failed to send reset email: {send_result.get('error')}")
+                        return False
+
+                    st.session_state["auth_flow"] = "forgot_verify"
+                    st.success("Reset code sent. Check your email.")
                     st.rerun()
-                else:
-                    st.error("Invalid username or password")
-                    return False
+
+            if st.button("Back to Sign In", use_container_width=True):
+                st.session_state["auth_flow"] = "login"
+                st.rerun()
+
+        elif st.session_state["auth_flow"] == "forgot_verify":
+            st.markdown("### Enter Reset Code")
+            st.markdown("---")
+
+            with st.form("reset_code_form"):
+                code = st.text_input("6-digit code", key="reset_code")
+                new_password = st.text_input("New password", type="password", key="reset_new_password")
+                confirm_password = st.text_input("Confirm new password", type="password", key="reset_confirm_password")
+                submitted = st.form_submit_button("Reset Password", type="primary", use_container_width=True)
+
+                if submitted:
+                    if not code or not new_password or not confirm_password:
+                        st.error("Please fill in all fields.")
+                        return False
+                    if new_password != confirm_password:
+                        st.error("Passwords do not match.")
+                        return False
+
+                    reset_data = db_get_password_reset()
+                    stored_code = (reset_data.get("code") or "").strip()
+                    expires_at = _parse_iso_datetime(reset_data.get("expires_at"))
+
+                    if not stored_code or not expires_at:
+                        st.error("Reset code is not available. Request a new code.")
+                        return False
+                    if code.strip() != stored_code:
+                        st.error("Reset code is incorrect.")
+                        return False
+                    if datetime.now() > expires_at:
+                        st.error("Reset code has expired. Request a new code.")
+                        return False
+
+                    new_hash = db_hash_password(new_password)
+                    saved = db_set_setting("auth_password_hash", new_hash)
+                    if not saved:
+                        st.error("Unable to update password. Check database connection.")
+                        return False
+
+                    db_clear_password_reset()
+                    st.session_state["auth_needs_password_change"] = False
+                    st.session_state["auth_flow"] = "login"
+                    st.session_state["reset_success"] = True
+                    st.rerun()
+
+            if st.button("Back to Sign In", use_container_width=True):
+                st.session_state["auth_flow"] = "login"
+                st.rerun()
 
         st.caption("Metro Point Technology, LLC")
 

@@ -1537,6 +1537,89 @@ def db_hash_password(raw_password):
     return hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
 
 
+def db_set_password_reset(code, expires_at):
+    """Store password reset code and expiry in settings.
+
+    Args:
+        code: 6-digit reset code string.
+        expires_at: datetime or ISO string for expiry time.
+
+    Returns:
+        bool: True if both settings were saved.
+    """
+    if not code or not expires_at:
+        return False
+    if isinstance(expires_at, datetime):
+        expires_value = expires_at.isoformat()
+    else:
+        expires_value = str(expires_at)
+    saved_code = db_set_setting("password_reset_code", code)
+    saved_expires = db_set_setting("password_reset_expires", expires_value)
+    return bool(saved_code and saved_expires)
+
+
+def db_get_password_reset():
+    """Get the current password reset code and expiry.
+
+    Returns:
+        dict: {"code": str|None, "expires_at": str|None}
+    """
+    return {
+        "code": db_get_setting("password_reset_code"),
+        "expires_at": db_get_setting("password_reset_expires"),
+    }
+
+
+def db_clear_password_reset():
+    """Clear stored password reset code and expiry.
+
+    Returns:
+        bool: True if both settings were cleared.
+    """
+    cleared_code = db_set_setting("password_reset_code", None)
+    cleared_expires = db_set_setting("password_reset_expires", None)
+    return bool(cleared_code and cleared_expires)
+
+
+def db_send_password_reset_email(to_email, reset_code, expires_minutes=15):
+    """Send a password reset code email to the admin."""
+    if not to_email or not reset_code:
+        return {"success": False, "error": "Missing email or reset code"}
+
+    subject = "MPT-CRM Password Reset Code"
+    html_body = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; color: #1f2937;">
+        <h2 style="margin: 0 0 12px;">Password Reset Request</h2>
+        <p style="margin: 0 0 16px;">
+            Use the code below to reset your MPT-CRM password. This code expires in {expires_minutes} minutes.
+        </p>
+        <div style="text-align: center; margin: 24px 0;">
+            <div style="
+                display: inline-block;
+                padding: 16px 24px;
+                font-size: 28px;
+                letter-spacing: 6px;
+                font-weight: 700;
+                background: #f3f4f6;
+                border-radius: 10px;
+                color: #111827;">
+                {reset_code}
+            </div>
+        </div>
+        <p style="margin: 0;">
+            If you did not request a password reset, you can ignore this email.
+        </p>
+    </div>
+    """
+
+    return send_email_via_sendgrid(
+        to_email=to_email,
+        to_name="Admin",
+        subject=subject,
+        html_body=html_body
+    )
+
+
 def db_get_setting(key):
     """Get a settings value by key.
 
