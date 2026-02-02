@@ -894,9 +894,19 @@ def show_contact_detail(contact_id):
                     if f'card_rotation_{contact_id}' not in st.session_state:
                         st.session_state[f'card_rotation_{contact_id}'] = {}
 
-                    # Get all card images for this contact
+                    # Get all card images for this contact from storage
                     card_images = []
                     cid = contact['id']
+
+                    # Try to list all card images from Supabase Storage
+                    try:
+                        from db_service import db_list_card_images, db_get_card_image_url
+                        storage_files = db_list_card_images(cid)
+                        if storage_files:
+                            card_images = [db_get_card_image_url(f['name']) for f in storage_files if f.get('name')]
+                            card_images = [url for url in card_images if url]  # filter None
+                    except Exception:
+                        pass
 
                     # Fallback to single image if no images found in storage
                     if not card_images and card_image_url:
