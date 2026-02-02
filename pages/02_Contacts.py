@@ -1071,11 +1071,17 @@ def show_contact_detail(contact_id):
         # Quick actions
         st.markdown("### ⚡ Quick Actions")
 
-        # Send Email - opens mailto: link
+        # Send Email - opens Outlook Web compose with business account
         email_addr = contact.get('email', '')
+        from_email = os.getenv("SENDGRID_FROM_EMAIL", "patrick@metropointtechnology.com")
         if email_addr:
-            mailto_link = f"mailto:{email_addr}?subject=Following%20Up"
-            st.markdown(f'<a href="{mailto_link}" target="_blank" style="text-decoration: none;"><button style="width: 100%; padding: 0.5rem; background-color: #262730; color: white; border: 1px solid #3d3d4d; border-radius: 0.5rem; cursor: pointer; margin-bottom: 0.5rem;">📧 Send Email</button></a>', unsafe_allow_html=True)
+            import urllib.parse
+            subject = urllib.parse.quote("Following Up")
+            to_encoded = urllib.parse.quote(email_addr)
+            # Use Outlook Web App (OWA) to compose from business account
+            owa_link = f"https://outlook.office.com/mail/deeplink/compose?to={to_encoded}&subject={subject}"
+            st.markdown(f'<a href="{owa_link}" target="_blank" style="text-decoration: none;"><button style="width: 100%; padding: 0.5rem; background-color: #262730; color: white; border: 1px solid #3d3d4d; border-radius: 0.5rem; cursor: pointer; margin-bottom: 0.5rem;">📧 Send Email</button></a>', unsafe_allow_html=True)
+            st.caption(f"_Opens Outlook Web as {from_email}_")
         else:
             if st.button("📧 Send Email", use_container_width=True, disabled=True):
                 pass
