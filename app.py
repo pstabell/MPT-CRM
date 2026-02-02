@@ -7,12 +7,13 @@ Database operations are handled by db_service.py — the single source of truth.
 """
 import streamlit as st
 from datetime import datetime, timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
 from db_service import (
     db_is_connected,
     db_get_dashboard_stats, db_get_activities, db_get_tasks, db_get_deals,
+    db_process_due_campaign_enrollments,
 )
 from auth import require_login, logout, is_authenticated
-from drip_scheduler import start_scheduler, is_scheduler_running
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -106,8 +107,23 @@ require_login()
 # ============================================
 # START DRIP SCHEDULER (once per process)
 # ============================================
-if not is_scheduler_running():
-    start_scheduler()
+@st.cache_resource(show_spinner=False)
+def start_drip_scheduler():
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(
+        db_process_due_campaign_enrollments,
+        "interval",
+        minutes=30,
+        id="drip_scheduler",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True
+    )
+    scheduler.start()
+    return scheduler
+
+scheduler = start_drip_scheduler()
+scheduler_running = bool(scheduler and getattr(scheduler, "running", False))
 
 # ============================================
 # LOAD DATA
@@ -164,7 +180,7 @@ with st.sidebar:
         st.error("Database not connected - check .env file", icon="❌")
 
     # Drip scheduler status
-    if is_scheduler_running():
+    if scheduler_running:
         st.caption("📧 Drip scheduler: running")
     else:
         st.caption("📧 Drip scheduler: stopped")

@@ -158,22 +158,25 @@ def enroll_in_campaign(contact_id, event_name=""):
         for i, day in enumerate(days):
             scheduled_date = datetime.now() + timedelta(days=day)
             schedule.append({
+                "step": i,
                 "day": day,
                 "purpose": purposes[i],
-                "scheduled_for": scheduled_date.isoformat()
+                "scheduled_for": scheduled_date.isoformat(),
+                "sent_at": None
             })
 
         enrollment_data = {
             "contact_id": contact_id,
-            "campaign_id": "6week_networking_drip",
-            "campaign_name": "6-Week Networking Drip",
+            "campaign_id": "networking-drip-6week",
+            "campaign_name": "Networking Follow-Up (6 Week)",
             "status": "active",
             "current_step": 0,
             "total_steps": 5,
             "step_schedule": json.dumps(schedule),
             "source": "mobile_scanner",
             "source_detail": event_name,
-            "emails_sent": 0
+            "emails_sent": 0,
+            "next_email_scheduled": schedule[0]["scheduled_for"] if schedule else None
         }
 
         result = db_create_enrollment(enrollment_data)

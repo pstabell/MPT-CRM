@@ -34,6 +34,7 @@ Sections:
 """
 
 import os
+import json
 from datetime import datetime, timedelta
 
 try:
@@ -187,12 +188,13 @@ def db_create_contact(contact_data):
         return None
 
 
-def db_update_contact(contact_id, contact_data):
+def db_update_contact(contact_id, contact_data, skip_campaign_switch=False):
     """Update an existing contact.
 
     Args:
         contact_id: The UUID of the contact.
         contact_data: dict of fields to update.
+        skip_campaign_switch: If True, do not auto-switch campaigns on type change.
 
     Returns:
         dict or None: The updated contact record, or None on failure.
@@ -200,9 +202,23 @@ def db_update_contact(contact_id, contact_data):
     db = get_db()
     if not db:
         return None
+    previous_type = None
+    if "type" in contact_data and not skip_campaign_switch:
+        try:
+            existing = db_get_contact(contact_id)
+            previous_type = existing.get("type") if existing else None
+        except Exception:
+            previous_type = None
     try:
         response = db.table("contacts").update(contact_data).eq("id", contact_id).execute()
-        return response.data[0] if response.data else None
+        updated = response.data[0] if response.data else None
+        new_type = contact_data.get("type")
+        if not skip_campaign_switch and updated and previous_type and new_type and new_type != previous_type:
+            try:
+                _handle_campaign_switch(contact_id, previous_type, new_type)
+            except Exception as e:
+                print(f"[db_service] Error switching campaigns for contact {contact_id}: {e}")
+        return updated
     except Exception as e:
         print(f"[db_service] Error updating contact {contact_id}: {e}")
         return None
@@ -1792,6 +1808,56 @@ def db_record_email_send(contact_id, subject, sendgrid_message_id=None, enrollme
         return None
 
 
+def send_email_via_sendgrid(to_email, to_name, subject, html_body, contact_id=None, enrollment_id=None):
+    """Send an email via SendGrid and record it in email_sends.
+
+    Returns {"success": True, "message_id": "..."} or {"success": False, "error": "..."}
+    """
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail, TrackingSettings, ClickTracking, OpenTracking
+    except ImportError:
+        return {"success": False, "error": "sendgrid package not installed"}
+
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("SENDGRID_FROM_EMAIL", "patrick@metropointtechnology.com")
+    from_name = os.getenv("SENDGRID_FROM_NAME", "Patrick Stabell")
+
+    if not api_key:
+        return {"success": False, "error": "SENDGRID_API_KEY not configured"}
+
+    try:
+        message = Mail(
+            from_email=(from_email, from_name),
+            to_emails=(to_email, to_name),
+            subject=subject,
+            html_content=html_body.replace("\n", "<br>")
+        )
+
+        tracking_settings = TrackingSettings()
+        tracking_settings.click_tracking = ClickTracking(True, True)
+        tracking_settings.open_tracking = OpenTracking(True)
+        message.tracking_settings = tracking_settings
+
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(message)
+
+        if contact_id:
+            db_record_email_send(
+                contact_id=contact_id,
+                subject=subject,
+                sendgrid_message_id=response.headers.get("X-Message-Id", "")
+            )
+
+        return {
+            "success": True,
+            "message_id": response.headers.get("X-Message-Id", ""),
+            "status_code": response.status_code
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def db_get_drip_campaign_template(campaign_id):
     """Get a drip campaign template by campaign_id.
 
@@ -1814,17 +1880,290 @@ def db_get_drip_campaign_template(campaign_id):
         return None
 
 
+def _replace_merge_fields(template, contact, event_name=""):
+    """Replace merge fields in a template string using contact data."""
+    import re
+
+    replacements = {
+        "{{first_name}}": contact.get("first_name", ""),
+        "{{last_name}}": contact.get("last_name", ""),
+        "{{company}}": contact.get("company", ""),
+        "{{company_name}}": contact.get("company", ""),
+        "{{email}}": contact.get("email", ""),
+        "{{phone}}": contact.get("phone", ""),
+        "{{title}}": contact.get("title", ""),
+        "{{event_name}}": event_name or contact.get("source_detail", ""),
+        "{{your_name}}": os.getenv("SENDGRID_FROM_NAME", "Patrick Stabell"),
+        "{{your_phone}}": os.getenv("SENDGRID_FROM_PHONE", "(239) 600-8159"),
+        "{{your_email}}": os.getenv("SENDGRID_FROM_EMAIL", "patrick@metropointtechnology.com"),
+        "{{your_website}}": os.getenv("SENDGRID_FROM_WEBSITE", "www.MetroPointTechnology.com"),
+        "{{unsubscribe_link}}": "[Unsubscribe](mailto:patrick@metropointtechnology.com?subject=Unsubscribe)",
+    }
+
+    result = template or ""
+    for field, value in replacements.items():
+        result = result.replace(field, value or "")
+
+    conditional_pattern = r'\{\{#(\w+)\}\}(.*?)\{\{/\1\}\}'
+
+    def replace_conditional(match):
+        field_name = match.group(1)
+        content = match.group(2)
+        value = replacements.get(f"{{{{{field_name}}}}}", "")
+        return content if value else ""
+
+    return re.sub(conditional_pattern, replace_conditional, result, flags=re.DOTALL)
+
+
+def _build_step_schedule(email_sequence, start_date=None):
+    """Build a step schedule from a campaign email sequence."""
+    if start_date is None:
+        start_date = datetime.now()
+    schedule = []
+    for idx, step in enumerate(email_sequence or []):
+        day = step.get("day", 0)
+        scheduled_date = start_date + timedelta(days=day)
+        schedule.append({
+            "step": idx,
+            "day": day,
+            "purpose": step.get("purpose", f"step_{idx}"),
+            "scheduled_for": scheduled_date.isoformat(),
+            "sent_at": None
+        })
+    return schedule
+
+
+def _get_next_step_index(step_schedule, current_step, emails_sent):
+    """Find the next unsent step index."""
+    if step_schedule:
+        for idx, step in enumerate(step_schedule):
+            if not step.get("sent_at"):
+                return idx
+        return len(step_schedule)
+    return max(current_step or 0, emails_sent or 0)
+
+
+def _handle_campaign_switch(contact_id, old_type, new_type):
+    """Complete existing enrollments and create a new one for the mapped campaign."""
+    result = {"completed": 0, "enrolled": False, "message": ""}
+
+    campaign_map = {
+        "networking": "networking-drip-6week",
+        "lead": "lead-drip",
+        "prospect": "prospect-drip",
+        "client": "client-drip",
+    }
+
+    new_campaign_id = campaign_map.get(new_type)
+    if not new_campaign_id:
+        result["message"] = f"No campaign mapped for type '{new_type}'."
+        return result
+
+    db = get_db()
+    if not db:
+        result["message"] = "Database not connected."
+        return result
+
+    try:
+        active_resp = db.table("campaign_enrollments").select("*").eq(
+            "contact_id", contact_id
+        ).eq("status", "active").execute()
+        active_enrollments = active_resp.data or []
+    except Exception as e:
+        result["message"] = f"Failed to fetch active enrollments: {e}"
+        return result
+
+    if any(e.get("campaign_id") == new_campaign_id for e in active_enrollments):
+        result["message"] = "Already enrolled in mapped campaign."
+        return result
+
+    for enrollment in active_enrollments:
+        updated = db_update_enrollment(enrollment["id"], {"status": "completed"})
+        if updated:
+            result["completed"] += 1
+
+    template = db_get_drip_campaign_template(new_campaign_id)
+    email_sequence = template.get("email_sequence") if template else None
+    if isinstance(email_sequence, str):
+        try:
+            email_sequence = json.loads(email_sequence)
+        except Exception:
+            email_sequence = []
+
+    if not email_sequence:
+        result["message"] = f"Campaign template not found for '{new_campaign_id}'."
+        return result
+
+    schedule = _build_step_schedule(email_sequence)
+    enrollment_data = {
+        "contact_id": contact_id,
+        "campaign_id": new_campaign_id,
+        "campaign_name": template.get("name") if template else new_campaign_id,
+        "status": "active",
+        "current_step": 0,
+        "total_steps": len(email_sequence),
+        "step_schedule": json.dumps(schedule),
+        "source": "auto_campaign_switch",
+        "source_detail": f"Type changed from {old_type} to {new_type}",
+        "emails_sent": 0,
+        "next_email_scheduled": schedule[0]["scheduled_for"] if schedule else None
+    }
+
+    enrollment = db_create_enrollment(enrollment_data)
+    if enrollment:
+        result["enrolled"] = True
+        result["message"] = f"Switched campaign to '{new_campaign_id}'."
+        db_log_activity(
+            "campaign_switched",
+            f"Contact type changed from '{old_type}' to '{new_type}', enrolled in {new_campaign_id}.",
+            contact_id
+        )
+    else:
+        result["message"] = f"Failed to enroll in '{new_campaign_id}'."
+
+    return result
+
+
+def db_process_due_campaign_enrollments():
+    """Send due drip emails based on next_email_scheduled."""
+    db = get_db()
+    if not db:
+        return 0
+
+    now = datetime.now()
+    try:
+        response = db.table("campaign_enrollments").select(
+            "*, contacts(id, first_name, last_name, email, company, phone, type, email_status, source_detail)"
+        ).eq("status", "active").lte("next_email_scheduled", now.isoformat()).execute()
+        enrollments = response.data or []
+    except Exception as e:
+        print(f"[db_service] Error fetching due enrollments: {e}")
+        return 0
+
+    sent_count = 0
+
+    for enrollment in enrollments:
+        try:
+            contact = enrollment.get("contacts") or {}
+            email_addr = contact.get("email", "")
+            email_status = contact.get("email_status", "active")
+            if not email_addr or email_status in ("unsubscribed", "bounced"):
+                continue
+
+            campaign_id = enrollment.get("campaign_id", "")
+            template = db_get_drip_campaign_template(campaign_id)
+            email_sequence = template.get("email_sequence") if template else None
+            if isinstance(email_sequence, str):
+                try:
+                    email_sequence = json.loads(email_sequence)
+                except Exception:
+                    email_sequence = []
+
+            if not email_sequence:
+                print(f"[db_service] Missing campaign template for {campaign_id}")
+                continue
+
+            step_schedule = enrollment.get("step_schedule") or []
+            if isinstance(step_schedule, str):
+                try:
+                    step_schedule = json.loads(step_schedule)
+                except Exception:
+                    step_schedule = []
+
+            if not step_schedule:
+                enrolled_at = enrollment.get("enrolled_at")
+                start_date = None
+                if enrolled_at:
+                    try:
+                        start_date = datetime.fromisoformat(str(enrolled_at).replace("Z", "+00:00"))
+                        if start_date.tzinfo:
+                            start_date = start_date.replace(tzinfo=None)
+                    except Exception:
+                        start_date = None
+                step_schedule = _build_step_schedule(email_sequence, start_date=start_date)
+
+            next_step_idx = _get_next_step_index(
+                step_schedule,
+                enrollment.get("current_step"),
+                enrollment.get("emails_sent")
+            )
+
+            if next_step_idx >= len(email_sequence):
+                db_update_enrollment(enrollment["id"], {
+                    "status": "completed",
+                    "next_email_scheduled": None,
+                    "step_schedule": json.dumps(step_schedule)
+                })
+                db_log_activity(
+                    "campaign_completed",
+                    f"Completed drip campaign: {enrollment.get('campaign_name', campaign_id)}",
+                    contact.get("id")
+                )
+                continue
+
+            email_template = email_sequence[next_step_idx]
+            event_name = enrollment.get("source_detail", "")
+            subject = _replace_merge_fields(email_template.get("subject", ""), contact, event_name)
+            body = _replace_merge_fields(email_template.get("body", ""), contact, event_name)
+            to_name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
+
+            result = send_email_via_sendgrid(
+                to_email=email_addr,
+                to_name=to_name,
+                subject=subject,
+                html_body=body,
+                contact_id=contact.get("id"),
+                enrollment_id=enrollment.get("id")
+            )
+
+            if result.get("success"):
+                sent_count += 1
+                sent_at = datetime.now().isoformat()
+                if next_step_idx < len(step_schedule):
+                    step_schedule[next_step_idx]["sent_at"] = sent_at
+
+                next_scheduled = None
+                for step in step_schedule:
+                    if not step.get("sent_at"):
+                        next_scheduled = step.get("scheduled_for")
+                        break
+
+                update_data = {
+                    "current_step": next_step_idx + 1,
+                    "emails_sent": (enrollment.get("emails_sent") or 0) + 1,
+                    "last_email_sent_at": sent_at,
+                    "next_email_scheduled": next_scheduled,
+                    "step_schedule": json.dumps(step_schedule)
+                }
+                if not next_scheduled:
+                    update_data["status"] = "completed"
+
+                db_update_enrollment(enrollment["id"], update_data)
+                db_log_activity(
+                    "email_sent",
+                    f"Drip email step {next_step_idx + 1}: {subject}",
+                    contact.get("id")
+                )
+            else:
+                print(f"[db_service] Send failed for {email_addr}: {result.get('error')}")
+        except Exception as e:
+            print(f"[db_service] Error processing enrollment {enrollment.get('id')}: {e}")
+            continue
+
+    return sent_count
+
+
 def db_update_contact_and_switch_campaign(contact_id, new_type, old_type=None):
     """Update a contact's type and handle campaign switching.
 
-    When a contact's type changes (e.g., networking → lead → prospect → client),
-    pause current campaign enrollments and enroll in the appropriate new campaign.
+    When a contact's type changes (e.g., networking -> lead -> prospect -> client),
+    complete current campaign enrollments and enroll in the appropriate new campaign.
 
     Campaign mapping:
-        networking → networking-drip-6week (Day 0, 3, 7, 14, 21, 28, 35, 42)
-        lead       → lead-nurture (future)
-        prospect   → prospect-nurture (future)
-        client     → client-welcome (future)
+        networking -> networking-drip-6week
+        lead       -> lead-drip
+        prospect   -> prospect-drip
+        client     -> client-drip
 
     Args:
         contact_id: The UUID of the contact.
@@ -1832,88 +2171,26 @@ def db_update_contact_and_switch_campaign(contact_id, new_type, old_type=None):
         old_type: The previous contact type (if known).
 
     Returns:
-        dict: {"success": bool, "message": str, "paused": int, "enrolled": bool}
+        dict: {"success": bool, "message": str, "completed": int, "enrolled": bool}
     """
-    result = {"success": False, "message": "", "paused": 0, "enrolled": False}
+    result = {"success": False, "message": "", "completed": 0, "enrolled": False}
 
-    # Update the contact type
-    updated = db_update_contact(contact_id, {"type": new_type})
+    if old_type is None:
+        existing = db_get_contact(contact_id)
+        old_type = existing.get("type") if existing else None
+
+    updated = db_update_contact(contact_id, {"type": new_type}, skip_campaign_switch=True)
     if not updated:
         result["message"] = "Failed to update contact type"
         return result
 
     result["success"] = True
 
-    # Pause any active enrollments from the old campaign
     if old_type and old_type != new_type:
-        paused = db_pause_enrollments_for_contact(contact_id)
-        result["paused"] = paused
-
-        # Log the type change
-        db_log_activity(
-            "contact_type_changed",
-            f"Contact type changed from '{old_type}' to '{new_type}'. {paused} campaign(s) paused.",
-            contact_id
-        )
-
-        # Campaign mapping — only networking has a drip campaign right now
-        # Future: add lead-nurture, prospect-nurture, client-welcome campaigns
-        CAMPAIGN_MAP = {
-            "networking": "networking-drip-6week",
-            # "lead": "lead-nurture",
-            # "prospect": "prospect-nurture",
-            # "client": "client-welcome",
-        }
-
-        new_campaign_id = CAMPAIGN_MAP.get(new_type)
-        if new_campaign_id:
-            # Enroll in new campaign
-            from datetime import timedelta
-            import json as _json
-
-            # Build schedule based on campaign
-            if new_campaign_id == "networking-drip-6week":
-                days = [0, 3, 7, 14, 21, 28, 35, 42]
-                purposes = ["thank_you", "value_add", "coffee_invite", "check_in",
-                           "expertise_share", "reconnect", "referral_soft", "referral_ask"]
-            else:
-                days = [0, 7, 14, 30]
-                purposes = ["welcome", "value", "check_in", "next_steps"]
-
-            schedule = []
-            now = datetime.now()
-            for i, day in enumerate(days):
-                scheduled_date = now + timedelta(days=day)
-                schedule.append({
-                    "step": i,
-                    "day": day,
-                    "purpose": purposes[i] if i < len(purposes) else f"step_{i}",
-                    "scheduled_for": scheduled_date.isoformat(),
-                    "sent_at": None
-                })
-
-            enrollment_data = {
-                "contact_id": contact_id,
-                "campaign_id": new_campaign_id,
-                "campaign_name": "Networking Follow-Up (6 Week)",
-                "status": "active",
-                "current_step": 0,
-                "total_steps": len(days),
-                "step_schedule": _json.dumps(schedule),
-                "source": "auto_campaign_switch",
-                "source_detail": f"Type changed from {old_type} to {new_type}",
-                "emails_sent": 0
-            }
-
-            enrollment = db_create_enrollment(enrollment_data)
-            if enrollment:
-                result["enrolled"] = True
-                result["message"] = f"Type changed to '{new_type}'. {paused} old campaign(s) paused, enrolled in new campaign."
-            else:
-                result["message"] = f"Type changed to '{new_type}'. {paused} old campaign(s) paused. Failed to enroll in new campaign."
-        else:
-            result["message"] = f"Type changed to '{new_type}'. {paused} old campaign(s) paused. No auto-campaign for this type."
-
+        switch_result = _handle_campaign_switch(contact_id, old_type, new_type)
+        result["completed"] = switch_result.get("completed", 0)
+        result["enrolled"] = switch_result.get("enrolled", False)
+        result["message"] = switch_result.get("message", "")
     else:
         result["message"] = f"Contact type set to '{new_type}'."
 

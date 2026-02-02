@@ -13,14 +13,9 @@ import json
 import os
 import re
 
-# Load environment variables from .env file
+# Load environment variables from .env file (do not override existing env vars)
 from dotenv import load_dotenv
-# Clear any existing keys from system environment to ensure .env is used
-for key in ["ANTHROPIC_API_KEY", "SENDGRID_API_KEY"]:
-    if key in os.environ:
-        del os.environ[key]
-# Now load from .env file
-load_dotenv()
+load_dotenv(override=False)
 
 from db_service import (
     db_is_connected,
@@ -28,18 +23,17 @@ from db_service import (
     db_find_potential_duplicates_by_card, db_update_contact,
     upload_card_image_to_supabase, db_create_enrollment, db_log_activity,
     db_get_unprocessed_cards, db_list_card_images, db_get_card_image_url,
-    db_delete_contact,
+    db_delete_contact, db_update_enrollment, send_email_via_sendgrid,
 )
 from auth import require_login
 
 def enroll_in_campaign(contact_id, event_name=""):
-    """Enroll contact in 6-week networking drip campaign (Day 0,3,7,14,21,28,35,42)"""
+    """Enroll contact in 6-week networking drip campaign (Day 0,7,14,30,45)"""
     try:
-        # Calculate schedule — matches NETWORKING_DRIP_CAMPAIGN and drip_scheduler.py
+        # Calculate schedule — matches NETWORKING_DRIP_CAMPAIGN
         schedule = []
-        days = [0, 3, 7, 14, 21, 28, 35, 42]
-        purposes = ["thank_you", "value_add", "coffee_invite", "check_in",
-                    "expertise_share", "reconnect", "referral_soft", "referral_ask"]
+        days = [0, 7, 14, 30, 45]
+        purposes = ["thank_you", "value_add", "coffee_invite", "check_in", "referral_ask"]
 
         for i, day in enumerate(days):
             scheduled_date = datetime.now() + timedelta(days=day)
@@ -57,11 +51,12 @@ def enroll_in_campaign(contact_id, event_name=""):
             "campaign_name": "Networking Follow-Up (6 Week)",
             "status": "active",
             "current_step": 0,
-            "total_steps": 8,
+            "total_steps": 5,
             "step_schedule": json.dumps(schedule),
             "source": "mobile_scanner",
             "source_detail": event_name,
-            "emails_sent": 0
+            "emails_sent": 0,
+            "next_email_scheduled": schedule[0]["scheduled_for"] if schedule else None
         }
 
         return db_create_enrollment(enrollment_data)
@@ -547,53 +542,6 @@ def extract_contact_from_card(image_url):
 
     except Exception as e:
         return {"error": f"Failed to fetch image: {str(e)}"}
-
-# ============================================
-# SENDGRID EMAIL SENDING
-# ============================================
-
-def send_email_via_sendgrid(to_email, to_name, subject, html_body, contact_id=None, enrollment_id=None):
-    """
-    Send an email via SendGrid with tracking.
-    Returns {"success": True, "message_id": "..."} or {"success": False, "error": "..."}
-    """
-    try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail, TrackingSettings, ClickTracking, OpenTracking
-    except ImportError:
-        return {"success": False, "error": "sendgrid package not installed"}
-
-    api_key = os.getenv("SENDGRID_API_KEY")
-    from_email = os.getenv("SENDGRID_FROM_EMAIL", "patrick@metropointtechnology.com")
-    from_name = os.getenv("SENDGRID_FROM_NAME", "Patrick Stabell")
-
-    if not api_key:
-        return {"success": False, "error": "SENDGRID_API_KEY not configured"}
-
-    try:
-        message = Mail(
-            from_email=(from_email, from_name),
-            to_emails=(to_email, to_name),
-            subject=subject,
-            html_content=html_body.replace("\n", "<br>")  # Convert newlines to HTML
-        )
-
-        # Enable tracking
-        tracking_settings = TrackingSettings()
-        tracking_settings.click_tracking = ClickTracking(True, True)
-        tracking_settings.open_tracking = OpenTracking(True)
-        message.tracking_settings = tracking_settings
-
-        sg = SendGridAPIClient(api_key)
-        response = sg.send(message)
-
-        return {
-            "success": True,
-            "message_id": response.headers.get("X-Message-Id", ""),
-            "status_code": response.status_code
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 # ============================================
 # MERGE FIELD REPLACEMENT
@@ -1788,6 +1736,7 @@ else:
 
                             # Create campaign enrollment (for both new and merged contacts)
                             contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip()
+                            enrollment = None
                             if contact_data.get('enroll', True):
                                 schedule = calculate_drip_schedule()
                                 enrollment_data = {
@@ -1800,7 +1749,8 @@ else:
                                     "step_schedule": json.dumps(schedule),
                                     "source": "business_card_scanner",
                                     "source_detail": event_name,
-                                    "emails_sent": 0
+                                    "emails_sent": 0,
+                                    "next_email_scheduled": schedule[0]["scheduled_for"] if schedule else None
                                 }
 
                                 enrollment = db_create_enrollment(enrollment_data)
@@ -1823,7 +1773,8 @@ else:
                                     to_name=f"{contact_data['first_name']} {contact_data['last_name']}",
                                     subject=subject,
                                     html_body=body,
-                                    contact_id=contact_id
+                                    contact_id=contact_id,
+                                    enrollment_id=enrollment["id"] if enrollment else None
                                 )
 
                                 if email_result.get('success'):
@@ -1834,6 +1785,24 @@ else:
                                         f"Welcome email sent: {subject}",
                                         contact_id
                                     )
+                                    if enrollment:
+                                        try:
+                                            now = datetime.now().isoformat()
+                                            if schedule:
+                                                schedule[0]["sent_at"] = now
+                                            next_scheduled = schedule[1].get("scheduled_for") if schedule and len(schedule) > 1 else None
+                                            update_data = {
+                                                "current_step": 1 if schedule else 0,
+                                                "emails_sent": 1 if schedule else 0,
+                                                "last_email_sent_at": now,
+                                                "next_email_scheduled": next_scheduled,
+                                                "step_schedule": json.dumps(schedule) if schedule else json.dumps([])
+                                            }
+                                            if not next_scheduled and schedule:
+                                                update_data["status"] = "completed"
+                                            db_update_enrollment(enrollment["id"], update_data)
+                                        except Exception as update_err:
+                                            results['import_log'].append(f"âš ï¸ Enrollment update failed: {update_err}")
                                 else:
                                     error_msg = f"Email failed for {contact_data['email']}: {email_result.get('error')}"
                                     results['errors'].append(error_msg)
