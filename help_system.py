@@ -10,34 +10,58 @@ import streamlit as st
 # ============================================
 HELP_COIN_CSS = """
 <style>
-    .help-coin {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #FFD700, #FFA500);
-        color: #1a1a2e;
+    /* Gold coin styling for help popover buttons */
+    .help-coin-wrapper [data-testid="stPopover"] > button {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        max-width: 28px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        background: radial-gradient(ellipse at 35% 30%, #FFF1A8, #E8C547 40%, #C9A020 70%, #B8860B) !important;
+        border: 2px solid #9A7209 !important;
+        box-shadow:
+            0 2px 6px rgba(0,0,0,0.35),
+            inset 0 2px 3px rgba(255,255,255,0.45),
+            inset 0 -2px 3px rgba(139,101,8,0.3) !important;
+        color: transparent !important;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.15s ease;
+    }
+    .help-coin-wrapper [data-testid="stPopover"] > button:hover {
+        background: radial-gradient(ellipse at 35% 30%, #FFF8CC, #F0D060 40%, #D4A828 70%, #C49520) !important;
+        box-shadow:
+            0 3px 10px rgba(255, 215, 0, 0.45),
+            inset 0 2px 3px rgba(255,255,255,0.5),
+            inset 0 -2px 3px rgba(139,101,8,0.25) !important;
+        transform: scale(1.08);
+    }
+    .help-coin-wrapper [data-testid="stPopover"] > button::after {
+        content: "?";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 16px;
         font-weight: bold;
-        font-size: 14px;
-        cursor: pointer;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.4);
-        border: 1.5px solid #DAA520;
-        vertical-align: middle;
-        margin-left: 8px;
-        text-decoration: none;
-        user-select: none;
+        color: #7A5C00;
+        text-shadow:
+            0 1px 0 rgba(255,255,255,0.4),
+            0 -1px 0 rgba(100,70,0,0.3);
     }
-    .help-coin:hover {
-        background: linear-gradient(135deg, #FFE44D, #FFB733);
-        box-shadow: 0 2px 8px rgba(255, 215, 0, 0.5), inset 0 1px 2px rgba(255,255,255,0.4);
-        transform: scale(1.1);
+    .help-coin-wrapper [data-testid="stPopover"] > button p,
+    .help-coin-wrapper [data-testid="stPopover"] > button span {
+        visibility: hidden !important;
+        font-size: 0 !important;
     }
-    .section-header-with-help {
+    /* Keep the column tight */
+    .help-coin-wrapper {
         display: flex;
         align-items: center;
-        gap: 0;
+        padding-top: 4px;
     }
 </style>
 """
@@ -50,7 +74,7 @@ def inject_help_styles():
 
 def help_header(title: str, help_key: str, level: str = "###"):
     """
-    Render a section header with a yellow help coin button.
+    Render a section header with a gold embossed help coin button.
     Uses st.popover for the help content.
     
     Args:
@@ -64,7 +88,8 @@ def help_header(title: str, help_key: str, level: str = "###"):
     with cols[1]:
         help_content = HELP_CONTENT.get(help_key)
         if help_content:
-            with st.popover("🪙"):
+            st.markdown('<div class="help-coin-wrapper">', unsafe_allow_html=True)
+            with st.popover("?"):
                 st.markdown(f"**{help_content['title']}**")
                 st.markdown(help_content['body'])
                 if help_content.get('tips'):
@@ -72,6 +97,7 @@ def help_header(title: str, help_key: str, level: str = "###"):
                     st.markdown("💡 **Tips:**")
                     for tip in help_content['tips']:
                         st.markdown(f"- {tip}")
+            st.markdown('</div>', unsafe_allow_html=True)
 
 
 def help_coin_inline(help_key: str):
@@ -81,7 +107,8 @@ def help_coin_inline(help_key: str):
     """
     help_content = HELP_CONTENT.get(help_key)
     if help_content:
-        with st.popover("🪙"):
+        st.markdown('<div class="help-coin-wrapper">', unsafe_allow_html=True)
+        with st.popover("?"):
             st.markdown(f"**{help_content['title']}**")
             st.markdown(help_content['body'])
             if help_content.get('tips'):
@@ -89,6 +116,7 @@ def help_coin_inline(help_key: str):
                 st.markdown("💡 **Tips:**")
                 for tip in help_content['tips']:
                     st.markdown(f"- {tip}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ============================================
