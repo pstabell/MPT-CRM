@@ -27,31 +27,37 @@ from db_service import (
 )
 from auth import require_login
 
-def enroll_in_campaign(contact_id, event_name=""):
-    """Enroll contact in 6-week networking drip campaign (Day 0,7,14,30,45)"""
+def enroll_in_campaign(contact_id, event_name="", contact_type="networking"):
+    """Enroll contact in the appropriate drip campaign based on contact type.
+    
+    Args:
+        contact_id: The contact's database ID
+        event_name: Source event name for tracking
+        contact_type: Contact type to determine campaign (networking, lead, prospect, client, former_client, partner)
+    """
     try:
-        # Calculate schedule — matches NETWORKING_DRIP_CAMPAIGN
-        schedule = []
-        days = [0, 7, 14, 30, 45]
-        purposes = ["thank_you", "value_add", "coffee_invite", "check_in", "referral_ask"]
+        # Import CAMPAIGNS lazily (defined later in file) — fall back to networking
+        campaign = CAMPAIGNS.get(contact_type, NETWORKING_DRIP_CAMPAIGN)
 
-        for i, day in enumerate(days):
-            scheduled_date = datetime.now() + timedelta(days=day)
+        schedule = []
+        for i, email in enumerate(campaign["emails"]):
+            scheduled_date = datetime.now() + timedelta(days=email["day"])
             schedule.append({
                 "step": i,
-                "day": day,
-                "purpose": purposes[i],
+                "day": email["day"],
+                "purpose": email["purpose"],
+                "subject": email["subject"],
                 "scheduled_for": scheduled_date.isoformat(),
                 "sent_at": None
             })
 
         enrollment_data = {
             "contact_id": contact_id,
-            "campaign_id": "networking-drip-6week",
-            "campaign_name": "Networking Follow-Up (6 Week)",
+            "campaign_id": campaign["campaign_id"],
+            "campaign_name": campaign["campaign_name"],
             "status": "active",
             "current_step": 0,
-            "total_steps": 5,
+            "total_steps": len(campaign["emails"]),
             "step_schedule": json.dumps(schedule),
             "source": "mobile_scanner",
             "source_detail": event_name,
@@ -757,13 +763,850 @@ Metro Point Technology, LLC
     ]
 }
 
-def calculate_drip_schedule(start_date=None):
-    """Calculate the dates for each email in the drip campaign"""
+# ============================================
+# LEAD NURTURE DRIP CAMPAIGN (4 WEEK)
+# ============================================
+
+LEAD_DRIP_CAMPAIGN = {
+    "campaign_id": "lead-drip-4week",
+    "campaign_name": "Lead Nurture (4 Week)",
+    "emails": [
+        {
+            "day": 0,
+            "purpose": "introduction",
+            "subject": "How we help local businesses save time & grow",
+            "body": """Hi {{first_name}},
+
+Thanks for your interest in Metro Point Technology! I'm Patrick Stabell, the owner — and I wanted to personally reach out.
+
+We work with local businesses here in Cape Coral and Southwest Florida to build custom software, websites, and automation tools that actually fit how you work. No cookie-cutter solutions — everything is built around your business.
+
+Whether it's a website that brings in leads, software that replaces a clunky spreadsheet, or automation that saves your team hours every week — that's what we do.
+
+I'd love to learn more about{{#company}} what you're working on at {{company}} and{{/company}} where technology might be able to help.
+
+Feel free to reply to this email or give me a call anytime.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 2,
+            "purpose": "pain_point_awareness",
+            "subject": "Is this eating up your time?",
+            "body": """Hi {{first_name}},
+
+Quick question — how much time does your team spend on manual processes each week?
+
+I ask because most of the business owners I talk to here in SWFL are surprised when they add it up. Things like:
+
+• Manually entering data into multiple systems
+• Chasing invoices or following up on quotes by hand
+• Updating spreadsheets that should update themselves
+• Copying info from emails into your CRM or project tracker
+
+These tasks feel small individually, but they add up to 10, 15, even 20+ hours a week. That's time you could be spending on growing your business or getting home earlier.
+
+The good news? Most of these are straightforward to automate — and it's usually more affordable than people think.
+
+If any of that sounds familiar, I'm happy to take a quick look at your workflow and share some ideas. No pitch, just honest perspective.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 5,
+            "purpose": "case_study",
+            "subject": "How a local business cut admin time by 60%",
+            "body": """Hi {{first_name}},
+
+I wanted to share a quick story that might resonate with you.
+
+A service company here in Southwest Florida came to us spending 15+ hours a week on admin — manually scheduling jobs, sending invoices, and tracking customer info across three different tools.
+
+We built them a simple custom system that:
+✅ Auto-generates invoices when a job is completed
+✅ Syncs their schedule, CRM, and accounting in real-time
+✅ Sends automated follow-ups and review requests
+
+The result? They cut their admin time by over 60% and freed up their team to focus on actual revenue-generating work.
+
+Every business is different, but the pattern is the same — repetitive manual work that technology can handle for you.
+
+If you're curious what that could look like for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}, I'd love to chat.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 10,
+            "purpose": "consultation_offer",
+            "subject": "Free 30-minute strategy call — no strings attached",
+            "body": """Hi {{first_name}},
+
+I know you're busy, so I'll keep this short.
+
+I'd like to offer you a free 30-minute strategy call where we can:
+
+📋 Walk through your current processes and tools
+🔍 Identify the biggest time-wasters and bottlenecks
+💡 Map out 2-3 specific ways technology could save you time and money
+
+No sales pitch. No obligation. Just a straightforward conversation about where you are and what's possible.
+
+I've done these calls with dozens of business owners in Cape Coral and Fort Myers, and the feedback is always the same — "I wish I'd done this sooner."
+
+If you're interested, just reply to this email and we'll find a time that works.
+
+Best,
+{{your_name}}
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 18,
+            "purpose": "overcome_objections",
+            "subject": "The #1 concern I hear from business owners",
+            "body": """Hi {{first_name}},
+
+When I talk to business owners about custom software or automation, the most common concern I hear is:
+
+"That sounds expensive — and I don't know if it'll actually work for my business."
+
+Totally fair. So let me address both:
+
+**On cost:** We're not talking about six-figure enterprise software. Most of our projects for local businesses range from a few thousand to mid five figures — and they typically pay for themselves within months through time savings and efficiency gains.
+
+**On fit:** That's exactly why we start with a conversation, not a contract. We learn your business first, then recommend solutions that make sense. If something doesn't make sense for you, I'll tell you straight up.
+
+We also work in phases — start small, prove the value, then expand. No big-bang projects that take a year to see results.
+
+I genuinely just enjoy helping local businesses work smarter. If you've been thinking about it but haven't pulled the trigger, I'm here whenever you're ready.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 28,
+            "purpose": "final_push",
+            "subject": "Quick offer before the month wraps up",
+            "body": """Hi {{first_name}},
+
+I wanted to reach out one last time with a quick offer.
+
+Through the end of this month, I'm offering a **free technology assessment** for local businesses — a deeper dive than our usual strategy call. Here's what's included:
+
+🔎 Full review of your current tools, software, and workflows
+📊 A written report with prioritized recommendations
+💰 Estimated ROI for the top 2-3 improvements
+🗓️ An action plan you can use whether you work with us or not
+
+There's no catch — I do these because they consistently lead to great working relationships. And even if we never work together, you'll walk away with a clear picture of where technology can help.
+
+If you're interested, just reply and we'll get it scheduled.
+
+Either way, I appreciate you taking the time to read my emails. If there's ever anything I can help with down the road, don't hesitate to reach out.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        }
+    ]
+}
+
+# ============================================
+# PROSPECT CONVERSION DRIP CAMPAIGN (5 WEEK)
+# ============================================
+
+PROSPECT_DRIP_CAMPAIGN = {
+    "campaign_id": "prospect-drip-5week",
+    "campaign_name": "Prospect Conversion (5 Week)",
+    "emails": [
+        {
+            "day": 0,
+            "purpose": "personalized_followup",
+            "subject": "Following up on our conversation",
+            "body": """Hi {{first_name}},
+
+Great speaking with you! I wanted to follow up while our conversation is still fresh.
+
+Based on what you shared about{{#company}} {{company}} and{{/company}} your goals, I think there's a real opportunity to streamline things and save your team significant time.
+
+I've already been thinking about a few approaches that could work well for your situation. I'd love to dig deeper and put something specific together for you.
+
+In the meantime, feel free to reach out if any other questions come up — I'm always available.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 3,
+            "purpose": "relevant_case_study",
+            "subject": "A project that reminded me of your situation",
+            "body": """Hi {{first_name}},
+
+I was working on a project this week and it reminded me of our conversation.
+
+We recently worked with a business similar to yours that was dealing with a lot of the same challenges — disconnected systems, manual processes, and a team spending too much time on tasks that should be automated.
+
+Here's what we built for them:
+• A centralized dashboard that pulled data from all their tools into one view
+• Automated workflows that eliminated hours of weekly data entry
+• A client-facing portal that reduced back-and-forth emails by 80%
+
+The whole project took about 6 weeks, and they saw ROI within the first two months.
+
+I think we could do something similar for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} — tailored to your specific needs, of course.
+
+Would you be open to a quick call this week to explore it?
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 7,
+            "purpose": "roi_breakdown",
+            "subject": "The numbers behind automation (they're pretty compelling)",
+            "body": """Hi {{first_name}},
+
+I put together some quick numbers that I think you'll find interesting.
+
+Based on what you shared about your current processes, here's a conservative estimate of what automation could look like:
+
+📊 **Time Saved:** 10-15 hours/week across your team
+💵 **Annual Value:** $25,000 - $40,000 in recaptured productivity
+⚡ **Error Reduction:** 90%+ fewer manual entry mistakes
+📈 **Capacity:** Handle 30-40% more volume without adding headcount
+
+These are based on what we typically see with businesses your size. The actual numbers for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} could be even better depending on the specifics.
+
+The investment to get there is usually a fraction of the annual savings — meaning most clients see full payback within 3-6 months.
+
+If you'd like me to run more detailed numbers for your specific situation, I'm happy to do that. Just say the word.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 14,
+            "purpose": "proposal_offer",
+            "subject": "Ready to put something concrete together for you",
+            "body": """Hi {{first_name}},
+
+I've been thinking about your situation and I'd love to put together a specific proposal for you.
+
+Here's what I have in mind:
+
+1️⃣ **Quick discovery call** (30 min) — Walk me through your day-to-day workflows so I can understand exactly what needs to happen
+2️⃣ **Custom proposal** — I'll put together a detailed plan with scope, timeline, and investment — no vague estimates
+3️⃣ **Live demo** — If you'd like, I can show you similar solutions we've built so you can see exactly what you'd be getting
+
+The discovery call is completely free, and the proposal comes with no obligation. I want you to have something concrete to evaluate — not just a sales pitch.
+
+What does your schedule look like this week or next?
+
+Best,
+{{your_name}}
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 21,
+            "purpose": "social_proof_urgency",
+            "subject": "Our schedule is filling up — wanted to let you know",
+            "body": """Hi {{first_name}},
+
+Quick heads up — our project calendar is starting to fill up for the next couple of months.
+
+I didn't want you to miss out if this is something you've been thinking about. We're a small, focused team (by design), and we only take on a limited number of projects at a time so we can deliver great results.
+
+Here's what a few recent clients have said:
+
+⭐ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
+
+⭐ "I wish we'd done this two years ago. The ROI was almost immediate."
+
+⭐ "Working with Metro Point felt like having a tech partner, not just a vendor."
+
+If you'd like to get on the calendar, now would be a great time to start the conversation. Even a quick call to scope things out would give us a better timeline.
+
+No pressure at all — just wanted to keep you in the loop.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 35,
+            "purpose": "last_chance",
+            "subject": "The door is always open",
+            "body": """Hi {{first_name}},
+
+I realize I've sent you a few emails and I want to be respectful of your time. This will be my last planned follow-up.
+
+If now isn't the right time — that's completely okay. Business priorities shift, budgets change, and sometimes the timing just isn't right. I get it.
+
+But I want you to know that whenever you are ready, the door is wide open. Whether it's next month, next quarter, or next year — I'd love to help{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} work smarter with technology.
+
+In the meantime, feel free to reach out anytime with questions — even just to bounce an idea around. That's what I'm here for.
+
+Wishing you and your team all the best!
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        }
+    ]
+}
+
+# ============================================
+# CLIENT SUCCESS DRIP CAMPAIGN (8 WEEK)
+# ============================================
+
+CLIENT_DRIP_CAMPAIGN = {
+    "campaign_id": "client-drip-8week",
+    "campaign_name": "Client Success (8 Week)",
+    "emails": [
+        {
+            "day": 0,
+            "purpose": "welcome_onboarding",
+            "subject": "Welcome aboard — here's what to expect!",
+            "body": """Hi {{first_name}},
+
+Welcome to the Metro Point Technology family! I'm thrilled to be working with{{#company}} {{company}} and{{/company}} you on this project.
+
+Here's what you can expect from us:
+
+📋 **This Week:** I'll send over a kickoff questionnaire and we'll schedule our first working session
+📞 **Communication:** You'll hear from me at least weekly with progress updates
+🔑 **Access:** You'll have direct access to me via email, phone, or text — no support tickets or runaround
+🚀 **Timeline:** We'll have a detailed project timeline within the first week
+
+A few things that make working with us different:
+• We're a small team, which means you work directly with me — not a rotating cast of account managers
+• We build in phases so you see progress early and often
+• Your feedback drives the process — this is your solution, built your way
+
+I'm genuinely excited about what we're going to build together. If you have any questions before we officially kick off, don't hesitate to reach out.
+
+Let's do this!
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 7,
+            "purpose": "check_in",
+            "subject": "Quick check-in — how's everything going?",
+            "body": """Hi {{first_name}},
+
+We're one week in and I wanted to do a quick check-in outside of our regular project updates.
+
+How are you feeling about everything so far? Is the process making sense? Any questions or concerns I can address?
+
+I know starting a new tech project can feel like a lot, so I want to make sure you're comfortable with the pace and direction. If anything feels off or unclear, please tell me — I'd much rather adjust early than find out later.
+
+Also, if there's anything you need from my end that I haven't provided, just say the word.
+
+Looking forward to hearing from you!
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 14,
+            "purpose": "tips_best_practices",
+            "subject": "Tips to get the most out of your new solution",
+            "body": """Hi {{first_name}},
+
+As we continue building out your solution, I wanted to share some tips and best practices that our most successful clients follow:
+
+🎯 **Start with the core workflow** — Don't try to use every feature on day one. Master the primary workflow first, then expand.
+
+👥 **Get your team involved early** — The sooner your team starts using the system (even in its early stages), the smoother the transition will be.
+
+📝 **Keep a running list** — As you use the system, jot down things you'd like tweaked or added. We'll incorporate these in our review sessions.
+
+📊 **Track your baseline** — Note how long things take now so you can measure the improvement. Clients love seeing the before-and-after numbers.
+
+🗣️ **Give honest feedback** — If something doesn't feel right, tell me. It's much easier to adjust during development than after launch.
+
+These might seem simple, but they make a huge difference in how quickly you see value from your investment.
+
+Any questions? I'm always just a call or email away.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 28,
+            "purpose": "satisfaction_review",
+            "subject": "How are we doing? (+ a quick favor)",
+            "body": """Hi {{first_name}},
+
+We're about a month into our work together and I wanted to check in on how things are going.
+
+A few questions I'd love your honest answers on:
+
+1. Is the solution meeting your expectations so far?
+2. Is the communication working for you, or would you prefer more/less?
+3. Is there anything you wish we were doing differently?
+
+Your feedback is incredibly valuable to me — it helps me make sure we're delivering exactly what you need.
+
+**And a quick favor:** If you're happy with our work so far, would you mind leaving us a quick Google review? It makes a huge difference for a small local business like ours. Here's the link: {{your_website}}
+
+If you're NOT happy with something — please tell me first! I want to make it right.
+
+Thanks for being a great client, {{first_name}}. I genuinely appreciate working with you{{#company}} and the {{company}} team{{/company}}.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 42,
+            "purpose": "upsell_awareness",
+            "subject": "Have you thought about this?",
+            "body": """Hi {{first_name}},
+
+Now that your solution is up and running, I wanted to share some ideas for what's possible next.
+
+Some of our clients have gotten great results by adding:
+
+🌐 **Website integration** — Connect your internal tools to your public website for seamless data flow
+📱 **Mobile access** — Access your system on the go from any device
+🔗 **Third-party integrations** — Connect with QuickBooks, Google Workspace, Mailchimp, and hundreds of other tools
+📊 **Reporting dashboards** — Visual dashboards that give you real-time business insights
+🤖 **Additional automation** — Automate more repetitive tasks as you identify them
+
+I'm not trying to upsell you — I just want you to know what's on the table. Sometimes clients don't realize how much more their system can do until someone mentions it.
+
+If any of these sound interesting, or if you have other ideas, I'd love to chat about what would make sense for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}.
+
+No rush — just planting seeds! 🌱
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 56,
+            "purpose": "referral_ask",
+            "subject": "Know anyone who could use our help?",
+            "body": """Hi {{first_name}},
+
+It's been about two months since we started working together, and I hope you're seeing real results from your new system!
+
+I have a quick ask: **Do you know any other business owners who might benefit from custom software, a new website, or business automation?**
+
+Most of our best clients come from referrals — and that's because a recommendation from someone they trust means a lot more than any ad we could run.
+
+If anyone comes to mind — a fellow business owner, a colleague, someone from your networking group — I'd really appreciate an introduction. I promise I'll take great care of them, just like I do with you.
+
+And of course, if there's anything else I can do for{{#company}} {{company}} or{{/company}} you, just let me know. It's been a pleasure working together and I look forward to continuing the partnership!
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        }
+    ]
+}
+
+# ============================================
+# FORMER CLIENT WIN-BACK DRIP CAMPAIGN (6 WEEK)
+# ============================================
+
+FORMER_CLIENT_DRIP_CAMPAIGN = {
+    "campaign_id": "former-client-drip-6week",
+    "campaign_name": "Win-Back (6 Week)",
+    "emails": [
+        {
+            "day": 0,
+            "purpose": "reconnect",
+            "subject": "It's been a while — here's what's new at MPT",
+            "body": """Hi {{first_name}},
+
+It's been a while since we last worked together and I wanted to reach out and say hello!
+
+I hope things are going well{{#company}} at {{company}}{{/company}}. A lot has been happening at Metro Point Technology, and I thought you'd want to know about some of the new things we've been building:
+
+🚀 **Expanded automation capabilities** — We've gotten even better at connecting systems and eliminating manual processes
+🌐 **Modern website builds** — Fast, mobile-first websites that actually convert visitors into customers
+📊 **Business dashboards** — Real-time visibility into the metrics that matter most
+🤖 **AI-powered tools** — Smart automation that goes beyond simple rule-based workflows
+
+The Cape Coral and SWFL business community has been growing fast, and we've been growing right alongside it — helping local businesses compete with the big guys through smart technology.
+
+I'd love to catch up and hear how things have been going on your end. No agenda — just reconnecting.
+
+Feel free to reply or give me a call anytime.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 7,
+            "purpose": "capabilities_showcase",
+            "subject": "Some cool things we've been building lately",
+            "body": """Hi {{first_name}},
+
+I wanted to share a few recent projects that showcase what we've been up to. These might spark some ideas for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}:
+
+**🏗️ Client Portal for a Service Company**
+Built a self-service portal where their customers can request services, track status, and view invoices — all automated. Cut their phone call volume by 50%.
+
+**📱 Mobile Inventory System for a Local Retailer**
+Replaced their clipboard-and-spreadsheet inventory process with a mobile scanning app. Real-time inventory counts, automatic reorder alerts, and zero manual data entry.
+
+**🔄 CRM + Accounting Integration for a Professional Services Firm**
+Connected their CRM to QuickBooks so invoices, payments, and client data all stay in sync automatically. Saved their admin team 12 hours a week.
+
+Technology has come a long way since we last worked together, and there might be some new possibilities for your business that weren't available before.
+
+If anything here caught your attention, I'd love to explore what it could look like for you.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 14,
+            "purpose": "returning_client_offer",
+            "subject": "A special offer for our returning friends",
+            "body": """Hi {{first_name}},
+
+Since we've worked together before, I wanted to extend a special offer to you:
+
+🎁 **Returning Client Package:**
+• **Free technology assessment** — Full review of your current tools and processes (normally a $500 value)
+• **Priority scheduling** — Jump to the front of our project queue
+• **10% returning client discount** — On your first new project with us
+
+I genuinely value the relationships we've built with past clients. You already know how we work, what we deliver, and that we stand behind our work. I'd love the chance to help{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} again.
+
+Whether it's updating something we built previously, tackling a new challenge, or just getting a second opinion on a tech decision — I'm here.
+
+This offer doesn't expire, by the way. Whenever the timing is right for you, just reach out.
+
+Best,
+{{your_name}}
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 28,
+            "purpose": "success_story",
+            "subject": "How a returning client transformed their business",
+            "body": """Hi {{first_name}},
+
+I wanted to share a quick story about a client who came back to us after a couple of years — and the results were amazing.
+
+They originally hired us to build a basic website. When they came back, their business had grown significantly and they were drowning in manual processes. Sound familiar?
+
+Here's what we did in the second engagement:
+• Automated their entire client onboarding process (went from 2 hours to 15 minutes per client)
+• Built a custom dashboard that gave them real-time visibility into revenue, projects, and team utilization
+• Integrated their website with their backend systems so leads flowed directly into their pipeline
+
+**The result:** They grew their client base by 40% the following year without adding any admin staff. The technology paid for itself in under 3 months.
+
+The best part? Because we'd already worked together, we hit the ground running. No ramp-up time, no getting-to-know-you phase — just results.
+
+If you're ready to take things to the next level, I'd love to help.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 42,
+            "purpose": "door_open",
+            "subject": "The door is always open, {{first_name}}",
+            "body": """Hi {{first_name}},
+
+This is my last planned check-in, but I wanted you to know something: the door is always open.
+
+Whether it's a quick question about technology, a second opinion on a vendor you're evaluating, or a full-blown project — I'm here. That's true whether it's next week or next year.
+
+You can always reach me at:
+📧 {{your_email}}
+📞 {{your_phone}}
+🌐 {{your_website}}
+
+It was a pleasure working with{{#company}} {{company}} and{{/company}} you, and I'd welcome the chance to do it again someday.
+
+Wishing you continued success!
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+
+{{unsubscribe_link}}"""
+        }
+    ]
+}
+
+# ============================================
+# PARTNER ENGAGEMENT DRIP CAMPAIGN (6 WEEK)
+# ============================================
+
+PARTNER_DRIP_CAMPAIGN = {
+    "campaign_id": "partner-drip-6week",
+    "campaign_name": "Partner Engagement (6 Week)",
+    "emails": [
+        {
+            "day": 0,
+            "purpose": "partnership_appreciation",
+            "subject": "Grateful for our partnership!",
+            "body": """Hi {{first_name}},
+
+I just wanted to take a moment to say how much I appreciate our partnership{{#company}} between Metro Point Technology and {{company}}{{/company}}.
+
+Relationships like ours are what make the Cape Coral and Southwest Florida business community so great. We're all out here building something, and it's a lot better when we do it together.
+
+As a quick refresher, here's what Metro Point Technology specializes in — so you know exactly who to think of when opportunities come up:
+
+🖥️ **Custom Software** — Built-from-scratch applications tailored to specific business needs
+🌐 **Websites** — Modern, fast, conversion-focused websites for local businesses
+🤖 **Business Automation** — Connecting systems, eliminating manual processes, saving time
+
+If there's ever anything I can do to support{{#company}} {{company}} or{{/company}} you, please don't hesitate to reach out. That's what partners are for.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 7,
+            "purpose": "co_marketing",
+            "subject": "Quick idea — let's promote each other",
+            "body": """Hi {{first_name}},
+
+I had an idea I wanted to run by you.
+
+What if we did some co-marketing together? Nothing complicated — just simple ways to get in front of each other's audiences:
+
+📣 **Social media shoutouts** — I feature{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} on our social media, you feature us on yours
+📝 **Guest content** — I write a short piece for your audience about how tech can help their business, you share your expertise with mine
+🤝 **Joint networking** — Attend events together and introduce each other to our respective networks
+📧 **Email features** — Mention each other in newsletters or client communications
+
+It's a win-win — we both get exposure to a warm, trusted audience without spending a dime on ads.
+
+What do you think? Even one of these could be a great start. I'm flexible on format — whatever works best for you.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 14,
+            "purpose": "referral_framework",
+            "subject": "Let's make referrals easy for both of us",
+            "body": """Hi {{first_name}},
+
+I've been thinking about how we can make referring business to each other as easy as possible. Here's a simple framework:
+
+**When to refer someone to Metro Point Technology:**
+• They mention needing a website (new or redesign)
+• They complain about manual processes or clunky software
+• They're using spreadsheets for things that should be automated
+• They need systems integrated (CRM, accounting, scheduling, etc.)
+• They're growing and their current tech can't keep up
+
+**What I do for the referral:**
+• I'll mention your name and how you connected us
+• I'll give them the same quality experience you'd expect
+• I'll keep you posted on how it goes
+
+**What I'd love to refer to you:**
+• [I'd love to know what your ideal referral looks like! Reply and let me know]
+
+I'm a big believer in mutual referrals — it's the best business development there is. No cold calls, no ads, just trusted introductions.
+
+Let me know if this framework works for you, and feel free to modify it!
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 28,
+            "purpose": "joint_success_story",
+            "subject": "Let's create a success story together",
+            "body": """Hi {{first_name}},
+
+Here's an idea that could benefit both of us:
+
+What if we put together a joint case study or success story? Something that showcases how our businesses complement each other and deliver more value together than either of us could alone.
+
+Here's what I'm thinking:
+📖 A short write-up (or even a quick video) about how we've helped a mutual client or how our services work together
+🌐 We both share it on our websites, social media, and with our networks
+📧 Use it in our marketing materials to show the power of local business partnerships
+
+It doesn't have to be fancy — even a short testimonial exchange would be valuable. People love seeing that local businesses collaborate and support each other.
+
+Have you worked with any clients where our services overlapped or complemented each other? Or is there a scenario we could highlight?
+
+I'd love to brainstorm this with you over coffee if you're up for it.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 42,
+            "purpose": "quarterly_planning",
+            "subject": "Quarterly check-in — let's stay connected",
+            "body": """Hi {{first_name}},
+
+It's been about six weeks since we last connected, and I wanted to do a quick quarterly check-in.
+
+A few things I'd love to catch up on:
+
+📊 **How's business?** — Anything exciting happening{{#company}} at {{company}}{{/company}}?
+🤝 **Referral check** — Have you come across anyone who might need tech help? I've been keeping an eye out for referrals for you too.
+💡 **New ideas** — Any new ways we could collaborate or support each other?
+📅 **Events** — Any upcoming networking events, chamber meetings, or industry events we should attend together?
+
+I find that partnerships work best when there's regular, intentional communication — not just reaching out when we need something.
+
+Would you be up for a quick 20-minute call or coffee to sync up? I'm flexible on timing.
+
+Looking forward to hearing from you!
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+        }
+    ]
+}
+
+# ============================================
+# ALL CAMPAIGNS MAP
+# ============================================
+
+CAMPAIGNS = {
+    "networking": NETWORKING_DRIP_CAMPAIGN,
+    "lead": LEAD_DRIP_CAMPAIGN,
+    "prospect": PROSPECT_DRIP_CAMPAIGN,
+    "client": CLIENT_DRIP_CAMPAIGN,
+    "former_client": FORMER_CLIENT_DRIP_CAMPAIGN,
+    "partner": PARTNER_DRIP_CAMPAIGN,
+}
+
+def calculate_drip_schedule(start_date=None, campaign=None):
+    """Calculate the dates for each email in a drip campaign.
+    
+    Args:
+        start_date: When the campaign starts (defaults to now)
+        campaign: Campaign dict to use (defaults to NETWORKING_DRIP_CAMPAIGN for backwards compat)
+    """
     if start_date is None:
         start_date = datetime.now()
 
+    if campaign is None:
+        campaign = NETWORKING_DRIP_CAMPAIGN
+
     schedule = []
-    for email in NETWORKING_DRIP_CAMPAIGN["emails"]:
+    for email in campaign["emails"]:
         scheduled_date = start_date + timedelta(days=email["day"])
         schedule.append({
             "step": email["day"],
@@ -1380,9 +2223,9 @@ else:
                         st.text(log_entry)
 
             if results.get('enrollments_created', 0) > 0:
-                # Show email schedule
+                # Show email schedule (use networking as default preview)
                 with st.expander("📅 View Email Schedule", expanded=True):
-                    schedule = calculate_drip_schedule()
+                    schedule = calculate_drip_schedule(campaign=NETWORKING_DRIP_CAMPAIGN)
                     for i, step in enumerate(schedule):
                         scheduled_date = datetime.fromisoformat(step['scheduled_for'])
                         status_icon = "✅" if i == 0 else "📅"
@@ -1738,14 +2581,17 @@ else:
                             contact_name = f"{contact_data.get('first_name', '')} {contact_data.get('last_name', '')}".strip()
                             enrollment = None
                             if contact_data.get('enroll', True):
-                                schedule = calculate_drip_schedule()
+                                # Select campaign based on contact type
+                                ct = contact_data.get('contact_type', 'networking')
+                                selected_campaign = CAMPAIGNS.get(ct, NETWORKING_DRIP_CAMPAIGN)
+                                schedule = calculate_drip_schedule(campaign=selected_campaign)
                                 enrollment_data = {
                                     "contact_id": contact_id,
-                                    "campaign_id": NETWORKING_DRIP_CAMPAIGN["campaign_id"],
-                                    "campaign_name": NETWORKING_DRIP_CAMPAIGN["campaign_name"],
+                                    "campaign_id": selected_campaign["campaign_id"],
+                                    "campaign_name": selected_campaign["campaign_name"],
                                     "status": "active",
                                     "current_step": 0,
-                                    "total_steps": len(NETWORKING_DRIP_CAMPAIGN["emails"]),
+                                    "total_steps": len(selected_campaign["emails"]),
                                     "step_schedule": json.dumps(schedule),
                                     "source": "business_card_scanner",
                                     "source_detail": event_name,
@@ -1756,7 +2602,7 @@ else:
                                 enrollment = db_create_enrollment(enrollment_data)
                                 if enrollment:
                                     results['enrollments_created'] += 1
-                                    results['import_log'].append(f"📧 Enrolled: {contact_name} in 6-week drip campaign")
+                                    results['import_log'].append(f"📧 Enrolled: {contact_name} in {selected_campaign['campaign_name']}")
                                 else:
                                     results['import_log'].append(f"⚠️ Warning: Failed to enroll {contact_name} in campaign")
                             else:
@@ -1764,7 +2610,7 @@ else:
 
                             # Send first email (for both new and merged contacts)
                             if contact_data.get('send_email', True) and contact_data.get('email'):
-                                first_email = NETWORKING_DRIP_CAMPAIGN["emails"][0]
+                                first_email = selected_campaign["emails"][0]
                                 subject = replace_merge_fields(first_email["subject"], contact_data, event_name)
                                 body = replace_merge_fields(first_email["body"], contact_data, event_name)
 
@@ -2096,16 +2942,32 @@ else:
 
             with col3:
                 st.markdown("**3. Auto-Campaign**")
-                st.caption("Contacts are added to your CRM and enrolled in a 6-week networking drip campaign with the first email sent immediately.")
+                st.caption("Contacts are added to your CRM and enrolled in the appropriate drip campaign based on contact type, with the first email sent immediately.")
 
-            # Show campaign preview
-            with st.expander("📧 Preview: 6-Week Networking Drip Campaign"):
-                for i, email in enumerate(NETWORKING_DRIP_CAMPAIGN["emails"]):
-                    purpose_icons = {"thank_you": "🤝", "value_add": "💡", "coffee_invite": "☕", "check_in": "👋", "referral_ask": "🙏"}
-                    st.markdown(f"**Day {email['day']}** - {purpose_icons.get(email['purpose'], '📧')} {email['purpose'].replace('_', ' ').title()}")
-                    st.caption(f"Subject: {email['subject']}")
-                    if i < len(NETWORKING_DRIP_CAMPAIGN["emails"]) - 1:
-                        st.markdown("---")
+            # Show campaign previews
+            for campaign_type, campaign_data in CAMPAIGNS.items():
+                with st.expander(f"📧 Preview: {campaign_data['campaign_name']}"):
+                    for i, email in enumerate(campaign_data["emails"]):
+                        purpose_icons = {"thank_you": "🤝", "value_add": "💡", "coffee_invite": "☕",
+                                         "check_in": "👋", "referral_ask": "🙏", "introduction": "👋",
+                                         "pain_point_awareness": "🎯", "case_study": "📊",
+                                         "consultation_offer": "📞", "overcome_objections": "💪",
+                                         "final_push": "🏁", "personalized_followup": "✉️",
+                                         "relevant_case_study": "📖", "roi_breakdown": "💰",
+                                         "proposal_offer": "📝", "social_proof_urgency": "⏰",
+                                         "last_chance": "🚪", "welcome_onboarding": "🎉",
+                                         "tips_best_practices": "💡", "satisfaction_review": "⭐",
+                                         "upsell_awareness": "📈", "reconnect": "🔄",
+                                         "capabilities_showcase": "🚀", "returning_client_offer": "🎁",
+                                         "success_story": "🏆", "door_open": "🚪",
+                                         "partnership_appreciation": "🤝", "co_marketing": "📣",
+                                         "referral_framework": "🔗", "joint_success_story": "📖",
+                                         "quarterly_planning": "📅", "expertise_share": "💡",
+                                         "referral_soft": "🙏"}
+                        st.markdown(f"**Day {email['day']}** - {purpose_icons.get(email['purpose'], '📧')} {email['purpose'].replace('_', ' ').title()}")
+                        st.caption(f"Subject: {email['subject']}")
+                        if i < len(campaign_data["emails"]) - 1:
+                            st.markdown("---")
 
     with tab5:
         # Process Cards - Queue System
@@ -2235,7 +3097,15 @@ else:
                                         email = st.text_input("Email", value=extracted.get('email', ''))
                                         phone = st.text_input("Phone", value=extracted.get('phone', ''))
 
-                                        enroll = st.checkbox("Enroll in 6-week networking campaign", value=True)
+                                        # Contact type selection
+                                        process_contact_types = ["networking", "lead", "prospect", "client", "former_client", "partner"]
+                                        process_type_labels = ["🤝 Networking", "🎯 Lead", "👤 Prospect", "✅ Client", "🔄 Former Client", "🤜🤛 Partner"]
+                                        process_type_label = st.selectbox("Contact Type", process_type_labels, index=0, key=f"ptype_{card['id']}")
+                                        process_contact_type = process_contact_types[process_type_labels.index(process_type_label)]
+
+                                        # Show which campaign they'll be enrolled in
+                                        campaign_for_type = CAMPAIGNS.get(process_contact_type, NETWORKING_DRIP_CAMPAIGN)
+                                        enroll = st.checkbox(f"Enroll in {campaign_for_type['campaign_name']}", value=True, key=f"penroll_{card['id']}")
 
                                         col_a, col_b = st.columns(2)
                                         with col_a:
@@ -2251,7 +3121,7 @@ else:
                                                 "company": company,
                                                 "email": email,
                                                 "phone": phone,
-                                                "type": "networking",
+                                                "type": process_contact_type,
                                                 "source": "mobile_scanner_processed",
                                                 "notes": f"Title: {title}\nProcessed from Quick Capture on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
                                                 "email_status": "active"
@@ -2262,7 +3132,7 @@ else:
 
                                                 # Enroll in campaign if requested
                                                 if enroll:
-                                                    enroll_in_campaign(card['id'], card.get('source_detail', ''))
+                                                    enroll_in_campaign(card['id'], card.get('source_detail', ''), contact_type=process_contact_type)
 
                                                 st.success(f"✅ Contact saved: {first_name} {last_name}")
                                                 del st.session_state[f'extracted_{card["id"]}']
