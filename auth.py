@@ -15,6 +15,8 @@ Usage in any page:
 import os
 import streamlit as st
 
+from db_service import db_get_setting, db_set_setting, db_hash_password
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -27,6 +29,22 @@ def _get_credentials():
     username = os.getenv("AUTH_USERNAME", "patrick")
     password = os.getenv("AUTH_PASSWORD", "mpt2026!")
     return username, password
+
+
+def _get_stored_password_hash():
+    """Get the stored password hash from settings, if available."""
+    return db_get_setting("auth_password_hash")
+
+
+def _verify_current_password(plain_password):
+    """Verify current password against stored hash or env fallback."""
+    stored_hash = _get_stored_password_hash()
+    if stored_hash:
+        return db_hash_password(plain_password) == stored_hash
+    _, env_pass = _get_credentials()
+    if not env_pass:
+        return False
+    return plain_password == env_pass
 
 
 def is_authenticated():
@@ -65,14 +83,26 @@ def login_page():
 
             if submitted:
                 expected_user, expected_pass = _get_credentials()
+                stored_hash = _get_stored_password_hash()
 
-                if not expected_pass:
+                if not stored_hash and not expected_pass:
                     st.error("Authentication not configured. Set AUTH_PASSWORD in .env file.")
                     return False
 
-                if username == expected_user and password == expected_pass:
+                if stored_hash:
+                    is_valid = username == expected_user and db_hash_password(password) == stored_hash
+                    if is_valid:
+                        st.session_state["authenticated"] = True
+                        st.session_state["auth_user"] = username
+                        st.session_state["auth_needs_password_change"] = False
+                        st.rerun()
+                    else:
+                        st.error("Invalid username or password")
+                        return False
+                elif username == expected_user and password == expected_pass:
                     st.session_state["authenticated"] = True
                     st.session_state["auth_user"] = username
+                    st.session_state["auth_needs_password_change"] = True
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
@@ -94,11 +124,10 @@ def require_login():
         require_login()
         # ... rest of your page code (only runs if authenticated)
     """
-    _, expected_pass = _get_credentials()
-
     if not is_authenticated():
         login_page()
         st.stop()
+    _render_change_password_sidebar()
 
 
 def logout():
@@ -106,3 +135,40 @@ def logout():
     st.session_state["authenticated"] = False
     if "auth_user" in st.session_state:
         del st.session_state["auth_user"]
+
+
+def _render_change_password_sidebar():
+    """Render the change password form in the sidebar for authenticated users."""
+    if not is_authenticated():
+        return
+
+    with st.sidebar:
+        st.markdown("### Change Password")
+
+        if st.session_state.get("auth_needs_password_change"):
+            st.warning("Please change your password to finish setup.")
+
+        with st.form("change_password_form"):
+            current_password = st.text_input("Current password", type="password", key="current_password")
+            new_password = st.text_input("New password", type="password", key="new_password")
+            confirm_password = st.text_input("Confirm new password", type="password", key="confirm_new_password")
+            submitted = st.form_submit_button("Update Password")
+
+            if submitted:
+                if not current_password or not new_password or not confirm_password:
+                    st.error("Please fill in all password fields.")
+                    return
+                if new_password != confirm_password:
+                    st.error("New passwords do not match.")
+                    return
+                if not _verify_current_password(current_password):
+                    st.error("Current password is incorrect.")
+                    return
+
+                new_hash = db_hash_password(new_password)
+                saved = db_set_setting("auth_password_hash", new_hash)
+                if saved:
+                    st.success("Password updated successfully.")
+                    st.session_state["auth_needs_password_change"] = False
+                else:
+                    st.error("Unable to update password. Check database connection.")

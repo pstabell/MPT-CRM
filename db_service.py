@@ -35,6 +35,7 @@ Sections:
 
 import os
 import json
+import hashlib
 from datetime import datetime, timedelta
 
 try:
@@ -1521,6 +1522,68 @@ def db_get_dashboard_stats():
 # ============================================================
 # 11. SETTINGS / EXPORT
 # ============================================================
+
+def db_hash_password(raw_password):
+    """Hash a password using SHA-256.
+
+    Args:
+        raw_password: Plain-text password string.
+
+    Returns:
+        str or None: Hex-encoded hash, or None if input is empty.
+    """
+    if not raw_password:
+        return None
+    return hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
+
+
+def db_get_setting(key):
+    """Get a settings value by key.
+
+    Args:
+        key: Setting key string.
+
+    Returns:
+        str or None: The setting value, or None if missing/unavailable.
+    """
+    db = get_db()
+    if not db or not key:
+        return None
+    try:
+        response = db.table("settings").select("value").eq("key", key).limit(1).execute()
+        if response.data:
+            return response.data[0].get("value")
+        return None
+    except Exception as e:
+        print(f"[db_service] Error getting setting {key}: {e}")
+        return None
+
+
+def db_set_setting(key, value):
+    """Upsert a settings value by key.
+
+    Args:
+        key: Setting key string.
+        value: Value to store (string or None).
+
+    Returns:
+        dict or None: Upserted setting record, or None on failure.
+    """
+    db = get_db()
+    if not db or not key:
+        return None
+    try:
+        payload = {
+            "key": key,
+            "value": value,
+            "updated_at": datetime.now().isoformat(),
+        }
+        response = db.table("settings").upsert(payload, on_conflict="key").execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error setting {key}: {e}")
+        return None
+
 
 def db_export_all_tables():
     """Export all CRM data from all tables.
