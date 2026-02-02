@@ -11,6 +11,8 @@ from db_service import (
     db_is_connected,
     db_get_dashboard_stats, db_get_activities, db_get_tasks, db_get_deals,
 )
+from auth import require_login, logout, is_authenticated
+from drip_scheduler import start_scheduler, is_scheduler_running
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -97,6 +99,17 @@ st.set_page_config(
 )
 
 # ============================================
+# AUTHENTICATION
+# ============================================
+require_login()
+
+# ============================================
+# START DRIP SCHEDULER (once per process)
+# ============================================
+if not is_scheduler_running():
+    start_scheduler()
+
+# ============================================
 # LOAD DATA
 # ============================================
 @st.cache_data(ttl=120, show_spinner=False)
@@ -149,6 +162,20 @@ with st.sidebar:
         st.success("Database connected", icon="✅")
     else:
         st.error("Database not connected - check .env file", icon="❌")
+
+    # Drip scheduler status
+    if is_scheduler_running():
+        st.caption("📧 Drip scheduler: running")
+    else:
+        st.caption("📧 Drip scheduler: stopped")
+
+    # Logout button
+    st.markdown("---")
+    if is_authenticated():
+        st.caption(f"Logged in as: **{st.session_state.get('auth_user', 'unknown')}**")
+        if st.button("🚪 Logout", use_container_width=True):
+            logout()
+            st.rerun()
 
 # ============================================
 # MAIN DASHBOARD
@@ -268,4 +295,4 @@ with col2:
 
 # Footer
 st.divider()
-st.caption("MPT-CRM v0.3.0 | Metro Point Technology, LLC")
+st.caption("MPT-CRM v0.4.0 | Metro Point Technology, LLC")
