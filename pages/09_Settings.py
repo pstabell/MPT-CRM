@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from db_service import db_is_connected, db_test_connection, db_export_all_tables
 from auth import require_login, render_change_password_form
+from help_system import inject_help_styles, help_header, help_coin_inline
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -119,6 +120,9 @@ if 'settings_data' not in st.session_state:
 # ============================================
 st.title("⚙️ Settings")
 
+# Inject help coin styles
+inject_help_styles()
+
 # Top-level tabs
 general_tab, security_tab = st.tabs(["General", "Security"])
 
@@ -131,7 +135,7 @@ with general_tab:
     # COMPANY SETTINGS TAB
     # ============================================
     with tab1:
-        st.markdown("### Company Information")
+        help_header("Company Information", "company_info")
 
         settings = st.session_state.settings_data
 
@@ -160,10 +164,10 @@ with general_tab:
     # INTEGRATIONS TAB
     # ============================================
     with tab2:
-        st.markdown("### Integrations")
+        help_header("Integrations", "integrations")
 
         # Supabase
-        st.markdown("#### 🗄️ Supabase (Database)")
+        help_header("🗄️ Supabase (Database)", "supabase", level="####")
 
         with st.container(border=True):
             if db_is_connected():
@@ -196,7 +200,7 @@ with general_tab:
         st.markdown("---")
 
         # SendGrid
-        st.markdown("#### 📧 SendGrid (Email)")
+        help_header("📧 SendGrid (Email)", "sendgrid", level="####")
 
         with st.container(border=True):
             if settings['sendgrid_connected']:
@@ -228,7 +232,7 @@ with general_tab:
         st.markdown("---")
 
         # Microsoft Graph
-        st.markdown("#### 📅 Microsoft 365 Integration")
+        help_header("📅 Microsoft 365 Integration", "microsoft_365", level="####")
 
         with st.container(border=True):
             st.success("✅ Microsoft Graph API is configured via Metro Bot (Clawdbot)")
@@ -250,7 +254,7 @@ with general_tab:
     # BILLING SETTINGS TAB
     # ============================================
     with tab3:
-        st.markdown("### Billing & Invoicing")
+        help_header("Billing & Invoicing", "billing")
 
         col1, col2 = st.columns(2)
 
@@ -300,7 +304,7 @@ with general_tab:
     # EMAIL SETTINGS TAB
     # ============================================
     with tab4:
-        st.markdown("### Email Settings")
+        help_header("Email Settings", "email_settings")
 
         st.markdown("#### Default Signature")
 
@@ -343,7 +347,7 @@ with general_tab:
     st.markdown("---")
 
     with st.expander("⚠️ Danger Zone"):
-        st.markdown("### Data Management")
+        help_header("Data Management", "danger_zone")
 
         col1, col2 = st.columns(2)
 
@@ -376,7 +380,7 @@ with general_tab:
                 st.success("Session data cleared. Refresh to reload from database.")
 
 with security_tab:
-    st.markdown("### Password & Security")
+    help_header("Password & Security", "security")
     render_change_password_form()
 
     st.markdown("---")
