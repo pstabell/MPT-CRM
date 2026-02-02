@@ -8,6 +8,7 @@ Database operations are handled by db_service.py — the single source of truth.
 import streamlit as st
 from datetime import datetime, date, timedelta
 from db_service import db_is_connected
+from auth import require_login
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -91,6 +92,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # RENDER SIDEBAR

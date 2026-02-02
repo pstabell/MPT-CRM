@@ -13,6 +13,7 @@ from db_service import (
     db_create_time_entry, db_get_invoices, db_update_invoice,
     db_create_invoice,
 )
+from auth import require_login
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -96,6 +97,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # RENDER SIDEBAR

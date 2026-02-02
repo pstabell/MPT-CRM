@@ -30,30 +30,34 @@ from db_service import (
     db_get_unprocessed_cards, db_list_card_images, db_get_card_image_url,
     db_delete_contact,
 )
+from auth import require_login
 
 def enroll_in_campaign(contact_id, event_name=""):
-    """Enroll contact in 6-week networking drip campaign"""
+    """Enroll contact in 6-week networking drip campaign (Day 0,3,7,14,21,28,35,42)"""
     try:
-        # Calculate schedule
+        # Calculate schedule — matches NETWORKING_DRIP_CAMPAIGN and drip_scheduler.py
         schedule = []
-        days = [0, 7, 14, 30, 45]
-        purposes = ["thank_you", "value_add", "reconnect", "check_in", "referral_ask"]
+        days = [0, 3, 7, 14, 21, 28, 35, 42]
+        purposes = ["thank_you", "value_add", "coffee_invite", "check_in",
+                    "expertise_share", "reconnect", "referral_soft", "referral_ask"]
 
         for i, day in enumerate(days):
             scheduled_date = datetime.now() + timedelta(days=day)
             schedule.append({
+                "step": i,
                 "day": day,
                 "purpose": purposes[i],
-                "scheduled_for": scheduled_date.isoformat()
+                "scheduled_for": scheduled_date.isoformat(),
+                "sent_at": None
             })
 
         enrollment_data = {
             "contact_id": contact_id,
-            "campaign_id": "6week_networking_drip",
-            "campaign_name": "6-Week Networking Drip",
+            "campaign_id": "networking-drip-6week",
+            "campaign_name": "Networking Follow-Up (6 Week)",
             "status": "active",
             "current_step": 0,
-            "total_steps": 5,
+            "total_steps": 8,
             "step_schedule": json.dumps(schedule),
             "source": "mobile_scanner",
             "source_detail": event_name,
@@ -666,16 +670,16 @@ Metro Point Technology, LLC
 {{unsubscribe_link}}"""
         },
         {
-            "day": 7,
+            "day": 3,
             "purpose": "value_add",
             "subject": "Quick resource I thought you'd find useful",
             "body": """Hi {{first_name}},
 
-I came across something that made me think of our conversation last week and wanted to share it with you.
+I came across something that made me think of our conversation earlier this week and wanted to share it with you.
 
-[Consider adding a relevant article, tool, or resource here based on their industry]
+One thing I've noticed working with local businesses is that many are leaving money on the table with manual processes. Even simple automations - like auto-sending invoices or syncing customer data between tools - can save hours each week.
 
-Hope you find it useful! Let me know if you'd like to chat more about it.
+Hope that's useful! Let me know if you'd like to chat more about it.
 
 Best,
 {{your_name}}
@@ -684,7 +688,7 @@ Best,
 {{unsubscribe_link}}"""
         },
         {
-            "day": 14,
+            "day": 7,
             "purpose": "coffee_invite",
             "subject": "Let's grab coffee",
             "body": """Hi {{first_name}},
@@ -704,14 +708,14 @@ Best,
 {{unsubscribe_link}}"""
         },
         {
-            "day": 30,
+            "day": 14,
             "purpose": "check_in",
             "subject": "Quick check-in",
             "body": """Hi {{first_name}},
 
 Just wanted to touch base and see how things are going!
 
-It's been about a month since we connected, and I wanted to keep the relationship warm. If there's anything I can help with - technology questions, introductions to people in my network, or just bouncing ideas around - don't hesitate to reach out.
+It's been a couple weeks since we connected, and I wanted to keep the relationship warm. If there's anything I can help with - technology questions, introductions to people in my network, or just bouncing ideas around - don't hesitate to reach out.
 
 Hope business is treating you well!
 
@@ -722,12 +726,67 @@ Best,
 {{unsubscribe_link}}"""
         },
         {
-            "day": 45,
-            "purpose": "referral_ask",
-            "subject": "Quick favor to ask",
+            "day": 21,
+            "purpose": "expertise_share",
+            "subject": "Something I've been working on",
             "body": """Hi {{first_name}},
 
-I hope all is well! I wanted to reach out with a quick ask.
+I wanted to share a quick win we recently had with a client. They were spending 10+ hours a week on manual data entry between their CRM and accounting software. We built a simple integration that cut that down to zero.
+
+It got me thinking about how many businesses deal with similar pain points without realizing there's a straightforward fix.
+
+If you or anyone you know is drowning in manual processes, I'm always happy to take a quick look and share ideas - no strings attached.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 28,
+            "purpose": "reconnect",
+            "subject": "Checking in - how's business?",
+            "body": """Hi {{first_name}},
+
+It's been about a month since we met, and I just wanted to check in. How have things been going{{#company}} at {{company}}{{/company}}?
+
+I've been staying busy with some exciting projects and always enjoy catching up with the people I've connected with through networking.
+
+If you're ever up for a quick call or coffee, I'm around!
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 35,
+            "purpose": "referral_soft",
+            "subject": "Quick thought",
+            "body": """Hi {{first_name}},
+
+Quick question for you - do you know anyone who's mentioned needing help with their website, custom software, or business automation?
+
+I'm always looking to connect with business owners who could benefit from streamlining their tech. If anyone comes to mind, I'd really appreciate an intro.
+
+And of course, if there's anything I can do for you, just say the word!
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+        },
+        {
+            "day": 42,
+            "purpose": "referral_ask",
+            "subject": "One last thing",
+            "body": """Hi {{first_name}},
+
+I hope all is well! I wanted to reach out one more time with a quick ask.
 
 I'm always looking to connect with business owners who might benefit from custom software, websites, or automation tools. If you know anyone who's mentioned struggling with:
 - Outdated or clunky software
@@ -737,7 +796,7 @@ I'm always looking to connect with business owners who might benefit from custom
 
 I'd really appreciate an introduction. No pressure at all - just thought I'd put it out there!
 
-And of course, if there's ever anything I can do for you, just let me know.
+And of course, if there's ever anything I can do for you, just let me know. It's been great connecting with you.
 
 Best,
 {{your_name}}
@@ -850,6 +909,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # RENDER SIDEBAR

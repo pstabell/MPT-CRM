@@ -24,9 +24,11 @@ from db_service import (
     db_merge_contacts, db_log_activity,
     db_get_contact_email_sends, db_get_contact_activities,
     upload_card_image_to_supabase,
+    db_update_contact_and_switch_campaign,
 )
 from db_service import db_get_contacts as _raw_get_contacts
 from db_service import db_get_intakes as _raw_get_intakes
+from auth import require_login
 
 # Page load timing
 _page_load_start = time.time()
@@ -36,6 +38,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # CACHING LAYER — wraps db_service functions
@@ -564,6 +568,11 @@ def show_contact_detail(contact_id):
         st.rerun()
         return
 
+    # Store original type for detecting changes (used by auto-campaign-switch)
+    original_type_key = f'_original_type_{contact_id}'
+    if original_type_key not in st.session_state:
+        st.session_state[original_type_key] = contact.get('type', 'prospect')
+
     lookup_time = time.time() - detail_start
     st.sidebar.caption(f"⏱️ Lookup: {lookup_time:.2f}s")
 
@@ -657,13 +666,33 @@ def show_contact_detail(contact_id):
                     "phone": new_phone,
                     "title": new_title,
                     "company": new_company,
-                    "source_detail": new_source_detail
+                    "source_detail": new_source_detail,
+                    "type": contact.get('type', 'prospect'),
+                    "source": contact.get('source', 'networking'),
+                    "tags": contact.get('tags', []),
+                    "email_status": contact.get('email_status', 'active'),
                 }
-                contact.update(update_data)
-                if save_contact(contact['id'], update_data):
-                    st.success("Contact saved!")
-                elif not db_is_connected():
-                    st.info("Changes saved locally (connect database to persist)")
+
+                # Detect contact type change and auto-switch campaign
+                original_type = st.session_state.get(f'_original_type_{contact["id"]}', '')
+                new_type = update_data['type']
+                if original_type and original_type != new_type:
+                    # Type changed — use campaign-switching update
+                    switch_result = db_update_contact_and_switch_campaign(
+                        contact['id'], new_type, old_type=original_type
+                    )
+                    if switch_result.get('success'):
+                        contact.update(update_data)
+                        st.session_state.contacts_cache_version = st.session_state.get('contacts_cache_version', 0) + 1
+                        st.success(f"Contact saved! {switch_result.get('message', '')}")
+                    else:
+                        st.error(f"Error: {switch_result.get('message', 'Unknown error')}")
+                else:
+                    contact.update(update_data)
+                    if save_contact(contact['id'], update_data):
+                        st.success("Contact saved!")
+                    elif not db_is_connected():
+                        st.info("Changes saved locally (connect database to persist)")
 
             if delete_btn:
                 # Set delete confirmation flag

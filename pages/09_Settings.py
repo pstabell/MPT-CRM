@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from db_service import db_is_connected, db_test_connection, db_export_all_tables
+from auth import require_login
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -86,6 +87,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # RENDER SIDEBAR

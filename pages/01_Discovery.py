@@ -17,12 +17,15 @@ from db_service import (
     db_get_intakes, db_get_intake, db_create_intake, db_update_intake,
     db_log_activity, db_create_deal,
 )
+from auth import require_login
 
 st.set_page_config(
     page_title="MPT-CRM - Discovery Call",
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)

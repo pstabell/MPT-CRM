@@ -16,6 +16,7 @@ from db_service import (
     db_delete_deal, db_get_deal_tasks, db_add_deal_task, db_toggle_deal_task,
     db_get_contacts, db_update_contact_type,
 )
+from auth import require_login
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -99,6 +100,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # Custom CSS for Kanban styling
 st.markdown("""

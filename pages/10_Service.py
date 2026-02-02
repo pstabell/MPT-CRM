@@ -17,6 +17,7 @@ from db_service import (
     db_get_service_tickets, db_get_service_ticket,
     db_create_service_ticket, db_update_service_ticket,
 )
+from auth import require_login
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -100,6 +101,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # RENDER SIDEBAR

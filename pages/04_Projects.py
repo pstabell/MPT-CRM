@@ -13,6 +13,7 @@ from db_service import (
     db_create_project, db_update_project, db_delete_project,
     db_get_project, db_get_project_time_entries
 )
+from auth import require_login
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -93,6 +94,8 @@ st.set_page_config(
     page_icon="favicon.jpg",
     layout="wide"
 )
+
+require_login()
 
 # ============================================
 # RENDER SIDEBAR
