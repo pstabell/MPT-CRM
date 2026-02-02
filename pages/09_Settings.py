@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from db_service import db_is_connected, db_test_connection, db_export_all_tables
-from auth import require_login
+from auth import require_login, render_change_password_form
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -119,253 +119,272 @@ if 'settings_data' not in st.session_state:
 # ============================================
 st.title("⚙️ Settings")
 
-# Tabs for different settings sections
-tab1, tab2, tab3, tab4 = st.tabs(["🏢 Company", "🔗 Integrations", "💰 Billing", "📧 Email"])
+# Top-level tabs
+general_tab, security_tab = st.tabs(["?? General", "?? Security"])
 
-# ============================================
-# COMPANY SETTINGS TAB
-# ============================================
-with tab1:
-    st.markdown("### Company Information")
+with general_tab:
 
-    settings = st.session_state.settings_data
+    # Tabs for different settings sections
+    tab1, tab2, tab3, tab4 = st.tabs(["🏢 Company", "🔗 Integrations", "💰 Billing", "📧 Email"])
 
-    col1, col2 = st.columns(2)
+    # ============================================
+    # COMPANY SETTINGS TAB
+    # ============================================
+    with tab1:
+        st.markdown("### Company Information")
 
-    with col1:
-        new_company = st.text_input("Company Name", settings['company_name'])
-        new_owner = st.text_input("Owner Name", settings['owner_name'])
-        new_email = st.text_input("Email", settings['email'])
-        new_phone = st.text_input("Phone", settings['phone'])
+        settings = st.session_state.settings_data
 
-    with col2:
-        new_address = st.text_area("Address", settings['address'], height=100)
-        new_website = st.text_input("Website", settings['website'])
+        col1, col2 = st.columns(2)
 
-    if st.button("Save Company Settings", type="primary"):
-        settings['company_name'] = new_company
-        settings['owner_name'] = new_owner
-        settings['email'] = new_email
-        settings['phone'] = new_phone
-        settings['address'] = new_address
-        settings['website'] = new_website
-        st.success("Company settings saved!")
+        with col1:
+            new_company = st.text_input("Company Name", settings['company_name'])
+            new_owner = st.text_input("Owner Name", settings['owner_name'])
+            new_email = st.text_input("Email", settings['email'])
+            new_phone = st.text_input("Phone", settings['phone'])
 
-# ============================================
-# INTEGRATIONS TAB
-# ============================================
-with tab2:
-    st.markdown("### Integrations")
+        with col2:
+            new_address = st.text_area("Address", settings['address'], height=100)
+            new_website = st.text_input("Website", settings['website'])
 
-    # Supabase
-    st.markdown("#### 🗄️ Supabase (Database)")
+        if st.button("Save Company Settings", type="primary"):
+            settings['company_name'] = new_company
+            settings['owner_name'] = new_owner
+            settings['email'] = new_email
+            settings['phone'] = new_phone
+            settings['address'] = new_address
+            settings['website'] = new_website
+            st.success("Company settings saved!")
 
-    with st.container(border=True):
-        if db_is_connected():
-            st.success("✅ Connected to Supabase")
-            if st.button("Test Connection"):
-                success, message = db_test_connection()
-                if success:
-                    st.success("Connection test passed!")
-                else:
-                    st.error(f"Connection test failed: {message[:100]}")
-        else:
-            st.warning("⚠️ Not connected")
-            st.markdown("Enter your Supabase credentials to enable persistent data storage.")
+    # ============================================
+    # INTEGRATIONS TAB
+    # ============================================
+    with tab2:
+        st.markdown("### Integrations")
 
-            supabase_url = st.text_input("Supabase URL", placeholder="https://xxxxx.supabase.co")
-            supabase_key = st.text_input("Supabase Anon Key", type="password", placeholder="eyJ...")
+        # Supabase
+        st.markdown("#### 🗄️ Supabase (Database)")
 
-            if st.button("Connect Supabase"):
-                if supabase_url and supabase_key:
-                    # Save to .env file
-                    env_path = Path(__file__).parent.parent / ".env"
-                    with open(env_path, "a") as f:
-                        f.write(f"\nSUPABASE_URL={supabase_url}")
-                        f.write(f"\nSUPABASE_ANON_KEY={supabase_key}")
-                    settings['supabase_connected'] = True
-                    st.success("Supabase connected! Restart the app to apply changes.")
-                else:
-                    st.error("Please enter both URL and Key")
-
-    st.markdown("---")
-
-    # SendGrid
-    st.markdown("#### 📧 SendGrid (Email)")
-
-    with st.container(border=True):
-        if settings['sendgrid_connected']:
-            st.success("✅ Connected to SendGrid")
-            if st.button("Disconnect SendGrid"):
-                settings['sendgrid_connected'] = False
-                st.rerun()
-        else:
-            st.warning("⚠️ Not connected")
-            st.markdown("Enter your SendGrid API key to enable email sending.")
-
-            sendgrid_key = st.text_input("SendGrid API Key", type="password", placeholder="SG.xxxxx...")
-            sendgrid_from = st.text_input("From Email", value=settings['email'])
-            sendgrid_name = st.text_input("From Name", value=settings['owner_name'])
-
-            if st.button("Connect SendGrid"):
-                if sendgrid_key:
-                    # Save to .env file
-                    env_path = Path(__file__).parent.parent / ".env"
-                    with open(env_path, "a") as f:
-                        f.write(f"\nSENDGRID_API_KEY={sendgrid_key}")
-                        f.write(f"\nSENDGRID_FROM_EMAIL={sendgrid_from}")
-                        f.write(f"\nSENDGRID_FROM_NAME={sendgrid_name}")
-                    settings['sendgrid_connected'] = True
-                    st.success("SendGrid connected! Restart the app to apply changes.")
-                else:
-                    st.error("Please enter an API key")
-
-    st.markdown("---")
-
-    # Microsoft Graph
-    st.markdown("#### 📅 Microsoft 365 Integration")
-
-    with st.container(border=True):
-        st.success("✅ Microsoft Graph API is configured via Metro Bot (Clawdbot)")
-        st.markdown("""
-        **Active Integrations:**
-        - ✅ Email — Support@MetroPointTech.com via Graph API
-        - ✅ Calendar — Outlook calendar sync (read/write)
-        - ✅ Planner — MPT Mission Control board
-        - ✅ Tasks — To-Do lists for task tracking
-        - ✅ Contacts — Directory access
-
-        **Bot Account:** Support@MetroPointTech.com
-        **App:** MetroPointBot (e9ea4d08-1047-4588-bf07-70aa7befa62f)
-
-        *Managed by Metro Bot — changes via Teams chat.*
-        """)
-
-# ============================================
-# BILLING SETTINGS TAB
-# ============================================
-with tab3:
-    st.markdown("### Billing & Invoicing")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        new_rate = st.number_input("Default Hourly Rate ($)", value=float(settings['default_hourly_rate']), min_value=0.0, step=25.0)
-        new_tax = st.number_input("Tax Rate (%)", value=float(settings['tax_rate']), min_value=0.0, max_value=100.0, step=0.5)
-
-    with col2:
-        new_prefix = st.text_input("Invoice Number Prefix", value=settings['invoice_prefix'])
-        new_due_days = st.number_input("Payment Due (days)", value=settings['invoice_due_days'], min_value=0, max_value=90)
-
-    st.markdown("---")
-
-    st.markdown("#### Invoice Template Preview")
-
-    with st.container(border=True):
-        st.markdown(f"""
-        **{settings['company_name']}**
-        {settings['address']}
-        {settings['phone']} | {settings['email']}
-
-        ---
-
-        **Invoice:** {settings['invoice_prefix']}-2026-001
-        **Date:** {datetime.now().strftime('%Y-%m-%d')}
-        **Due:** Net {settings['invoice_due_days']} days
-
-        ---
-
-        | Description | Hours | Rate | Amount |
-        |-------------|-------|------|--------|
-        | Development work | 10.0 | ${settings['default_hourly_rate']} | ${10 * settings['default_hourly_rate']:,.0f} |
-
-        **Subtotal:** ${10 * settings['default_hourly_rate']:,.0f}
-        **Tax ({settings['tax_rate']}%):** ${10 * settings['default_hourly_rate'] * settings['tax_rate'] / 100:,.0f}
-        **Total:** ${10 * settings['default_hourly_rate'] * (1 + settings['tax_rate'] / 100):,.0f}
-        """)
-
-    if st.button("Save Billing Settings", type="primary"):
-        settings['default_hourly_rate'] = new_rate
-        settings['tax_rate'] = new_tax
-        settings['invoice_prefix'] = new_prefix
-        settings['invoice_due_days'] = new_due_days
-        st.success("Billing settings saved!")
-
-# ============================================
-# EMAIL SETTINGS TAB
-# ============================================
-with tab4:
-    st.markdown("### Email Settings")
-
-    st.markdown("#### Default Signature")
-
-    default_signature = f"""Best,
-{settings['owner_name']}
-{settings['company_name']}
-{settings['phone']}
-{settings['email']}
-{settings['website']}"""
-
-    new_signature = st.text_area("Email Signature", value=default_signature, height=150)
-
-    st.markdown("---")
-
-    st.markdown("#### Email Preferences")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        track_opens = st.checkbox("Track email opens", value=True)
-        track_clicks = st.checkbox("Track link clicks", value=True)
-
-    with col2:
-        auto_bcc = st.checkbox("BCC yourself on all emails", value=False)
-        daily_summary = st.checkbox("Send daily activity summary", value=False)
-
-    st.markdown("---")
-
-    st.markdown("#### Unsubscribe Settings")
-
-    st.text_input("Unsubscribe Link Text", value="Click here to unsubscribe")
-    st.caption("This text will appear at the bottom of marketing emails.")
-
-    if st.button("Save Email Settings", type="primary"):
-        st.success("Email settings saved!")
-
-# ============================================
-# DANGER ZONE
-# ============================================
-st.markdown("---")
-
-with st.expander("⚠️ Danger Zone"):
-    st.markdown("### Data Management")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**Export Data**")
-        if st.button("📥 Export All Data (JSON)"):
+        with st.container(border=True):
             if db_is_connected():
-                try:
-                    import json
-                    export = db_export_all_tables()
-                    export_json = json.dumps(export, indent=2, default=str)
-                    st.download_button(
-                        label="📥 Download Export",
-                        data=export_json,
-                        file_name=f"mpt_crm_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json"
-                    )
-                    st.success(f"✅ Exported {sum(len(v) for v in export.values())} total records")
-                except Exception as e:
-                    st.error(f"Export failed: {e}")
+                st.success("✅ Connected to Supabase")
+                if st.button("Test Connection"):
+                    success, message = db_test_connection()
+                    if success:
+                        st.success("Connection test passed!")
+                    else:
+                        st.error(f"Connection test failed: {message[:100]}")
             else:
-                st.warning("Database not connected.")
+                st.warning("⚠️ Not connected")
+                st.markdown("Enter your Supabase credentials to enable persistent data storage.")
 
-    with col2:
-        st.markdown("**Reset Data**")
-        if st.button("🗑️ Clear All Session Data", type="secondary"):
-            for key in ['contacts', 'pipeline_deals', 'proj_projects', 'tasks_list', 'tb_time_entries', 'tb_invoices', 'mkt_campaigns', 'mkt_email_templates']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.success("Session data cleared. Refresh to reload from database.")
+                supabase_url = st.text_input("Supabase URL", placeholder="https://xxxxx.supabase.co")
+                supabase_key = st.text_input("Supabase Anon Key", type="password", placeholder="eyJ...")
+
+                if st.button("Connect Supabase"):
+                    if supabase_url and supabase_key:
+                        # Save to .env file
+                        env_path = Path(__file__).parent.parent / ".env"
+                        with open(env_path, "a") as f:
+                            f.write(f"\nSUPABASE_URL={supabase_url}")
+                            f.write(f"\nSUPABASE_ANON_KEY={supabase_key}")
+                        settings['supabase_connected'] = True
+                        st.success("Supabase connected! Restart the app to apply changes.")
+                    else:
+                        st.error("Please enter both URL and Key")
+
+        st.markdown("---")
+
+        # SendGrid
+        st.markdown("#### 📧 SendGrid (Email)")
+
+        with st.container(border=True):
+            if settings['sendgrid_connected']:
+                st.success("✅ Connected to SendGrid")
+                if st.button("Disconnect SendGrid"):
+                    settings['sendgrid_connected'] = False
+                    st.rerun()
+            else:
+                st.warning("⚠️ Not connected")
+                st.markdown("Enter your SendGrid API key to enable email sending.")
+
+                sendgrid_key = st.text_input("SendGrid API Key", type="password", placeholder="SG.xxxxx...")
+                sendgrid_from = st.text_input("From Email", value=settings['email'])
+                sendgrid_name = st.text_input("From Name", value=settings['owner_name'])
+
+                if st.button("Connect SendGrid"):
+                    if sendgrid_key:
+                        # Save to .env file
+                        env_path = Path(__file__).parent.parent / ".env"
+                        with open(env_path, "a") as f:
+                            f.write(f"\nSENDGRID_API_KEY={sendgrid_key}")
+                            f.write(f"\nSENDGRID_FROM_EMAIL={sendgrid_from}")
+                            f.write(f"\nSENDGRID_FROM_NAME={sendgrid_name}")
+                        settings['sendgrid_connected'] = True
+                        st.success("SendGrid connected! Restart the app to apply changes.")
+                    else:
+                        st.error("Please enter an API key")
+
+        st.markdown("---")
+
+        # Microsoft Graph
+        st.markdown("#### 📅 Microsoft 365 Integration")
+
+        with st.container(border=True):
+            st.success("✅ Microsoft Graph API is configured via Metro Bot (Clawdbot)")
+            st.markdown("""
+            **Active Integrations:**
+            - ✅ Email — Support@MetroPointTech.com via Graph API
+            - ✅ Calendar — Outlook calendar sync (read/write)
+            - ✅ Planner — MPT Mission Control board
+            - ✅ Tasks — To-Do lists for task tracking
+            - ✅ Contacts — Directory access
+
+            **Bot Account:** Support@MetroPointTech.com
+            **App:** MetroPointBot (e9ea4d08-1047-4588-bf07-70aa7befa62f)
+
+            *Managed by Metro Bot — changes via Teams chat.*
+            """)
+
+    # ============================================
+    # BILLING SETTINGS TAB
+    # ============================================
+    with tab3:
+        st.markdown("### Billing & Invoicing")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            new_rate = st.number_input("Default Hourly Rate ($)", value=float(settings['default_hourly_rate']), min_value=0.0, step=25.0)
+            new_tax = st.number_input("Tax Rate (%)", value=float(settings['tax_rate']), min_value=0.0, max_value=100.0, step=0.5)
+
+        with col2:
+            new_prefix = st.text_input("Invoice Number Prefix", value=settings['invoice_prefix'])
+            new_due_days = st.number_input("Payment Due (days)", value=settings['invoice_due_days'], min_value=0, max_value=90)
+
+        st.markdown("---")
+
+        st.markdown("#### Invoice Template Preview")
+
+        with st.container(border=True):
+            st.markdown(f"""
+            **{settings['company_name']}**
+            {settings['address']}
+            {settings['phone']} | {settings['email']}
+
+            ---
+
+            **Invoice:** {settings['invoice_prefix']}-2026-001
+            **Date:** {datetime.now().strftime('%Y-%m-%d')}
+            **Due:** Net {settings['invoice_due_days']} days
+
+            ---
+
+            | Description | Hours | Rate | Amount |
+            |-------------|-------|------|--------|
+            | Development work | 10.0 | ${settings['default_hourly_rate']} | ${10 * settings['default_hourly_rate']:,.0f} |
+
+            **Subtotal:** ${10 * settings['default_hourly_rate']:,.0f}
+            **Tax ({settings['tax_rate']}%):** ${10 * settings['default_hourly_rate'] * settings['tax_rate'] / 100:,.0f}
+            **Total:** ${10 * settings['default_hourly_rate'] * (1 + settings['tax_rate'] / 100):,.0f}
+            """)
+
+        if st.button("Save Billing Settings", type="primary"):
+            settings['default_hourly_rate'] = new_rate
+            settings['tax_rate'] = new_tax
+            settings['invoice_prefix'] = new_prefix
+            settings['invoice_due_days'] = new_due_days
+            st.success("Billing settings saved!")
+
+    # ============================================
+    # EMAIL SETTINGS TAB
+    # ============================================
+    with tab4:
+        st.markdown("### Email Settings")
+
+        st.markdown("#### Default Signature")
+
+        default_signature = f"""Best,
+    {settings['owner_name']}
+    {settings['company_name']}
+    {settings['phone']}
+    {settings['email']}
+    {settings['website']}"""
+
+        new_signature = st.text_area("Email Signature", value=default_signature, height=150)
+
+        st.markdown("---")
+
+        st.markdown("#### Email Preferences")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            track_opens = st.checkbox("Track email opens", value=True)
+            track_clicks = st.checkbox("Track link clicks", value=True)
+
+        with col2:
+            auto_bcc = st.checkbox("BCC yourself on all emails", value=False)
+            daily_summary = st.checkbox("Send daily activity summary", value=False)
+
+        st.markdown("---")
+
+        st.markdown("#### Unsubscribe Settings")
+
+        st.text_input("Unsubscribe Link Text", value="Click here to unsubscribe")
+        st.caption("This text will appear at the bottom of marketing emails.")
+
+        if st.button("Save Email Settings", type="primary"):
+            st.success("Email settings saved!")
+
+    # ============================================
+    # DANGER ZONE
+    # ============================================
+    st.markdown("---")
+
+    with st.expander("⚠️ Danger Zone"):
+        st.markdown("### Data Management")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Export Data**")
+            if st.button("📥 Export All Data (JSON)"):
+                if db_is_connected():
+                    try:
+                        import json
+                        export = db_export_all_tables()
+                        export_json = json.dumps(export, indent=2, default=str)
+                        st.download_button(
+                            label="📥 Download Export",
+                            data=export_json,
+                            file_name=f"mpt_crm_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json"
+                        )
+                        st.success(f"✅ Exported {sum(len(v) for v in export.values())} total records")
+                    except Exception as e:
+                        st.error(f"Export failed: {e}")
+                else:
+                    st.warning("Database not connected.")
+
+        with col2:
+            st.markdown("**Reset Data**")
+            if st.button("🗑️ Clear All Session Data", type="secondary"):
+                for key in ['contacts', 'pipeline_deals', 'proj_projects', 'tasks_list', 'tb_time_entries', 'tb_invoices', 'mkt_campaigns', 'mkt_email_templates']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("Session data cleared. Refresh to reload from database.")
+
+with security_tab:
+    st.markdown("### Password & Security")
+    render_change_password_form()
+
+    st.markdown("---")
+
+    admin_email = (os.getenv("ADMIN_EMAIL") or os.getenv("SENDGRID_FROM_EMAIL") or "").strip()
+    st.markdown("#### Forgot Password Reset Codes")
+    if admin_email:
+        st.markdown(f"Reset codes are sent to: **{admin_email}**")
+    else:
+        st.warning("Admin email is not configured. Set ADMIN_EMAIL or SENDGRID_FROM_EMAIL.")
+    st.caption("Only the configured admin email can receive password reset codes.")

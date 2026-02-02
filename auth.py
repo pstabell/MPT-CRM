@@ -275,7 +275,6 @@ def require_login():
     if not is_authenticated():
         login_page()
         st.stop()
-    _render_change_password_sidebar()
 
 
 def logout():
@@ -285,38 +284,37 @@ def logout():
         del st.session_state["auth_user"]
 
 
-def _render_change_password_sidebar():
-    """Render the change password form in the sidebar for authenticated users."""
+def render_change_password_form():
+    """Render the change password form for authenticated users."""
     if not is_authenticated():
         return
 
-    with st.sidebar:
-        st.markdown("### Change Password")
+    st.markdown("### Change Password")
 
-        if st.session_state.get("auth_needs_password_change"):
-            st.warning("Please change your password to finish setup.")
+    if st.session_state.get("auth_needs_password_change"):
+        st.warning("Please change your password to finish setup.")
 
-        with st.form("change_password_form"):
-            current_password = st.text_input("Current password", type="password", key="current_password")
-            new_password = st.text_input("New password", type="password", key="new_password")
-            confirm_password = st.text_input("Confirm new password", type="password", key="confirm_new_password")
-            submitted = st.form_submit_button("Update Password")
+    with st.form("change_password_form"):
+        current_password = st.text_input("Current password", type="password", key="current_password")
+        new_password = st.text_input("New password", type="password", key="new_password")
+        confirm_password = st.text_input("Confirm new password", type="password", key="confirm_new_password")
+        submitted = st.form_submit_button("Update Password")
 
-            if submitted:
-                if not current_password or not new_password or not confirm_password:
-                    st.error("Please fill in all password fields.")
-                    return
-                if new_password != confirm_password:
-                    st.error("New passwords do not match.")
-                    return
-                if not _verify_current_password(current_password):
-                    st.error("Current password is incorrect.")
-                    return
+        if submitted:
+            if not current_password or not new_password or not confirm_password:
+                st.error("Please fill in all password fields.")
+                return
+            if new_password != confirm_password:
+                st.error("New passwords do not match.")
+                return
+            if not _verify_current_password(current_password):
+                st.error("Current password is incorrect.")
+                return
 
-                new_hash = db_hash_password(new_password)
-                saved = db_set_setting("auth_password_hash", new_hash)
-                if saved:
-                    st.success("Password updated successfully.")
-                    st.session_state["auth_needs_password_change"] = False
-                else:
-                    st.error("Unable to update password. Check database connection.")
+            new_hash = db_hash_password(new_password)
+            saved = db_set_setting("auth_password_hash", new_hash)
+            if saved:
+                st.success("Password updated successfully.")
+                st.session_state["auth_needs_password_change"] = False
+            else:
+                st.error("Unable to update password. Check database connection.")
