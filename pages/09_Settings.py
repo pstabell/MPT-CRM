@@ -120,7 +120,7 @@ if 'settings_data' not in st.session_state:
 st.title("⚙️ Settings")
 
 # Top-level tabs
-general_tab, security_tab = st.tabs(["?? General", "?? Security"])
+general_tab, security_tab = st.tabs(["General", "Security"])
 
 with general_tab:
 
