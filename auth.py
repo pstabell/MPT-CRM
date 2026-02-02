@@ -5,7 +5,7 @@ auth.py — Simple Authentication for MPT-CRM
 Provides username/password login gating for all pages.
 Credentials configured via environment variables:
     AUTH_USERNAME (default: patrick)
-    AUTH_PASSWORD (required)
+    AUTH_PASSWORD (default: mpt2026!)
 
 Usage in any page:
     from auth import require_login
@@ -25,7 +25,7 @@ except ImportError:
 def _get_credentials():
     """Get configured credentials from environment."""
     username = os.getenv("AUTH_USERNAME", "patrick")
-    password = os.getenv("AUTH_PASSWORD", "")
+    password = os.getenv("AUTH_PASSWORD", "mpt2026!")
     return username, password
 
 
@@ -95,10 +95,6 @@ def require_login():
         # ... rest of your page code (only runs if authenticated)
     """
     _, expected_pass = _get_credentials()
-
-    # If no password is configured, skip auth (development mode)
-    if not expected_pass:
-        return
 
     if not is_authenticated():
         login_page()
