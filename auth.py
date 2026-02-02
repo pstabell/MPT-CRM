@@ -11,11 +11,19 @@ Usage in any page:
     from auth import require_login
     require_login()  # Blocks rendering if not authenticated
 """
-
+ 
 import os
+try:
+    import streamlit as st
+    if hasattr(st, "secrets"):
+        for key, value in st.secrets.items():
+            if isinstance(value, str):
+                os.environ.setdefault(key, value)
+except Exception:
+    pass
+
 import random
 from datetime import datetime, timedelta
-import streamlit as st
 
 from db_service import (
     db_get_setting,

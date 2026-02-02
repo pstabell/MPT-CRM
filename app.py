@@ -5,6 +5,16 @@ Connected to Supabase for real-time data
 
 Database operations are handled by db_service.py — the single source of truth.
 """
+import os
+try:
+    import streamlit as st
+    if hasattr(st, "secrets"):
+        for key, value in st.secrets.items():
+            if isinstance(value, str):
+                os.environ.setdefault(key, value)
+except Exception:
+    pass
+
 import streamlit as st
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
