@@ -170,7 +170,7 @@ def db_get_contact(contact_id):
 
 
 def db_create_contact(contact_data):
-    """Create a new contact record.
+    """Create a new contact record and auto-enroll in the appropriate drip campaign.
 
     Args:
         contact_data: dict with contact fields (first_name, last_name, etc.)
@@ -183,10 +183,74 @@ def db_create_contact(contact_data):
         return None
     try:
         response = db.table("contacts").insert(contact_data).execute()
-        return response.data[0] if response.data else None
+        contact = response.data[0] if response.data else None
+        
+        # Auto-enroll in drip campaign based on contact type
+        if contact:
+            contact_type = (contact_data.get("type") or "").lower()
+            if contact_type:
+                try:
+                    _auto_enroll_new_contact(contact["id"], contact_type)
+                except Exception as e:
+                    print(f"[db_service] Auto-enroll failed for new contact: {e}")
+        
+        return contact
     except Exception as e:
         print(f"[db_service] Error creating contact: {e}")
         return None
+
+
+def _auto_enroll_new_contact(contact_id, contact_type):
+    """Auto-enroll a newly created contact in the appropriate drip campaign."""
+    campaign_map = {
+        "networking": "networking-drip-6week",
+        "lead": "lead-drip",
+        "prospect": "prospect-drip",
+        "client": "client-drip",
+    }
+    
+    campaign_id = campaign_map.get(contact_type)
+    if not campaign_id:
+        return
+    
+    template = db_get_drip_campaign_template(campaign_id)
+    if not template:
+        print(f"[db_service] No campaign template for '{campaign_id}'")
+        return
+    
+    email_sequence = template.get("email_sequence")
+    if isinstance(email_sequence, str):
+        try:
+            email_sequence = json.loads(email_sequence)
+        except Exception:
+            email_sequence = []
+    
+    if not email_sequence:
+        return
+    
+    schedule = _build_step_schedule(email_sequence)
+    enrollment_data = {
+        "contact_id": contact_id,
+        "campaign_id": campaign_id,
+        "campaign_name": template.get("name", campaign_id),
+        "status": "active",
+        "current_step": 0,
+        "total_steps": len(email_sequence),
+        "step_schedule": json.dumps(schedule),
+        "source": "auto_enroll_on_create",
+        "source_detail": f"New contact created with type '{contact_type}'",
+        "emails_sent": 0,
+        "next_email_scheduled": schedule[0]["scheduled_for"] if schedule else None
+    }
+    
+    enrollment = db_create_enrollment(enrollment_data)
+    if enrollment:
+        db_log_activity(
+            "campaign_enrolled",
+            f"Auto-enrolled in {campaign_id} on contact creation.",
+            contact_id
+        )
+        print(f"[db_service] Auto-enrolled contact {contact_id} in {campaign_id}")
 
 
 def db_update_contact(contact_id, contact_data, skip_campaign_switch=False):

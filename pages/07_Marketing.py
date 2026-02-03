@@ -768,7 +768,7 @@ Metro Point Technology, LLC
 # ============================================
 
 LEAD_DRIP_CAMPAIGN = {
-    "campaign_id": "lead-drip-4week",
+    "campaign_id": "lead-drip",
     "campaign_name": "Lead Nurture (4 Week)",
     "emails": [
         {
