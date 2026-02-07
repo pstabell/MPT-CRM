@@ -91,6 +91,10 @@ def render_sidebar(current_page="Dashboard"):
                 st.switch_page(config['path'])
 
         st.markdown("---")
+        
+        # External link to Mission Control
+        st.markdown("### 🎯 Mission Control")
+        st.markdown("[Open Mission Control →](https://mpt-mission-control.vercel.app/)", unsafe_allow_html=True)
 
 def render_sidebar_stats(stats: dict):
     """Render stats in the sidebar"""
