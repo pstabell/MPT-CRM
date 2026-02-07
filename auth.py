@@ -23,7 +23,19 @@ except Exception:
     pass
 
 import random
+import hashlib
 from datetime import datetime, timedelta
+
+# Cookie-based auth persistence
+try:
+    import extra_streamlit_components as stx
+    COOKIES_AVAILABLE = True
+except ImportError:
+    COOKIES_AVAILABLE = False
+
+# Cookie settings
+COOKIE_NAME = "mpt_crm_auth"
+COOKIE_EXPIRY_DAYS = 30
 
 from db_service import (
     db_get_setting,
@@ -41,6 +53,67 @@ try:
 except ImportError:
     pass
 
+
+def _get_cookie_manager():
+    """Get the cookie manager instance."""
+    if not COOKIES_AVAILABLE:
+        return None
+    return stx.CookieManager(key="mpt_crm_cookies")
+
+def _generate_auth_token(username: str) -> str:
+    """Generate a simple auth token for cookie storage."""
+    secret = os.getenv("AUTH_SECRET", "mpt-crm-secret-2026")
+    data = f"{username}:{secret}"
+    return hashlib.sha256(data.encode()).hexdigest()
+
+def _check_cookie_auth():
+    """Check if user is authenticated via cookie. Returns username if valid."""
+    if not COOKIES_AVAILABLE:
+        return None
+    try:
+        cookie_manager = _get_cookie_manager()
+        if cookie_manager is None:
+            return None
+        cookie_value = cookie_manager.get(COOKIE_NAME)
+        if not cookie_value:
+            return None
+        # Cookie format: "username:token"
+        parts = cookie_value.split(":", 1)
+        if len(parts) != 2:
+            return None
+        username, token = parts
+        expected_token = _generate_auth_token(username)
+        if token == expected_token:
+            return username
+    except Exception:
+        pass
+    return None
+
+def _set_auth_cookie(username: str):
+    """Set the authentication cookie."""
+    if not COOKIES_AVAILABLE:
+        return
+    try:
+        cookie_manager = _get_cookie_manager()
+        if cookie_manager is None:
+            return
+        token = _generate_auth_token(username)
+        cookie_value = f"{username}:{token}"
+        cookie_manager.set(COOKIE_NAME, cookie_value, expires_at=datetime.now() + timedelta(days=COOKIE_EXPIRY_DAYS))
+    except Exception:
+        pass
+
+def _clear_auth_cookie():
+    """Clear the authentication cookie."""
+    if not COOKIES_AVAILABLE:
+        return
+    try:
+        cookie_manager = _get_cookie_manager()
+        if cookie_manager is None:
+            return
+        cookie_manager.delete(COOKIE_NAME)
+    except Exception:
+        pass
 
 def _get_credentials():
     """Get configured credentials from environment."""
@@ -93,7 +166,20 @@ def _verify_current_password(plain_password):
 
 def is_authenticated():
     """Check if the current session is authenticated."""
-    return st.session_state.get("authenticated", False)
+    # First check session state
+    if st.session_state.get("authenticated", False):
+        return True
+    
+    # Then check cookie
+    cookie_user = _check_cookie_auth()
+    if cookie_user:
+        # Restore session from cookie
+        st.session_state["authenticated"] = True
+        st.session_state["auth_user"] = cookie_user
+        st.session_state["auth_needs_password_change"] = False
+        return True
+    
+    return False
 
 
 def login_page():
@@ -149,6 +235,7 @@ def login_page():
                             st.session_state["authenticated"] = True
                             st.session_state["auth_user"] = username
                             st.session_state["auth_needs_password_change"] = False
+                            _set_auth_cookie(username)  # Persist login in cookie
                             st.rerun()
                         else:
                             st.error("Invalid username or password")
@@ -157,6 +244,7 @@ def login_page():
                         st.session_state["authenticated"] = True
                         st.session_state["auth_user"] = username
                         st.session_state["auth_needs_password_change"] = True
+                        _set_auth_cookie(username)  # Persist login in cookie
                         st.rerun()
                     else:
                         st.error("Invalid username or password")
@@ -282,6 +370,8 @@ def logout():
     st.session_state["authenticated"] = False
     if "auth_user" in st.session_state:
         del st.session_state["auth_user"]
+    # Clear the auth cookie
+    _clear_auth_cookie()
 
 
 def render_change_password_form():
