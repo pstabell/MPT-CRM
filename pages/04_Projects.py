@@ -3,7 +3,7 @@ MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
 
 Real MPT project portfolio with pricing at $150/hr.
-Database operations are handled by db_service.py â€” the single source of truth.
+Database operations are handled by db_service.py â€" the single source of truth.
 """
 
 import streamlit as st
@@ -232,20 +232,14 @@ def _safe_num(val, default=0):
 def load_projects():
     """Load projects from database first, fall back to defaults.
     
-    If the DB has projects but none have estimated_hours set,
-    the schema hasn't been updated yet â€” use defaults instead.
+    ALWAYS use database if connected and has data. Never fall back to
+    hardcoded defaults when live data exists — that causes sync issues.
     """
     if db_is_connected():
         try:
             db_projects = db_get_projects()
             if db_projects:
-                # Check if ANY project has pricing data (schema v7 applied)
-                has_pricing = any(p.get('estimated_hours') for p in db_projects)
-                if not has_pricing:
-                    # Schema not updated yet â€” use defaults
-                    print("[Projects] DB projects found but no pricing data â€” using defaults")
-                    return [dict(p) for p in DEFAULT_PROJECTS]
-                
+                # ALWAYS use DB data when available — fill in missing values with defaults
                 for p in db_projects:
                     # Force-replace None values (setdefault won't replace existing None keys)
                     p['hourly_rate'] = _safe_num(p.get('hourly_rate'), DEFAULT_HOURLY_RATE)
@@ -552,9 +546,9 @@ def show_project_detail(project_id):
             if new_end:
                 project['target_end_date'] = new_end.strftime("%Y-%m-%d")
 
-            # Try to persist to database
-            if db_is_connected() and not str(project['id']).startswith('mpt-proj-'):
-                db_update_project(project['id'], {
+            # ALWAYS persist to database — no more skipping based on ID prefix
+            if db_is_connected():
+                result = db_update_project(project['id'], {
                     'name': new_name,
                     'description': new_desc or '',
                     'hourly_rate': new_rate,
@@ -562,15 +556,19 @@ def show_project_detail(project_id):
                     'start_date': project.get('start_date'),
                     'target_end_date': project.get('target_end_date'),
                 })
-
-            st.success("Project updated!")
+                if result:
+                    st.success("Project updated and saved to database!")
+                else:
+                    st.warning("Project updated locally but database save failed. Check connection.")
+            else:
+                st.warning("Database not connected — changes saved locally only.")
             st.rerun()
 
         # Time entries section
         st.markdown("### \u23f1\ufe0f Time Entries")
 
         project_entries = []
-        if db_is_connected() and not str(project_id).startswith('mpt-proj-'):
+        if db_is_connected():
             try:
                 project_entries = db_get_project_time_entries(project_id)
             except Exception:
@@ -635,7 +633,7 @@ def show_project_detail(project_id):
         new_status = status_options[status_labels.index(new_status_label)]
         if new_status != project['status']:
             project['status'] = new_status
-            if db_is_connected() and not str(project['id']).startswith('mpt-proj-'):
+            if db_is_connected():
                 db_update_project(project['id'], {'status': new_status})
             st.rerun()
 
