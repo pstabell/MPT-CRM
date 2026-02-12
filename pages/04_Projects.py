@@ -560,15 +560,17 @@ def show_project_detail(project_id):
             if new_end:
                 project['target_end_date'] = new_end.strftime("%Y-%m-%d")
 
-            # ALWAYS persist to database - only include columns that exist in DB
+            # ALWAYS persist to database - columns matched to actual DB schema
             if db_is_connected():
-                # Minimal update - only name and description for now
                 update_data = {
                     'name': new_name,
                     'description': new_desc or '',
+                    'estimated_hours': new_est_hours,
+                    'start_date': project.get('start_date'),
+                    'target_end_date': project.get('target_end_date'),
+                    # DB has 'budget' not 'hourly_rate' - map it
+                    'budget': new_rate,
                 }
-                # These columns may not exist in DB yet:
-                # 'hourly_rate', 'estimated_hours', 'start_date', 'target_end_date'
                 # Store debug info in session state so it survives rerun
                 st.session_state['last_update_debug'] = f"Project ID: {project['id']}"
                 result, error = db_update_project(project['id'], update_data)
