@@ -138,8 +138,8 @@ def require_sso_auth(allow_bypass: bool = True) -> Optional[Dict[str, Any]]:
         # Centered login card
         st.markdown("""
         <div class="login-container">
-            <div style="font-size: 64px; margin-bottom: 10px;">🎯</div>
-            <h1>MPT CRM</h1>
+            <img src="https://mpt-mission-control.vercel.app/mpt-logo.svg" style="height: 80px; margin-bottom: 15px;">
+            <h1>🎯 CRM</h1>
             <p>Please sign in through Mission Control<br>to access this application.</p>
         </div>
         """, unsafe_allow_html=True)
