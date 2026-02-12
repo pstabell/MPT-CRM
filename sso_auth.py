@@ -112,31 +112,43 @@ def require_sso_auth(allow_bypass: bool = True) -> Optional[Dict[str, Any]]:
         return None
     else:
         # Production mode - require auth with clean login screen
-        # Hide sidebar
+        # Hide sidebar and center content
         st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="stSidebarNav"] { display: none !important; }
-            .main .block-container { max-width: 500px; padding-top: 100px; }
+            .main .block-container { 
+                max-width: 450px; 
+                padding-top: 5vh;
+                margin: 0 auto;
+            }
+            .login-container {
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                border-radius: 16px;
+                padding: 40px 30px;
+                text-align: center;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            }
+            .login-container h1 { color: white; margin-bottom: 10px; }
+            .login-container p { color: rgba(255,255,255,0.8); }
+            .login-logo { width: 120px; margin-bottom: 20px; }
         </style>
         """, unsafe_allow_html=True)
         
-        # Centered login prompt
-        st.markdown("# 🔐 MPT CRM")
-        st.markdown("---")
-        st.info("Please sign in through Mission Control to access this application.")
+        # Centered login card with logo
         st.markdown("""
-        ### How to sign in:
-        1. Go to [**Mission Control**](https://mpt-mission-control.vercel.app)
-        2. Click **Sign In** and use GitHub or Google
-        3. Click the **CRM** tab to return here
+        <div class="login-container">
+            <img src="https://mpt-mission-control.vercel.app/logo.png" class="login-logo" onerror="this.style.display='none'">
+            <h1>🔐 MPT CRM</h1>
+            <p>Please sign in through Mission Control<br>to access this application.</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        Your session will automatically sync.
-        """)
+        st.markdown("<br>", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.link_button("🚀 Go to Mission Control", "https://mpt-mission-control.vercel.app", use_container_width=True)
+            st.link_button("🚀 Sign in via Mission Control", "https://mpt-mission-control.vercel.app", use_container_width=True)
         
         st.stop()
 
