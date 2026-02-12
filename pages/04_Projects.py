@@ -413,9 +413,23 @@ def show_new_project_form():
                 "budget": budget,
             }
 
-            # Try to save to database
+            # Try to save to database - only include columns that exist in DB
             if db_is_connected():
-                db_data = {k: v for k, v in new_project.items() if k not in ['id', 'client', 'budget']}
+                # DB columns: name, client_id, deal_id, status, description, 
+                # start_date, target_end_date, budget, estimated_hours
+                db_data = {
+                    'name': name,
+                    'client_id': prefill_contact_id,
+                    'deal_id': prefill_deal_id,
+                    'status': status,
+                    'description': description,
+                    'start_date': start_date.strftime("%Y-%m-%d"),
+                    'target_end_date': target_end_date.strftime("%Y-%m-%d"),
+                    'budget': budget,
+                    'estimated_hours': estimated_hours,
+                }
+                # Remove None values to avoid insert errors
+                db_data = {k: v for k, v in db_data.items() if v is not None}
                 result = db_create_project(db_data)
                 if result:
                     new_project['id'] = result.get('id', new_project['id'])
