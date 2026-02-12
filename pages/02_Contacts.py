@@ -39,7 +39,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_sso_auth()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # CACHING LAYER — wraps db_service functions

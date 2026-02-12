@@ -117,7 +117,7 @@ st.set_page_config(
 # ============================================
 # AUTHENTICATION
 # ============================================
-require_sso_auth()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # START DRIP SCHEDULER (once per process)

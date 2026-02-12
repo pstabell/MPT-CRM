@@ -1,9 +1,9 @@
-﻿"""
+"""
 MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
 
 Real MPT project portfolio with pricing at $150/hr.
-Database operations are handled by db_service.py â€” the single source of truth.
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
@@ -95,7 +95,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_sso_auth()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # RENDER SIDEBAR
@@ -233,7 +233,7 @@ def load_projects():
     """Load projects from database first, fall back to defaults.
     
     If the DB has projects but none have estimated_hours set,
-    the schema hasn't been updated yet â€” use defaults instead.
+    the schema hasn't been updated yet — use defaults instead.
     """
     if db_is_connected():
         try:
@@ -242,8 +242,8 @@ def load_projects():
                 # Check if ANY project has pricing data (schema v7 applied)
                 has_pricing = any(p.get('estimated_hours') for p in db_projects)
                 if not has_pricing:
-                    # Schema not updated yet â€” use defaults
-                    print("[Projects] DB projects found but no pricing data â€” using defaults")
+                    # Schema not updated yet — use defaults
+                    print("[Projects] DB projects found but no pricing data — using defaults")
                     return [dict(p) for p in DEFAULT_PROJECTS]
                 
                 for p in db_projects:

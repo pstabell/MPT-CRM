@@ -1,9 +1,9 @@
-ï»¿"""
+"""
 MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
 
 Real MPT project portfolio with pricing at $150/hr.
-Database operations are handled by db_service.py Ã¢â‚¬" the single source of truth.
+Database operations are handled by db_service.py â€" the single source of truth.
 """
 
 import streamlit as st
@@ -95,7 +95,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_sso_auth()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # RENDER SIDEBAR
@@ -233,13 +233,13 @@ def load_projects():
     """Load projects from database first, fall back to defaults.
     
     ALWAYS use database if connected and has data. Never fall back to
-    hardcoded defaults when live data exists â€” that causes sync issues.
+    hardcoded defaults when live data exists — that causes sync issues.
     """
     if db_is_connected():
         try:
             db_projects = db_get_projects()
             if db_projects:
-                # ALWAYS use DB data when available â€” fill in missing values with defaults
+                # ALWAYS use DB data when available — fill in missing values with defaults
                 for p in db_projects:
                     # Force-replace None values (setdefault won't replace existing None keys)
                     p['hourly_rate'] = _safe_num(p.get('hourly_rate'), DEFAULT_HOURLY_RATE)
@@ -546,7 +546,7 @@ def show_project_detail(project_id):
             if new_end:
                 project['target_end_date'] = new_end.strftime("%Y-%m-%d")
 
-            # ALWAYS persist to database â€” no more skipping based on ID prefix
+            # ALWAYS persist to database — no more skipping based on ID prefix
             if db_is_connected():
                 result = db_update_project(project['id'], {
                     'name': new_name,
@@ -561,7 +561,7 @@ def show_project_detail(project_id):
                 else:
                     st.warning("Project updated locally but database save failed. Check connection.")
             else:
-                st.warning("Database not connected â€” changes saved locally only.")
+                st.warning("Database not connected — changes saved locally only.")
             st.rerun()
 
         # Time entries section
