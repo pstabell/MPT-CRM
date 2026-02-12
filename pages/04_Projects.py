@@ -233,13 +233,13 @@ def load_projects():
     """Load projects from database first, fall back to defaults.
     
     ALWAYS use database if connected and has data. Never fall back to
-    hardcoded defaults when live data exists � that causes sync issues.
+    hardcoded defaults when live data exists - that causes sync issues.
     """
     if db_is_connected():
         try:
             db_projects = db_get_projects()
             if db_projects:
-                # ALWAYS use DB data when available � fill in missing values with defaults
+                # ALWAYS use DB data when available - fill in missing values with defaults
                 for p in db_projects:
                     # Force-replace None values (setdefault won't replace existing None keys)
                     p['hourly_rate'] = _safe_num(p.get('hourly_rate'), DEFAULT_HOURLY_RATE)
@@ -255,7 +255,7 @@ def load_projects():
 
 
 # Force reload when code version changes (clears stale session state)
-_CODE_VERSION = "v7-maintenance-status"
+_CODE_VERSION = "v8-force-db-reload"
 if st.session_state.get('proj_code_version') != _CODE_VERSION:
     st.session_state.proj_projects = load_projects()
     st.session_state.proj_code_version = _CODE_VERSION
