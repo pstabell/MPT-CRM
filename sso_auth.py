@@ -100,8 +100,8 @@ def require_sso_auth(allow_bypass: bool = True) -> Optional[Dict[str, Any]]:
         user = verify_sso_token(token)
         if user:
             st.session_state.sso_user = user
-            # Clean up URL
-            st.query_params.clear()
+            # Keep token in URL so refresh works
+            # st.query_params.clear()  # Disabled to persist auth on refresh
             return user
         else:
             st.warning("⚠️ Invalid or expired SSO token. Please sign in again.")
