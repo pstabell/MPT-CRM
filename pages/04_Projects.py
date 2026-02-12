@@ -548,20 +548,22 @@ def show_project_detail(project_id):
             if new_end:
                 project['target_end_date'] = new_end.strftime("%Y-%m-%d")
 
-            # ALWAYS persist to database � no more skipping based on ID prefix
+            # ALWAYS persist to database - no more skipping based on ID prefix
             if db_is_connected():
-                result = db_update_project(project['id'], {
+                update_data = {
                     'name': new_name,
                     'description': new_desc or '',
                     'hourly_rate': new_rate,
                     'estimated_hours': new_est_hours,
                     'start_date': project.get('start_date'),
                     'target_end_date': project.get('target_end_date'),
-                })
+                }
+                st.info(f"DEBUG: Updating project ID: {project['id']}")
+                result = db_update_project(project['id'], update_data)
                 if result:
                     st.success("Project updated and saved to database!")
                 else:
-                    st.warning("Project updated locally but database save failed. Check connection.")
+                    st.warning(f"Project updated locally but database save failed. ID: {project['id']}")
             else:
                 st.warning("Database not connected � changes saved locally only.")
             st.rerun()

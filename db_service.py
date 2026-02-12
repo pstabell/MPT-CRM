@@ -1368,12 +1368,17 @@ def db_update_project(project_id, project_data):
     """
     db = get_db()
     if not db:
+        print(f"[db_service] db_update_project: No DB connection!")
         return None
     try:
+        print(f"[db_service] Updating project {project_id} with: {project_data}")
         response = db.table("projects").update(project_data).eq("id", project_id).execute()
+        print(f"[db_service] Update response: {response.data}")
         return response.data[0] if response.data else None
     except Exception as e:
         print(f"[db_service] Error updating project {project_id}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
