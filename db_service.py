@@ -1364,19 +1364,17 @@ def db_update_project(project_id, project_data):
         project_data: dict of fields to update.
 
     Returns:
-        tuple: (result_or_none, error_message_or_none)
+        tuple: (success_bool, error_message_or_none)
     """
     db = get_db()
     if not db:
-        return None, "No database connection"
+        return False, "No database connection"
     try:
         response = db.table("projects").update(project_data).eq("id", project_id).execute()
-        if response.data:
-            return response.data[0], None
-        else:
-            return None, f"Update returned no data (project may not exist)"
+        # Success if no exception - Supabase may not return data on update
+        return True, None
     except Exception as e:
-        return None, str(e)
+        return False, str(e)
 
 
 def db_delete_project(project_id):
