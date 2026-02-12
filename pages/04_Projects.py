@@ -1,10 +1,9 @@
-"""
-MPT-CRM Projects Page with Pipeline Integrity
-Manage client projects with ENFORCED sales pipeline workflow.
+﻿"""
+MPT-CRM Projects Page
+Manage client projects with status tracking, time logging, and billing
 
-BUSINESS RULE: Every project MUST link to a Won deal. No orphan projects.
-
-Database operations are handled by db_service.py — the single source of truth.
+Real MPT project portfolio with pricing at $150/hr.
+Database operations are handled by db_service.py â€" the single source of truth.
 """
 
 import streamlit as st
@@ -12,10 +11,7 @@ from datetime import datetime, date, timedelta
 from db_service import (
     db_is_connected, db_get_contact_email, db_get_projects,
     db_create_project, db_update_project, db_delete_project,
-    db_get_project, db_get_project_time_entries,
-    db_get_won_deals, db_get_won_deals_by_contact, db_check_deal_project_link,
-    db_get_companies_with_won_deals, db_get_projects_by_contact,
-    db_get_contacts
+    db_get_project, db_get_project_time_entries
 )
 from auth import require_login
 
@@ -60,7 +56,6 @@ PAGE_CONFIG = {
     "Marketing": {"icon": "\U0001f4e7", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "\U0001f4c8", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "\u2699\ufe0f", "path": "pages/09_Settings.py"},
-    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Projects"):
@@ -131,6 +126,96 @@ PROJECT_STATUS = {
 }
 
 # ============================================
+# DEFAULT MPT PROJECT DATA
+# ============================================
+DEFAULT_PROJECTS = [
+    {
+        "id": "mpt-proj-1",
+        "name": "AMS-APP",
+        "client": CLIENT_NAME,
+        "client_name": CLIENT_NAME,
+        "project_type": "product",
+        "status": "active",
+        "description": "Agency Management System - Flagship product. Agent Commission Tracker (ACT) at v3.9.32 production-ready. Agency Platform branch in active development. Full insurance agency operations platform with commission tracking, carrier management, and reporting. Tech: Streamlit, Python, Supabase.",
+        "estimated_hours": 800,
+        "hours_logged": 500,
+        "hourly_rate": DEFAULT_HOURLY_RATE,
+        "start_date": "2024-06-01",
+        "target_end_date": "2026-06-30",
+    },
+    {
+        "id": "mpt-proj-2",
+        "name": "CRM-APP",
+        "client": CLIENT_NAME,
+        "client_name": CLIENT_NAME,
+        "project_type": "product",
+        "status": "planning",
+        "description": "Insurance Agent CRM - Purpose-built CRM for insurance agents. ACORD forms integration, quote automation, sales pipeline management, drip email campaigns, and client communication tracking. Tech: Streamlit, Python, Supabase, SendGrid.",
+        "estimated_hours": 600,
+        "hours_logged": 80,
+        "hourly_rate": DEFAULT_HOURLY_RATE,
+        "start_date": "2025-10-01",
+        "target_end_date": "2026-09-30",
+    },
+    {
+        "id": "mpt-proj-3",
+        "name": "WRAP Proposal Generator",
+        "client": CLIENT_NAME,
+        "client_name": CLIENT_NAME,
+        "project_type": "product",
+        "status": "maintenance",
+        "description": "Insurance proposal generator - FREE lead magnet tool published on MPTech website. Generates professional insurance proposals to attract agency leads. Drives traffic and captures contact info for the sales pipeline. Fully functional - changes handled via work orders.",
+        "estimated_hours": 120,
+        "hours_logged": 120,
+        "hourly_rate": DEFAULT_HOURLY_RATE,
+        "start_date": "2025-11-01",
+        "target_end_date": "2026-03-31",
+    },
+    {
+        "id": "mpt-proj-4",
+        "name": "MPT-CRM",
+        "client": CLIENT_NAME,
+        "client_name": CLIENT_NAME,
+        "project_type": "project",
+        "status": "active",
+        "description": "Metro Point Technology's internal CRM - This app! 9+ pages including Discovery, Contacts, Pipeline, Projects, Tasks, Time & Billing, Marketing, Reports, and Settings. Mobile business card scanner, SendGrid email integration, Supabase backend. The single source of truth for project management and billing.",
+        "estimated_hours": 500,
+        "hours_logged": 200,
+        "hourly_rate": DEFAULT_HOURLY_RATE,
+        "start_date": "2025-12-01",
+        "target_end_date": "2026-06-30",
+    },
+    {
+        "id": "mpt-proj-5",
+        "name": "MetroPointTech.com",
+        "client": CLIENT_NAME,
+        "client_name": CLIENT_NAME,
+        "project_type": "website",
+        "status": "active",
+        "description": "Products showcase website - Public-facing site highlighting MPT's software products (AMS-APP, CRM-APP, WRAP). Product demos, pricing, feature breakdowns, and lead capture forms.",
+        "estimated_hours": 80,
+        "hours_logged": 20,
+        "hourly_rate": DEFAULT_HOURLY_RATE,
+        "start_date": "2026-01-01",
+        "target_end_date": "2026-03-31",
+    },
+    {
+        "id": "mpt-proj-6",
+        "name": "MetroPointTechnology.com",
+        "client": CLIENT_NAME,
+        "client_name": CLIENT_NAME,
+        "project_type": "website",
+        "status": "planning",
+        "description": "Services & consulting website - Professional services site for Metro Point Technology LLC. Custom development, consulting engagements, technology advisory, and support packages.",
+        "estimated_hours": 80,
+        "hours_logged": 10,
+        "hourly_rate": DEFAULT_HOURLY_RATE,
+        "start_date": "2026-01-15",
+        "target_end_date": "2026-04-30",
+    },
+]
+
+# ============================================
 # INITIALIZE SESSION STATE
 # ============================================
 
@@ -145,29 +230,32 @@ def _safe_num(val, default=0):
 
 
 def load_projects():
-    """Load projects from database with deal information"""
+    """Load projects from database first, fall back to defaults.
+    
+    ALWAYS use database if connected and has data. Never fall back to
+    hardcoded defaults when live data exists — that causes sync issues.
+    """
     if db_is_connected():
         try:
-            # Get projects with joined deal information
-            projects = db_get_projects()
-            if projects:
-                # Enrich with deal data
-                for p in projects:
-                    # Force-replace None values
+            db_projects = db_get_projects()
+            if db_projects:
+                # ALWAYS use DB data when available — fill in missing values with defaults
+                for p in db_projects:
+                    # Force-replace None values (setdefault won't replace existing None keys)
                     p['hourly_rate'] = _safe_num(p.get('hourly_rate'), DEFAULT_HOURLY_RATE)
                     p['estimated_hours'] = _safe_num(p.get('estimated_hours'), 0)
                     p['hours_logged'] = _safe_num(p.get('hours_logged'), 0)
                     p['project_type'] = p.get('project_type') or 'project'
                     p['client_name'] = p.get('client_name') or CLIENT_NAME
                     p['client'] = p.get('client') or p.get('client_name') or CLIENT_NAME
-                return projects
+                return db_projects
         except Exception as e:
-            print(f"[Projects] DB load failed: {e}")
-    return []
+            print(f"[Projects] DB load failed, using defaults: {e}")
+    return [dict(p) for p in DEFAULT_PROJECTS]
 
 
-# Force reload when code version changes
-_CODE_VERSION = "v11-pipeline-integrity"
+# Force reload when code version changes (clears stale session state)
+_CODE_VERSION = "v7-maintenance-status"
 if st.session_state.get('proj_code_version') != _CODE_VERSION:
     st.session_state.proj_projects = load_projects()
     st.session_state.proj_code_version = _CODE_VERSION
@@ -205,20 +293,6 @@ def get_type_badge(project_type):
     """Get the display badge for a project type."""
     info = PROJECT_TYPES.get(project_type, PROJECT_TYPES['project'])
     return f"{info['icon']} {info['label']}"
-
-
-def format_contact_display(contact):
-    """Format contact for display in dropdowns."""
-    if contact.get('company'):
-        return f"{contact['company']} ({contact.get('first_name', '')} {contact.get('last_name', '')})"
-    else:
-        return f"{contact.get('first_name', '')} {contact.get('last_name', '')}"
-
-
-def format_deal_display(deal):
-    """Format deal for display in dropdowns."""
-    value = deal.get('value', 0) or 0
-    return f"{deal.get('title', '')} - ${value:,.0f}"
 
 
 # ============================================
@@ -271,115 +345,28 @@ def render_financial_dashboard(projects):
 
 
 # ============================================
-# NEW PROJECT FORM WITH PIPELINE INTEGRITY
+# NEW PROJECT FORM
 # ============================================
 
 def show_new_project_form():
-    """Show enforced workflow form to create a new project"""
+    """Show form to create a new project"""
     st.markdown("---")
     st.markdown("## \u2795 New Project")
-    
-    # WORKFLOW RULE NOTICE
-    st.info("🔒 **WORKFLOW RULE:** Every project MUST link to a Won deal. No orphan projects allowed.")
 
-    # Check if we have any won deals to work with
-    if not db_is_connected():
-        st.error("❌ Database not connected. Cannot create projects.")
-        return
-
-    # Prefill from won deal if coming from pipeline
     prefill_name = st.session_state.get('new_project_name', '')
     prefill_client = st.session_state.get('new_project_client', CLIENT_NAME)
     prefill_contact_id = st.session_state.get('new_project_contact_id', None)
     prefill_deal_id = st.session_state.get('new_project_deal_id', None)
 
-    if prefill_name and prefill_deal_id:
-        st.success(f"🎯 Creating project from won deal: **{prefill_name}**")
+    if prefill_name:
+        st.success(f"Creating project from won deal: **{prefill_name}**")
 
-    with st.form("new_project_form_enforced"):
-        st.markdown("### Step 1: Select Company & Won Deal")
-        
-        # Get companies with won deals
-        companies = db_get_companies_with_won_deals()
-        if not companies:
-            st.error("❌ No companies with Won deals found. Win a deal first, then create projects.")
-            st.form_submit_button("Cannot Create Project", disabled=True)
-            return
-
-        # Step 1A: Company Selection
-        company_options = [None] + companies
-        company_labels = ["Select a company..."] + [format_contact_display(c) for c in companies]
-        
-        if prefill_contact_id:
-            try:
-                selected_idx = next(i for i, c in enumerate(companies) if c and c.get('id') == prefill_contact_id) + 1
-            except (StopIteration, TypeError):
-                selected_idx = 0
-        else:
-            selected_idx = 0
-            
-        selected_company_idx = st.selectbox(
-            "Company *", 
-            range(len(company_labels)), 
-            format_func=lambda x: company_labels[x],
-            index=selected_idx,
-            key="company_select"
-        )
-        
-        selected_company = company_options[selected_company_idx] if selected_company_idx > 0 else None
-
-        # Step 1B: Deal Selection (filtered by company)
-        available_deals = []
-        if selected_company:
-            won_deals = db_get_won_deals_by_contact(selected_company['id'])
-            # Filter out deals already linked to projects
-            for deal in won_deals:
-                existing_project = db_check_deal_project_link(deal['id'])
-                if not existing_project:
-                    available_deals.append(deal)
-
-        if selected_company and not available_deals:
-            st.warning(f"⚠️ No available Won deals for {format_contact_display(selected_company)}. All deals are either not Won or already linked to projects.")
-
-        deal_options = [None] + available_deals
-        deal_labels = ["Select a won deal..."] + [format_deal_display(d) for d in available_deals]
-        
-        if prefill_deal_id and available_deals:
-            try:
-                selected_deal_idx = next(i for i, d in enumerate(available_deals) if d and d.get('id') == prefill_deal_id) + 1
-            except (StopIteration, TypeError):
-                selected_deal_idx = 0
-        else:
-            selected_deal_idx = 0
-
-        selected_deal_idx = st.selectbox(
-            "Won Deal *",
-            range(len(deal_labels)),
-            format_func=lambda x: deal_labels[x],
-            index=selected_deal_idx,
-            disabled=not selected_company,
-            key="deal_select"
-        )
-        
-        selected_deal = deal_options[selected_deal_idx] if selected_deal_idx > 0 else None
-
-        if selected_deal:
-            deal_value = selected_deal.get('value', 0) or 0
-            st.success(f"✅ Selected deal: **{selected_deal.get('title')}** - ${deal_value:,.0f}")
-
-        st.markdown("---")
-        st.markdown("### Step 2: Project Details")
-
+    with st.form("new_project_form"):
         col1, col2 = st.columns(2)
 
         with col1:
-            # Auto-populate from deal if selected
-            default_name = selected_deal.get('title', '') if selected_deal else (prefill_name or '')
-            name = st.text_input("Project Name *", value=default_name, placeholder="e.g., AMS-APP Implementation")
-            
-            client_name = format_contact_display(selected_company) if selected_company else prefill_client
-            client_display = st.text_input("Client *", value=client_name, disabled=True)
-            
+            name = st.text_input("Project Name *", value=prefill_name, placeholder="e.g., AMS-APP")
+            client = st.text_input("Client *", value=prefill_client, placeholder="Company or contact name")
             project_type = st.selectbox(
                 "Project Type *",
                 list(PROJECT_TYPES.keys()),
@@ -388,63 +375,33 @@ def show_new_project_form():
             description = st.text_area("Description", placeholder="Brief description of the project scope...")
 
         with col2:
-            # Auto-calculate from deal value if available
-            suggested_hours = 0
-            if selected_deal and selected_deal.get('value'):
-                suggested_hours = selected_deal['value'] / DEFAULT_HOURLY_RATE
-                
-            estimated_hours = st.number_input(
-                "Estimated Hours", 
-                min_value=0.0, 
-                step=10.0, 
-                value=float(suggested_hours),
-                help=f"Suggested based on deal value: {suggested_hours:.0f} hours"
-            )
+            estimated_hours = st.number_input("Estimated Hours", min_value=0.0, step=10.0, value=0.0)
             hourly_rate = st.number_input("Hourly Rate ($)", min_value=0.0, step=25.0, value=DEFAULT_HOURLY_RATE)
 
-            # Show calculated value vs deal value
+            # Show calculated value
             if estimated_hours > 0:
                 calc_value = estimated_hours * hourly_rate
                 st.info(f"\U0001f4b0 Project Value: **${calc_value:,.2f}**")
-                if selected_deal and selected_deal.get('value'):
-                    deal_val = selected_deal['value']
-                    if abs(calc_value - deal_val) > (deal_val * 0.1):  # More than 10% difference
-                        st.warning(f"⚠️ Project value (${calc_value:,.0f}) differs from deal value (${deal_val:,.0f})")
 
             start_date = st.date_input("Start Date", value=date.today())
             target_end_date = st.date_input("Target End Date", value=date.today() + timedelta(days=90))
             status = st.selectbox("Initial Status", ["planning", "active"], format_func=lambda x: PROJECT_STATUS[x]['label'])
-            
-            folder_url = st.text_input("SharePoint Folder URL", placeholder="https://metropoint.sharepoint.com/...", help="Link to project proposals/documents")
-
-        # Validation Summary
-        can_create = selected_company and selected_deal and name
-        if can_create:
-            st.success("✅ Ready to create project!")
-        else:
-            missing = []
-            if not selected_company: missing.append("Company")
-            if not selected_deal: missing.append("Won Deal") 
-            if not name: missing.append("Project Name")
-            st.error(f"❌ Missing: {', '.join(missing)}")
 
         col_submit, col_cancel = st.columns(2)
         with col_submit:
-            submitted = st.form_submit_button(
-                "Create Project", 
-                type="primary", 
-                use_container_width=True,
-                disabled=not can_create
-            )
+            submitted = st.form_submit_button("Create Project", type="primary", use_container_width=True)
         with col_cancel:
             cancelled = st.form_submit_button("Cancel", use_container_width=True)
 
-        if submitted and can_create:
+        if submitted and name and client:
             budget = estimated_hours * hourly_rate
             new_project = {
+                "id": f"proj-{len(st.session_state.proj_projects) + 1}-{datetime.now().strftime('%H%M%S')}",
                 "name": name,
-                "client_id": selected_company['id'],
-                "deal_id": selected_deal['id'],
+                "client": client,
+                "client_name": client,
+                "client_id": prefill_contact_id,
+                "deal_id": prefill_deal_id,
                 "project_type": project_type,
                 "status": status,
                 "description": description,
@@ -453,30 +410,27 @@ def show_new_project_form():
                 "estimated_hours": estimated_hours,
                 "hours_logged": 0,
                 "hourly_rate": hourly_rate,
-                "client_name": client_name,
-                "folder_url": folder_url if folder_url else None,
+                "budget": budget,
             }
 
-            # Save to database
-            result = db_create_project(new_project)
-            if result:
-                st.success(f"🎉 Project '{name}' created successfully! Linked to deal: {selected_deal['title']}")
-                # Refresh projects list
-                st.session_state.proj_projects = load_projects()
-                st.session_state.proj_show_new_form = False
-                
-                # Clear prefill data
-                for key in ['new_project_name', 'new_project_client', 'new_project_contact_id', 'new_project_deal_id']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.rerun()
-            else:
-                st.error("❌ Failed to create project. Please check database connection and try again.")
+            # Try to save to database
+            if db_is_connected():
+                db_data = {k: v for k, v in new_project.items() if k not in ['id', 'client', 'budget']}
+                result = db_create_project(db_data)
+                if result:
+                    new_project['id'] = result.get('id', new_project['id'])
+
+            st.session_state.proj_projects.append(new_project)
+            st.success(f"Project '{name}' created! Value: ${budget:,.2f}")
+            st.session_state.proj_show_new_form = False
+            for key in ['new_project_name', 'new_project_client', 'new_project_contact_id', 'new_project_deal_id', 'new_project_budget']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
 
         if cancelled:
             st.session_state.proj_show_new_form = False
-            # Clear prefill data
-            for key in ['new_project_name', 'new_project_client', 'new_project_contact_id', 'new_project_deal_id']:
+            for key in ['new_project_name', 'new_project_client', 'new_project_contact_id', 'new_project_deal_id', 'new_project_budget']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()
@@ -487,7 +441,7 @@ def show_new_project_form():
 # ============================================
 
 def show_project_detail(project_id):
-    """Show detailed project view with deal link and proposal access."""
+    """Show detailed project view with pricing and time entries."""
     project = next((p for p in st.session_state.proj_projects if p['id'] == project_id), None)
     if not project:
         st.session_state.proj_selected_project = None
@@ -501,11 +455,7 @@ def show_project_detail(project_id):
     col1, col2 = st.columns([3, 1])
     with col1:
         st.markdown(f"## {status_info['icon']} {project['name']}")
-        st.markdown(f"**{type_info['icon']} {type_info['label']}** \u00b7 {project.get('client_name', CLIENT_NAME)}")
-        
-        # Show deal link if available
-        if project.get('deal_id'):
-            st.markdown(f"🎯 **Source Deal ID:** `{project['deal_id']}`")
+        st.markdown(f"**{type_info['icon']} {type_info['label']}** \u00b7 {project.get('client', CLIENT_NAME)}")
     with col2:
         if st.button("\u2190 Back to Projects"):
             st.session_state.proj_selected_project = None
@@ -538,7 +488,7 @@ def show_project_detail(project_id):
 
     st.markdown("---")
 
-    # Main content with enhanced deal integration
+    # Main content
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -546,14 +496,6 @@ def show_project_detail(project_id):
 
         new_name = st.text_input("Project Name", project['name'], key="edit_proj_name")
         new_desc = st.text_area("Description", project.get('description', ''), height=100, key="edit_proj_desc")
-
-        # SharePoint folder URL
-        new_folder_url = st.text_input(
-            "SharePoint Folder URL", 
-            project.get('folder_url', ''), 
-            key="edit_folder_url",
-            help="Link to project proposals and documents"
-        )
 
         date_col1, date_col2 = st.columns(2)
         with date_col1:
@@ -595,33 +537,91 @@ def show_project_detail(project_id):
 
         # Save changes button
         if st.button("\U0001f4be Save Changes", type="primary"):
-            updates = {
-                'name': new_name,
-                'description': new_desc,
-                'hourly_rate': new_rate,
-                'estimated_hours': new_est_hours,
-                'folder_url': new_folder_url if new_folder_url else None,
-            }
+            project['name'] = new_name
+            project['description'] = new_desc
+            project['hourly_rate'] = new_rate
+            project['estimated_hours'] = new_est_hours
             if new_start:
-                updates['start_date'] = new_start.strftime("%Y-%m-%d")
+                project['start_date'] = new_start.strftime("%Y-%m-%d")
             if new_end:
-                updates['target_end_date'] = new_end.strftime("%Y-%m-%d")
+                project['target_end_date'] = new_end.strftime("%Y-%m-%d")
 
-            # Update in database
+            # ALWAYS persist to database — no more skipping based on ID prefix
             if db_is_connected():
-                result = db_update_project(project['id'], updates)
+                result = db_update_project(project['id'], {
+                    'name': new_name,
+                    'description': new_desc or '',
+                    'hourly_rate': new_rate,
+                    'estimated_hours': new_est_hours,
+                    'start_date': project.get('start_date'),
+                    'target_end_date': project.get('target_end_date'),
+                })
                 if result:
-                    # Update local copy
-                    for key, value in updates.items():
-                        project[key] = value
-                    st.success("Project updated!")
+                    st.success("Project updated and saved to database!")
                 else:
-                    st.error("Failed to update project.")
+                    st.warning("Project updated locally but database save failed. Check connection.")
+            else:
+                st.warning("Database not connected — changes saved locally only.")
             st.rerun()
 
-        # Time tracking section here (keeping existing logic)
-        st.markdown("### \u23f1\ufe0f Time Tracking")
-        st.info("Time tracking functionality maintained from original implementation...")
+        # Time entries section
+        st.markdown("### \u23f1\ufe0f Time Entries")
+
+        project_entries = []
+        if db_is_connected():
+            try:
+                project_entries = db_get_project_time_entries(project_id)
+            except Exception:
+                pass
+
+        if not project_entries:
+            project_entries = [e for e in st.session_state.proj_time_entries if e.get('project_id') == project_id]
+
+        # Add new time entry
+        with st.expander("\u2795 Log Time"):
+            entry_col1, entry_col2 = st.columns(2)
+            with entry_col1:
+                new_entry_date = st.date_input("Date", value=date.today(), key="new_entry_date")
+                new_entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, step=0.5, key="new_entry_hours")
+            with entry_col2:
+                new_entry_desc = st.text_input("Description", key="new_entry_desc")
+                new_entry_billable = st.checkbox("Billable", value=True, key="new_entry_billable")
+
+            if st.button("Add Time Entry", type="primary"):
+                if new_entry_hours > 0 and new_entry_desc:
+                    new_entry = {
+                        "id": f"te-{len(st.session_state.proj_time_entries) + 1}",
+                        "project_id": project_id,
+                        "date": new_entry_date.strftime("%Y-%m-%d"),
+                        "hours": new_entry_hours,
+                        "description": new_entry_desc,
+                        "billable": new_entry_billable
+                    }
+                    st.session_state.proj_time_entries.append(new_entry)
+                    project['hours_logged'] = (project.get('hours_logged', 0) or 0) + new_entry_hours
+                    st.success("Time entry added!")
+                    st.rerun()
+
+        # Display time entries
+        if project_entries:
+            for entry in sorted(project_entries, key=lambda x: x.get('date', ''), reverse=True):
+                with st.container(border=True):
+                    e_col1, e_col2, e_col3 = st.columns([2, 3, 1])
+                    with e_col1:
+                        st.markdown(f"**{entry.get('date', 'N/A')}**")
+                        st.caption(f"{entry.get('hours', 0)} hours")
+                    with e_col2:
+                        st.markdown(entry.get('description', ''))
+                        if entry.get('billable', True):
+                            rate = project.get('hourly_rate', DEFAULT_HOURLY_RATE)
+                            st.caption(f"\U0001f4b0 ${entry.get('hours', 0) * rate:,.2f}")
+                    with e_col3:
+                        if entry.get('billable', True):
+                            st.markdown("\u2705 Billable")
+                        else:
+                            st.markdown("\u2b1c Non-billable")
+        else:
+            st.info("No time entries yet. Log your first entry above.")
 
     with col2:
         # Status
@@ -632,47 +632,98 @@ def show_project_detail(project_id):
         new_status_label = st.selectbox("Status", status_labels, index=current_idx, key="edit_status")
         new_status = status_options[status_labels.index(new_status_label)]
         if new_status != project['status']:
+            project['status'] = new_status
             if db_is_connected():
                 db_update_project(project['id'], {'status': new_status})
-            project['status'] = new_status
             st.rerun()
 
-        # Source Deal Information
-        st.markdown("### 🎯 Source Deal")
-        if project.get('deal_id'):
-            st.success(f"Linked to Deal ID: `{project['deal_id']}`")
-            st.caption("This project was created from a Won deal, ensuring pipeline integrity.")
-        else:
-            st.warning("⚠️ No source deal linked")
-            st.caption("Legacy project - new projects must link to Won deals.")
+        # Project type
+        st.markdown("### \U0001f3f7\ufe0f Type")
+        type_options = list(PROJECT_TYPES.keys())
+        type_labels = [f"{PROJECT_TYPES[t]['icon']} {PROJECT_TYPES[t]['label']}" for t in type_options]
+        current_type_idx = type_options.index(project.get('project_type', 'project')) if project.get('project_type', 'project') in type_options else 0
+        new_type_label = st.selectbox("Project Type", type_labels, index=current_type_idx, key="edit_type")
+        new_type = type_options[type_labels.index(new_type_label)]
+        if new_type != project.get('project_type'):
+            project['project_type'] = new_type
 
-        # Quick Links
-        st.markdown("### 🔗 Quick Links")
-        
-        if project.get('folder_url'):
-            st.markdown(f"📁 [Project Proposals]({project['folder_url']})")
-        else:
-            st.info("💡 Add SharePoint folder URL to enable direct access to proposals.")
-
-        if project.get('deal_id'):
-            if st.button("📋 View Source Deal", use_container_width=True):
-                # Switch to pipeline page with deal selected
-                st.session_state['pipeline_selected_deal'] = project['deal_id']
-                st.switch_page("pages/03_Pipeline.py")
-
-        # Financial summary
+        # Quick financial summary
         st.markdown("### \U0001f4b0 Financial Summary")
         st.metric("Hourly Rate", f"${project.get('hourly_rate', DEFAULT_HOURLY_RATE):,.0f}/hr")
         st.metric("Project Value", f"${project_value:,.0f}")
         st.metric("Revenue Earned", f"${revenue:,.0f}")
         st.metric("Remaining Value", f"${remaining_value:,.0f}")
 
+        if project_value > 0:
+            usage = min(revenue / project_value, 1.0)
+            st.progress(usage)
+            st.caption(f"{usage * 100:.0f}% of value earned")
+
+        # Quick actions
+        st.markdown("### \u26a1 Quick Actions")
+        if st.button("\U0001f4c4 Generate Invoice", use_container_width=True):
+            invoice_text = f"""INVOICE
+{'='*50}
+From: Metro Point Technology LLC
+To: {project.get('client', CLIENT_NAME)}
+Date: {datetime.now().strftime('%B %d, %Y')}
+Project: {project.get('name', 'Project')}
+Type: {get_type_badge(project.get('project_type', 'project'))}
+
+Hours Logged: {hours_logged:.1f}
+Hourly Rate: ${project.get('hourly_rate', DEFAULT_HOURLY_RATE):,.2f}
+Amount Due: ${revenue:,.2f}
+
+Estimated Total: {estimated_hours:.0f} hours
+Project Value: ${project_value:,.2f}
+
+Payment Terms: Net 30
+{'='*50}
+Metro Point Technology LLC
+Support@MetroPointTech.com | (239) 600-8159
+"""
+            st.download_button(
+                label="\U0001f4e5 Download Invoice",
+                data=invoice_text,
+                file_name=f"Invoice_{project.get('name', 'Project').replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.txt",
+                mime="text/plain",
+                key=f"dl_invoice_{project['id']}"
+            )
+
+        if st.button("\U0001f4e7 Email Client", use_container_width=True):
+            if project.get('client_id') and db_is_connected():
+                try:
+                    contact_info = db_get_contact_email(project['client_id'])
+                    if contact_info and contact_info.get('email'):
+                        st.info(f"\U0001f4e7 Draft email to: {contact_info['email']}")
+                        st.caption("Use the Marketing page to send emails with templates.")
+                    else:
+                        st.warning("No email found for this project's contact.")
+                except Exception:
+                    st.warning("Could not look up contact email.")
+            else:
+                st.info("\U0001f4a1 Link a contact to this project to enable email.")
+
+        if st.button("\U0001f4ca View Report", use_container_width=True):
+            st.markdown(f"""
+**Project Report: {project.get('name', 'N/A')}**
+- **Type:** {get_type_badge(project.get('project_type', 'project'))}
+- **Status:** {status_info['icon']} {status_info['label']}
+- **Client:** {project.get('client', CLIENT_NAME)}
+- **Hourly Rate:** ${project.get('hourly_rate', DEFAULT_HOURLY_RATE):,.2f}/hr
+- **Estimated Hours:** {estimated_hours:,.0f}
+- **Hours Logged:** {hours_logged:,.1f}
+- **Hours Remaining:** {hours_remaining:,.0f}
+- **Project Value:** ${project_value:,.2f}
+- **Revenue Earned:** ${revenue:,.2f}
+- **Remaining Value:** ${remaining_value:,.2f}
+            """)
+
 
 # ============================================
 # MAIN PAGE
 # ============================================
 st.title("\U0001f4c1 Projects")
-st.caption("🔒 Pipeline integrity enforced - all projects must link to Won deals")
 
 if st.session_state.proj_show_new_form:
     show_new_project_form()
@@ -737,7 +788,7 @@ else:
         search_lower = search.lower()
         filtered_projects = [p for p in filtered_projects if
             search_lower in p['name'].lower() or
-            search_lower in p.get('client_name', '').lower() or
+            search_lower in p.get('client', '').lower() or
             search_lower in p.get('description', '').lower()]
 
     if status_filter != "All Status":
@@ -748,7 +799,7 @@ else:
         type_key = next(k for k, v in PROJECT_TYPES.items() if f"{v['icon']} {v['label']}" == type_filter)
         filtered_projects = [p for p in filtered_projects if p.get('project_type') == type_key]
 
-    # Project list with Source Deal column
+    # Project list
     st.markdown(f"### Showing {len(filtered_projects)} projects")
 
     for project in filtered_projects:
@@ -761,22 +812,13 @@ else:
         value = calc_project_value(project)
 
         with st.container(border=True):
-            col1, col2, col3, col4, col5 = st.columns([2.5, 1.5, 1.5, 1.5, 1])
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
 
             with col1:
                 st.markdown(f"**{status_info['icon']} {project['name']}**")
-                st.caption(f"{type_info['icon']} {type_info['label']} \u00b7 {project.get('client_name', CLIENT_NAME)}")
+                st.caption(f"{type_info['icon']} {type_info['label']} \u00b7 {project.get('client', CLIENT_NAME)}")
 
             with col2:
-                # Source Deal column
-                if project.get('deal_id'):
-                    st.markdown("🎯 **Source Deal**")
-                    st.caption(f"ID: {project['deal_id'][:8]}...")
-                else:
-                    st.markdown("⚠️ **No Source Deal**")
-                    st.caption("Legacy project")
-
-            with col3:
                 if estimated_hours > 0:
                     hrs_pct = min(hours_logged / estimated_hours, 1.0)
                     st.markdown(f"\u23f1\ufe0f {hours_logged:,.0f} / {estimated_hours:,.0f} hrs ({hrs_pct * 100:.0f}%)")
@@ -784,13 +826,13 @@ else:
                 else:
                     st.markdown(f"\u23f1\ufe0f {hours_logged:,.0f} hours logged")
 
-            with col4:
+            with col3:
                 st.markdown(f"\U0001f4b0 ${revenue:,.0f} / ${value:,.0f}")
                 if value > 0:
                     rev_pct = min(revenue / value, 1.0)
                     st.progress(rev_pct)
 
-            with col5:
+            with col4:
                 if st.button("Open", key=f"open_{project['id']}"):
                     st.session_state.proj_selected_project = project['id']
                     st.rerun()

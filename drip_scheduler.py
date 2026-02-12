@@ -181,6 +181,175 @@ Metro Point Technology, LLC
     },
 }
 
+# Lead Nurture (4 Week) — for website leads
+# Schedule: Day 0, 2, 5, 10, 18, 28
+LEAD_DRIP_EMAILS = {
+    0: {
+        "purpose": "introduction",
+        "subject": "How we help local businesses save time & grow",
+        "body": """Hi {{first_name}},
+
+Thanks for your interest in Metro Point Technology! I'm Patrick Stabell, the owner — and I wanted to personally reach out.
+
+We work with local businesses here in Cape Coral and Southwest Florida to build custom software, websites, and automation tools that actually fit how you work. No cookie-cutter solutions — everything is built around your business.
+
+Whether it's a website that brings in leads, software that replaces a clunky spreadsheet, or automation that saves your team hours every week — that's what we do.
+
+I'd love to learn more about{{#company}} what you're working on at {{company}} and{{/company}} where technology might be able to help.
+
+Feel free to reply to this email or give me a call anytime.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+    },
+    2: {
+        "purpose": "pain_point_awareness",
+        "subject": "Is this eating up your time?",
+        "body": """Hi {{first_name}},
+
+Quick question — how much time does your team spend on manual processes each week?
+
+I ask because most of the business owners I talk to here in SWFL are surprised when they add it up. Things like:
+
+• Manually entering data into multiple systems
+• Chasing invoices or following up on quotes by hand
+• Updating spreadsheets that should update themselves
+• Copying info from emails into your CRM or project tracker
+
+These tasks feel small individually, but they add up to 10, 15, even 20+ hours a week. That's time you could be spending on growing your business or getting home earlier.
+
+The good news? Most of these are straightforward to automate — and it's usually more affordable than people think.
+
+If any of that sounds familiar, I'm happy to take a quick look at your workflow and share some ideas. No pitch, just honest perspective.
+
+Best,
+{{your_name}}
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+    },
+    5: {
+        "purpose": "case_study",
+        "subject": "How a local business cut admin time by 60%",
+        "body": """Hi {{first_name}},
+
+I wanted to share a quick story that might resonate with you.
+
+A service company here in Southwest Florida came to us spending 15+ hours a week on admin — manually scheduling jobs, sending invoices, and tracking customer info across three different tools.
+
+We built them a simple custom system that:
+✅ Auto-generates invoices when a job is completed
+✅ Syncs their schedule, CRM, and accounting in real-time
+✅ Sends automated follow-ups and review requests
+
+The result? They cut their admin time by over 60% and freed up their team to focus on actual revenue-generating work.
+
+Every business is different, but the pattern is the same — repetitive manual work that technology can handle for you.
+
+If you're curious what that could look like for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}, I'd love to chat.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+    },
+    10: {
+        "purpose": "consultation_offer",
+        "subject": "Free 30-minute strategy call — no strings attached",
+        "body": """Hi {{first_name}},
+
+I know you're busy, so I'll keep this short.
+
+I'd like to offer you a free 30-minute strategy call where we can:
+
+📋 Walk through your current processes and tools
+🔍 Identify the biggest time-wasters and bottlenecks
+💡 Map out 2-3 specific ways technology could save you time and money
+
+No sales pitch. No obligation. Just a straightforward conversation about where you are and what's possible.
+
+I've done these calls with dozens of business owners in Cape Coral and Fort Myers, and the feedback is always the same — "I wish I'd done this sooner."
+
+If you're interested, just reply to this email and we'll find a time that works.
+
+Best,
+{{your_name}}
+{{your_phone}}
+{{your_email}}
+
+{{unsubscribe_link}}"""
+    },
+    18: {
+        "purpose": "overcome_objections",
+        "subject": "The #1 concern I hear from business owners",
+        "body": """Hi {{first_name}},
+
+When I talk to business owners about custom software or automation, the most common concern I hear is:
+
+"That sounds expensive — and I don't know if it'll actually work for my business."
+
+Totally fair. So let me address both:
+
+**On cost:** We're not talking about six-figure enterprise software. Most of our projects for local businesses range from a few thousand to mid five figures — and they typically pay for themselves within months through time savings and efficiency gains.
+
+**On fit:** That's exactly why we start with a conversation, not a contract. We learn your business first, then recommend solutions that make sense. If something doesn't make sense for you, I'll tell you straight up.
+
+We also work in phases — start small, prove the value, then expand. No big-bang projects that take a year to see results.
+
+I genuinely just enjoy helping local businesses work smarter. If you've been thinking about it but haven't pulled the trigger, I'm here whenever you're ready.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+
+{{unsubscribe_link}}"""
+    },
+    28: {
+        "purpose": "final_push",
+        "subject": "Quick offer before the month wraps up",
+        "body": """Hi {{first_name}},
+
+I wanted to reach out one last time with a quick offer.
+
+Through the end of this month, I'm offering a **free technology assessment** for local businesses — a deeper dive than our usual strategy call. Here's what's included:
+
+🔎 Full review of your current tools, software, and workflows
+📊 A written report with prioritized recommendations
+💰 Estimated ROI for the top 2-3 improvements
+🗓️ An action plan you can use whether you work with us or not
+
+There's no catch — I do these because they consistently lead to great working relationships. And even if we never work together, you'll walk away with a clear picture of where technology can help.
+
+If you're interested, just reply and we'll get it scheduled.
+
+Either way, I appreciate you taking the time to read my emails. If there's ever anything I can help with down the road, don't hesitate to reach out.
+
+Best,
+{{your_name}}
+Metro Point Technology, LLC
+{{your_phone}}
+{{your_email}}
+{{your_website}}
+
+{{unsubscribe_link}}"""
+    },
+}
+
+# Campaign ID → email templates mapping
+CAMPAIGN_EMAIL_MAP = {
+    "networking-drip-6week": NETWORKING_DRIP_EMAILS,
+    "lead-drip": LEAD_DRIP_EMAILS,
+}
+
 
 # ============================================================
 # MERGE FIELD REPLACEMENT (standalone, no Streamlit dependency)
@@ -358,9 +527,10 @@ def process_pending_drip_emails():
                     # Not due yet — skip remaining steps (they're in order)
                     break
 
-                # This step is due! Get the email template
+                # This step is due! Get the email template based on campaign
                 day_number = step.get("day", 0)
-                email_template = NETWORKING_DRIP_EMAILS.get(day_number)
+                campaign_emails = CAMPAIGN_EMAIL_MAP.get(campaign_id, NETWORKING_DRIP_EMAILS)
+                email_template = campaign_emails.get(day_number)
 
                 if not email_template:
                     logger.warning(f"[Drip Scheduler] No template for day {day_number}")
