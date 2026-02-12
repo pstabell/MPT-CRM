@@ -238,6 +238,8 @@ def load_projects():
     if db_is_connected():
         try:
             db_projects = db_get_projects()
+            print(f"[Projects DEBUG] db_get_projects returned {len(db_projects) if db_projects else 0} projects")
+            st.sidebar.info(f"📊 Loaded {len(db_projects) if db_projects else 0} projects from DB")
             if db_projects:
                 # ALWAYS use DB data when available - fill in missing values with defaults
                 for p in db_projects:
@@ -255,7 +257,7 @@ def load_projects():
 
 
 # Force reload when code version changes (clears stale session state)
-_CODE_VERSION = "v8-force-db-reload"
+_CODE_VERSION = "v9-debug-all-projects"
 if st.session_state.get('proj_code_version') != _CODE_VERSION:
     st.session_state.proj_projects = load_projects()
     st.session_state.proj_code_version = _CODE_VERSION
