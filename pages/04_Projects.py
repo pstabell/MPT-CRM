@@ -566,10 +566,11 @@ def show_project_detail(project_id):
                     'name': new_name,
                     'description': new_desc or '',
                     'hourly_rate': new_rate,
-                    'estimated_hours': new_est_hours,
                     'start_date': project.get('start_date'),
                     'target_end_date': project.get('target_end_date'),
                 }
+                # Only include estimated_hours if it exists (some DBs don't have it)
+                # update_data['estimated_hours'] = new_est_hours  # Disabled - column missing
                 # Store debug info in session state so it survives rerun
                 st.session_state['last_update_debug'] = f"Project ID: {project['id']}"
                 result, error = db_update_project(project['id'], update_data)
