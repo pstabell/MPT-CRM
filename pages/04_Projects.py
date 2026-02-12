@@ -238,8 +238,6 @@ def load_projects():
     if db_is_connected():
         try:
             db_projects = db_get_projects()
-            print(f"[Projects DEBUG] db_get_projects returned {len(db_projects) if db_projects else 0} projects")
-            st.sidebar.info(f"📊 Loaded {len(db_projects) if db_projects else 0} projects from DB")
             if db_projects:
                 # ALWAYS use DB data when available - fill in missing values with defaults
                 for p in db_projects:
@@ -497,8 +495,6 @@ def show_project_detail(project_id):
         st.markdown("### \U0001f4cb Project Details")
         
         # Show update status from last save attempt
-        if 'last_update_debug' in st.session_state:
-            st.info(f"🔍 DEBUG: {st.session_state.pop('last_update_debug')}")
         if 'last_update_status' in st.session_state:
             status_type, status_msg = st.session_state.pop('last_update_status')
             if status_type == 'success':
@@ -507,6 +503,8 @@ def show_project_detail(project_id):
                 st.error(status_msg)
             else:
                 st.warning(status_msg)
+        # Clean up debug info if present
+        st.session_state.pop('last_update_debug', None)
 
         new_name = st.text_input("Project Name", project['name'], key="edit_proj_name")
         new_desc = st.text_area("Description", project.get('description', ''), height=100, key="edit_proj_desc")
@@ -571,8 +569,6 @@ def show_project_detail(project_id):
                     # DB has 'budget' not 'hourly_rate' - map it
                     'budget': new_rate,
                 }
-                # Store debug info in session state so it survives rerun
-                st.session_state['last_update_debug'] = f"Project ID: {project['id']}"
                 result, error = db_update_project(project['id'], update_data)
                 if result:
                     st.session_state['last_update_status'] = ('success', "Project updated and saved to database!")
