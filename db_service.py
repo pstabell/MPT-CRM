@@ -1364,22 +1364,19 @@ def db_update_project(project_id, project_data):
         project_data: dict of fields to update.
 
     Returns:
-        dict or None: The updated project record, or None on failure.
+        tuple: (result_or_none, error_message_or_none)
     """
     db = get_db()
     if not db:
-        print(f"[db_service] db_update_project: No DB connection!")
-        return None
+        return None, "No database connection"
     try:
-        print(f"[db_service] Updating project {project_id} with: {project_data}")
         response = db.table("projects").update(project_data).eq("id", project_id).execute()
-        print(f"[db_service] Update response: {response.data}")
-        return response.data[0] if response.data else None
+        if response.data:
+            return response.data[0], None
+        else:
+            return None, f"Update returned no data (project may not exist)"
     except Exception as e:
-        print(f"[db_service] Error updating project {project_id}: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+        return None, str(e)
 
 
 def db_delete_project(project_id):

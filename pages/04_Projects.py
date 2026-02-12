@@ -503,6 +503,8 @@ def show_project_detail(project_id):
             status_type, status_msg = st.session_state.pop('last_update_status')
             if status_type == 'success':
                 st.success(status_msg)
+            elif status_type == 'error':
+                st.error(status_msg)
             else:
                 st.warning(status_msg)
 
@@ -570,11 +572,11 @@ def show_project_detail(project_id):
                 }
                 # Store debug info in session state so it survives rerun
                 st.session_state['last_update_debug'] = f"Project ID: {project['id']}"
-                result = db_update_project(project['id'], update_data)
+                result, error = db_update_project(project['id'], update_data)
                 if result:
                     st.session_state['last_update_status'] = ('success', "Project updated and saved to database!")
                 else:
-                    st.session_state['last_update_status'] = ('warning', f"Database save failed. ID: {project['id']}")
+                    st.session_state['last_update_status'] = ('error', f"Save failed: {error}")
             else:
                 st.session_state['last_update_status'] = ('warning', "Database not connected - changes saved locally only.")
             st.rerun()
@@ -649,7 +651,7 @@ def show_project_detail(project_id):
         if new_status != project['status']:
             project['status'] = new_status
             if db_is_connected():
-                db_update_project(project['id'], {'status': new_status})
+                db_update_project(project['id'], {'status': new_status})  # Ignore result for quick status change
             st.rerun()
 
         # Project type
