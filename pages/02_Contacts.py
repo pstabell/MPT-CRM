@@ -28,7 +28,7 @@ from db_service import (
 )
 from db_service import db_get_contacts as _raw_get_contacts
 from db_service import db_get_intakes as _raw_get_intakes
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 # Page load timing
 _page_load_start = time.time()
@@ -39,7 +39,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth()
 
 # ============================================
 # CACHING LAYER — wraps db_service functions

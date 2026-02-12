@@ -17,7 +17,7 @@ from db_service import (
     db_get_service_tickets, db_get_service_ticket,
     db_create_service_ticket, db_update_service_ticket,
 )
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -102,7 +102,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth()
 
 # ============================================
 # RENDER SIDEBAR

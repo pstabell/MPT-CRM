@@ -13,7 +13,7 @@ from db_service import (
     db_create_time_entry, db_get_invoices, db_update_invoice,
     db_create_invoice,
 )
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -98,7 +98,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth()
 
 # ============================================
 # RENDER SIDEBAR

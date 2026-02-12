@@ -25,7 +25,7 @@ from db_service import (
     db_get_unprocessed_cards, db_list_card_images, db_get_card_image_url,
     db_delete_contact, db_update_enrollment, send_email_via_sendgrid,
 )
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 def enroll_in_campaign(contact_id, event_name="", contact_type="networking"):
     """Enroll contact in the appropriate drip campaign based on contact type.
@@ -1701,7 +1701,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth()
 
 # ============================================
 # RENDER SIDEBAR

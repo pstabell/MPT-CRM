@@ -23,7 +23,7 @@ from db_service import (
     db_get_dashboard_stats, db_get_activities, db_get_tasks, db_get_deals,
     db_process_due_campaign_enrollments,
 )
-from auth import require_login, logout, is_authenticated
+from sso_auth import require_sso_auth, render_auth_status, logout, is_authenticated
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -117,7 +117,7 @@ st.set_page_config(
 # ============================================
 # AUTHENTICATION
 # ============================================
-require_login()
+require_sso_auth()
 
 # ============================================
 # START DRIP SCHEDULER (once per process)
