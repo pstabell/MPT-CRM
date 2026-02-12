@@ -126,6 +126,11 @@ def get_current_user() -> Optional[Dict[str, Any]]:
     return st.session_state.get("sso_user", None)
 
 
+def is_authenticated() -> bool:
+    """Check if user is authenticated"""
+    return get_current_user() is not None
+
+
 def logout():
     """Clear the SSO session"""
     if "sso_user" in st.session_state:
