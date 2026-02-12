@@ -111,13 +111,33 @@ def require_sso_auth(allow_bypass: bool = True) -> Optional[Dict[str, Any]]:
         # Development mode - allow access without auth
         return None
     else:
-        # Production mode - require auth
-        st.error("🔐 Authentication required")
+        # Production mode - require auth with clean login screen
+        # Hide sidebar
         st.markdown("""
-        Please sign in through [Mission Control](https://mpt-mission-control.vercel.app) first.
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="stSidebarNav"] { display: none !important; }
+            .main .block-container { max-width: 500px; padding-top: 100px; }
+        </style>
+        """, unsafe_allow_html=True)
         
-        Your session will automatically sync when you click through from Mission Control.
+        # Centered login prompt
+        st.markdown("# 🔐 MPT CRM")
+        st.markdown("---")
+        st.info("Please sign in through Mission Control to access this application.")
+        st.markdown("""
+        ### How to sign in:
+        1. Go to [**Mission Control**](https://mpt-mission-control.vercel.app)
+        2. Click **Sign In** and use GitHub or Google
+        3. Click the **CRM** tab to return here
+        
+        Your session will automatically sync.
         """)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.link_button("🚀 Go to Mission Control", "https://mpt-mission-control.vercel.app", use_container_width=True)
+        
         st.stop()
 
 
