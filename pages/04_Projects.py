@@ -495,6 +495,16 @@ def show_project_detail(project_id):
 
     with col1:
         st.markdown("### \U0001f4cb Project Details")
+        
+        # Show update status from last save attempt
+        if 'last_update_debug' in st.session_state:
+            st.info(f"🔍 DEBUG: {st.session_state.pop('last_update_debug')}")
+        if 'last_update_status' in st.session_state:
+            status_type, status_msg = st.session_state.pop('last_update_status')
+            if status_type == 'success':
+                st.success(status_msg)
+            else:
+                st.warning(status_msg)
 
         new_name = st.text_input("Project Name", project['name'], key="edit_proj_name")
         new_desc = st.text_area("Description", project.get('description', ''), height=100, key="edit_proj_desc")
@@ -558,14 +568,15 @@ def show_project_detail(project_id):
                     'start_date': project.get('start_date'),
                     'target_end_date': project.get('target_end_date'),
                 }
-                st.info(f"DEBUG: Updating project ID: {project['id']}")
+                # Store debug info in session state so it survives rerun
+                st.session_state['last_update_debug'] = f"Project ID: {project['id']}"
                 result = db_update_project(project['id'], update_data)
                 if result:
-                    st.success("Project updated and saved to database!")
+                    st.session_state['last_update_status'] = ('success', "Project updated and saved to database!")
                 else:
-                    st.warning(f"Project updated locally but database save failed. ID: {project['id']}")
+                    st.session_state['last_update_status'] = ('warning', f"Database save failed. ID: {project['id']}")
             else:
-                st.warning("Database not connected � changes saved locally only.")
+                st.session_state['last_update_status'] = ('warning', "Database not connected - changes saved locally only.")
             st.rerun()
 
         # Time entries section
