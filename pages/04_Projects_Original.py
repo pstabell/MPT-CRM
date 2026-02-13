@@ -95,7 +95,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_sso_auth(allow_bypass=True)  # TEMP: MC Supabase down
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # RENDER SIDEBAR
