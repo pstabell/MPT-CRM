@@ -2342,11 +2342,12 @@ else:
                     quick_source = quick_sources[quick_source_labels.index(quick_selected_source_label)]
 
                 with quick_col2:
-                    # Source Detail (pre-filled with event name)
-                    quick_source_detail = st.text_input("Source Detail", value=event_name, key="quick_src_detail", help="Event name, referral source, etc.")
+                    # Source Detail (pre-filled with event name, default to Cape Coral Chamber)
+                    default_event = event_name if event_name else "Cape Coral Chamber"
+                    quick_source_detail = st.text_input("Source Detail", value=default_event, key="quick_src_detail", help="Event name, referral source, etc.")
 
-                    # Tags
-                    quick_default_tags = ["Card Scanner", event_name] if event_name else ["Card Scanner"]
+                    # Tags - always include Cape Coral Chamber by default
+                    quick_default_tags = ["Cape Coral Chamber", event_name] if event_name and event_name != "Cape Coral Chamber" else ["Cape Coral Chamber"]
                     quick_tags_input = st.text_input("Tags (comma-separated)", value=", ".join(quick_default_tags), key="quick_tags")
                     quick_tags = [t.strip() for t in quick_tags_input.split(",") if t.strip()]
 
@@ -2456,12 +2457,12 @@ else:
                         source = sources[source_labels.index(selected_source_label)]
 
                     with meta_col2:
-                        # Source Detail - use Apply to All if set, otherwise event name
-                        default_source_detail = apply_to_all_settings.get('source_detail', event_name)
+                        # Source Detail - use Apply to All if set, otherwise default to Cape Coral Chamber
+                        default_source_detail = apply_to_all_settings.get('source_detail', event_name if event_name else "Cape Coral Chamber")
                         source_detail = st.text_input("Source Detail", value=default_source_detail, key=f"src_detail_{idx}", help="Event name, referral source, etc.")
 
-                        # Tags - use Apply to All if set, otherwise default
-                        default_tags = apply_to_all_settings.get('tags', ["Card Scanner", event_name] if event_name else ["Card Scanner"])
+                        # Tags - use Apply to All if set, otherwise default to Cape Coral Chamber
+                        default_tags = apply_to_all_settings.get('tags', ["Cape Coral Chamber"])
                         tags_input = st.text_input("Tags (comma-separated)", value=", ".join(default_tags), key=f"tags_{idx}")
                         tags = [t.strip() for t in tags_input.split(",") if t.strip()]
 
@@ -2594,7 +2595,7 @@ else:
                                     "type": contact_data.get('contact_type', 'networking'),
                                     "source": contact_data.get('source', 'networking'),
                                     "source_detail": contact_data.get('source_detail', event_name),
-                                    "tags": contact_data.get('tags', ["Card Scanner"]),
+                                    "tags": contact_data.get('tags', ["Cape Coral Chamber"]),
                                     "notes": f"Title: {contact_data.get('title', '')}\nImported via Card Scanner on {datetime.now().strftime('%Y-%m-%d')}",
                                     "email_status": "active"
                                 }
