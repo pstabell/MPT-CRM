@@ -59,6 +59,7 @@ HIDE_STREAMLIT_NAV = """
 PAGE_CONFIG = {
     "Dashboard": {"icon": "📊", "path": "app.py"},
     "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Companies": {"icon": "🏢", "path": "pages/01a_Companies.py"},
     "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
     "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
