@@ -314,7 +314,7 @@ st.divider()
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("### ðŸ“‹ Upcoming Tasks")
+    st.markdown("### 📋 Upcoming Tasks")
     tasks = get_upcoming_tasks()
     if tasks:
         for task in tasks[:5]:
@@ -325,7 +325,7 @@ with col1:
         st.info("No upcoming tasks. Create tasks from deal details!")
 
 with col2:
-    st.markdown("### ðŸ“… Deals Closing Soon")
+    st.markdown("### 💰 Deals Closing Soon")
     closing_soon = get_deals_closing_soon()
     if closing_soon:
         for deal in closing_soon[:5]:
