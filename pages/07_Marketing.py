@@ -834,9 +834,9 @@ I wanted to share a quick story that might resonate with you.
 A service company here in Southwest Florida came to us spending 15+ hours a week on admin â€” manually scheduling jobs, sending invoices, and tracking customer info across three different tools.
 
 We built them a simple custom system that:
-âœ… Auto-generates invoices when a job is completed
-âœ… Syncs their schedule, CRM, and accounting in real-time
-âœ… Sends automated follow-ups and review requests
+✅ Auto-generates invoices when a job is completed
+✅ Syncs their schedule, CRM, and accounting in real-time
+✅ Sends automated follow-ups and review requests
 
 The result? They cut their admin time by over 60% and freed up their team to focus on actual revenue-generating work.
 
@@ -861,9 +861,9 @@ I know you're busy, so I'll keep this short.
 
 I'd like to offer you a free 30-minute strategy call where we can:
 
-ðŸ“‹ Walk through your current processes and tools
-ðŸ” Identify the biggest time-wasters and bottlenecks
-ðŸ’¡ Map out 2-3 specific ways technology could save you time and money
+📋 Walk through your current processes and tools
+👍 Identify the biggest time-wasters and bottlenecks
+💡 Map out 2-3 specific ways technology could save you time and money
 
 No sales pitch. No obligation. Just a straightforward conversation about where you are and what's possible.
 
@@ -915,10 +915,10 @@ I wanted to reach out one last time with a quick offer.
 
 Through the end of this month, I'm offering a **free technology assessment** for local businesses â€” a deeper dive than our usual strategy call. Here's what's included:
 
-ðŸ”Ž Full review of your current tools, software, and workflows
-ðŸ“Š A written report with prioritized recommendations
-ðŸ’° Estimated ROI for the top 2-3 improvements
-ðŸ—“ï¸ An action plan you can use whether you work with us or not
+📝  Full review of your current tools, software, and workflows
+📊 A written report with prioritized recommendations
+💰 Estimated ROI for the top 2-3 improvements
+💴  ï¸ An action plan you can use whether you work with us or not
 
 There's no catch â€” I do these because they consistently lead to great working relationships. And even if we never work together, you'll walk away with a clear picture of where technology can help.
 
@@ -1005,10 +1005,10 @@ I put together some quick numbers that I think you'll find interesting.
 
 Based on what you shared about your current processes, here's a conservative estimate of what automation could look like:
 
-ðŸ“Š **Time Saved:** 10-15 hours/week across your team
-ðŸ’µ **Annual Value:** $25,000 - $40,000 in recaptured productivity
-âš¡ **Error Reduction:** 90%+ fewer manual entry mistakes
-ðŸ“ˆ **Capacity:** Handle 30-40% more volume without adding headcount
+📊 **Time Saved:** 10-15 hours/week across your team
+💹  **Annual Value:** $25,000 - $40,000 in recaptured productivity
+⚡ **Error Reduction:** 90%+ fewer manual entry mistakes
+📋  **Capacity:** Handle 30-40% more volume without adding headcount
 
 These are based on what we typically see with businesses your size. The actual numbers for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} could be even better depending on the specifics.
 
@@ -1060,11 +1060,11 @@ I didn't want you to miss out if this is something you've been thinking about. W
 
 Here's what a few recent clients have said:
 
-â­ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
+⭐ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
 
-â­ "I wish we'd done this two years ago. The ROI was almost immediate."
+⭐ "I wish we'd done this two years ago. The ROI was almost immediate."
 
-â­ "Working with Metro Point felt like having a tech partner, not just a vendor."
+⭐ "Working with Metro Point felt like having a tech partner, not just a vendor."
 
 If you'd like to get on the calendar, now would be a great time to start the conversation. Even a quick call to scope things out would give us a better timeline.
 
@@ -1122,10 +1122,10 @@ Welcome to the Metro Point Technology family! I'm thrilled to be working with{{#
 
 Here's what you can expect from us:
 
-ðŸ“‹ **This Week:** I'll send over a kickoff questionnaire and we'll schedule our first working session
-ðŸ“ž **Communication:** You'll hear from me at least weekly with progress updates
-ðŸ”‘ **Access:** You'll have direct access to me via email, phone, or text â€” no support tickets or runaround
-ðŸš€ **Timeline:** We'll have a detailed project timeline within the first week
+📋 **This Week:** I'll send over a kickoff questionnaire and we'll schedule our first working session
+📞 **Communication:** You'll hear from me at least weekly with progress updates
+👍  **Access:** You'll have direct access to me via email, phone, or text â€” no support tickets or runaround
+🔌  **Timeline:** We'll have a detailed project timeline within the first week
 
 A few things that make working with us different:
 â€¢ We're a small team, which means you work directly with me â€” not a rotating cast of account managers
@@ -1174,15 +1174,15 @@ Best,
 
 As we continue building out your solution, I wanted to share some tips and best practices that our most successful clients follow:
 
-ðŸŽ¯ **Start with the core workflow** â€” Don't try to use every feature on day one. Master the primary workflow first, then expand.
+💯 **Start with the core workflow** â€” Don't try to use every feature on day one. Master the primary workflow first, then expand.
 
-ðŸ‘¥ **Get your team involved early** â€” The sooner your team starts using the system (even in its early stages), the smoother the transition will be.
+👥 **Get your team involved early** â€” The sooner your team starts using the system (even in its early stages), the smoother the transition will be.
 
-ðŸ“ **Keep a running list** â€” As you use the system, jot down things you'd like tweaked or added. We'll incorporate these in our review sessions.
+📧  **Keep a running list** â€” As you use the system, jot down things you'd like tweaked or added. We'll incorporate these in our review sessions.
 
-ðŸ“Š **Track your baseline** â€” Note how long things take now so you can measure the improvement. Clients love seeing the before-and-after numbers.
+📊 **Track your baseline** â€” Note how long things take now so you can measure the improvement. Clients love seeing the before-and-after numbers.
 
-ðŸ—£ï¸ **Give honest feedback** â€” If something doesn't feel right, tell me. It's much easier to adjust during development than after launch.
+💴 ï¸ **Give honest feedback** â€” If something doesn't feel right, tell me. It's much easier to adjust during development than after launch.
 
 These might seem simple, but they make a huge difference in how quickly you see value from your investment.
 
@@ -1233,17 +1233,17 @@ Now that your solution is up and running, I wanted to share some ideas for what'
 
 Some of our clients have gotten great results by adding:
 
-ðŸŒ **Website integration** â€” Connect your internal tools to your public website for seamless data flow
-ðŸ“± **Mobile access** â€” Access your system on the go from any device
-ðŸ”— **Third-party integrations** â€” Connect with QuickBooks, Google Workspace, Mailchimp, and hundreds of other tools
-ðŸ“Š **Reporting dashboards** â€” Visual dashboards that give you real-time business insights
-ðŸ¤– **Additional automation** â€” Automate more repetitive tasks as you identify them
+👥 **Website integration** â€” Connect your internal tools to your public website for seamless data flow
+📧  **Mobile access** â€” Access your system on the go from any device
+👍  **Third-party integrations** â€” Connect with QuickBooks, Google Workspace, Mailchimp, and hundreds of other tools
+📊 **Reporting dashboards** â€” Visual dashboards that give you real-time business insights
+💡  **Additional automation** â€” Automate more repetitive tasks as you identify them
 
 I'm not trying to upsell you â€” I just want you to know what's on the table. Sometimes clients don't realize how much more their system can do until someone mentions it.
 
 If any of these sound interesting, or if you have other ideas, I'd love to chat about what would make sense for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}.
 
-No rush â€” just planting seeds! ðŸŒ±
+No rush â€” just planting seeds! 👥±
 
 Best,
 {{your_name}}
@@ -1297,10 +1297,10 @@ It's been a while since we last worked together and I wanted to reach out and sa
 
 I hope things are going well{{#company}} at {{company}}{{/company}}. A lot has been happening at Metro Point Technology, and I thought you'd want to know about some of the new things we've been building:
 
-ðŸš€ **Expanded automation capabilities** â€” We've gotten even better at connecting systems and eliminating manual processes
-ðŸŒ **Modern website builds** â€” Fast, mobile-first websites that actually convert visitors into customers
-ðŸ“Š **Business dashboards** â€” Real-time visibility into the metrics that matter most
-ðŸ¤– **AI-powered tools** â€” Smart automation that goes beyond simple rule-based workflows
+🔌  **Expanded automation capabilities** â€” We've gotten even better at connecting systems and eliminating manual processes
+👥 **Modern website builds** â€” Fast, mobile-first websites that actually convert visitors into customers
+📊 **Business dashboards** â€” Real-time visibility into the metrics that matter most
+💡  **AI-powered tools** â€” Smart automation that goes beyond simple rule-based workflows
 
 The Cape Coral and SWFL business community has been growing fast, and we've been growing right alongside it â€” helping local businesses compete with the big guys through smart technology.
 
@@ -1325,13 +1325,13 @@ Metro Point Technology, LLC
 
 I wanted to share a few recent projects that showcase what we've been up to. These might spark some ideas for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}:
 
-**ðŸ—ï¸ Client Portal for a Service Company**
+**🏏 ï¸ Client Portal for a Service Company**
 Built a self-service portal where their customers can request services, track status, and view invoices â€” all automated. Cut their phone call volume by 50%.
 
-**ðŸ“± Mobile Inventory System for a Local Retailer**
+**📧  Mobile Inventory System for a Local Retailer**
 Replaced their clipboard-and-spreadsheet inventory process with a mobile scanning app. Real-time inventory counts, automatic reorder alerts, and zero manual data entry.
 
-**ðŸ”„ CRM + Accounting Integration for a Professional Services Firm**
+**👍  CRM + Accounting Integration for a Professional Services Firm**
 Connected their CRM to QuickBooks so invoices, payments, and client data all stay in sync automatically. Saved their admin team 12 hours a week.
 
 Technology has come a long way since we last worked together, and there might be some new possibilities for your business that weren't available before.
@@ -1352,7 +1352,7 @@ Best,
 
 Since we've worked together before, I wanted to extend a special offer to you:
 
-ðŸŽ **Returning Client Package:**
+📝 **Returning Client Package:**
 â€¢ **Free technology assessment** â€” Full review of your current tools and processes (normally a $500 value)
 â€¢ **Priority scheduling** â€” Jump to the front of our project queue
 â€¢ **10% returning client discount** â€” On your first new project with us
@@ -1409,9 +1409,9 @@ This is my last planned check-in, but I wanted you to know something: the door i
 Whether it's a quick question about technology, a second opinion on a vendor you're evaluating, or a full-blown project â€” I'm here. That's true whether it's next week or next year.
 
 You can always reach me at:
-ðŸ“§ {{your_email}}
-ðŸ“ž {{your_phone}}
-ðŸŒ {{your_website}}
+📧 {{your_email}}
+📞 {{your_phone}}
+👥 {{your_website}}
 
 It was a pleasure working with{{#company}} {{company}} and{{/company}} you, and I'd welcome the chance to do it again someday.
 
@@ -1446,9 +1446,9 @@ Relationships like ours are what make the Cape Coral and Southwest Florida busin
 
 As a quick refresher, here's what Metro Point Technology specializes in â€” so you know exactly who to think of when opportunities come up:
 
-ðŸ–¥ï¸ **Custom Software** â€” Built-from-scratch applications tailored to specific business needs
-ðŸŒ **Websites** â€” Modern, fast, conversion-focused websites for local businesses
-ðŸ¤– **Business Automation** â€” Connecting systems, eliminating manual processes, saving time
+💳 ï¸ **Custom Software** â€” Built-from-scratch applications tailored to specific business needs
+👥 **Websites** â€” Modern, fast, conversion-focused websites for local businesses
+💡  **Business Automation** â€” Connecting systems, eliminating manual processes, saving time
 
 If there's ever anything I can do to support{{#company}} {{company}} or{{/company}} you, please don't hesitate to reach out. That's what partners are for.
 
@@ -1471,10 +1471,10 @@ I had an idea I wanted to run by you.
 
 What if we did some co-marketing together? Nothing complicated â€” just simple ways to get in front of each other's audiences:
 
-ðŸ“£ **Social media shoutouts** â€” I feature{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} on our social media, you feature us on yours
-ðŸ“ **Guest content** â€” I write a short piece for your audience about how tech can help their business, you share your expertise with mine
-ðŸ¤ **Joint networking** â€” Attend events together and introduce each other to our respective networks
-ðŸ“§ **Email features** â€” Mention each other in newsletters or client communications
+📧  **Social media shoutouts** â€” I feature{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}} on our social media, you feature us on yours
+📧  **Guest content** â€” I write a short piece for your audience about how tech can help their business, you share your expertise with mine
+💡 **Joint networking** â€” Attend events together and introduce each other to our respective networks
+📧 **Email features** â€” Mention each other in newsletters or client communications
 
 It's a win-win â€” we both get exposure to a warm, trusted audience without spending a dime on ads.
 
@@ -1530,9 +1530,9 @@ Here's an idea that could benefit both of us:
 What if we put together a joint case study or success story? Something that showcases how our businesses complement each other and deliver more value together than either of us could alone.
 
 Here's what I'm thinking:
-ðŸ“– A short write-up (or even a quick video) about how we've helped a mutual client or how our services work together
-ðŸŒ We both share it on our websites, social media, and with our networks
-ðŸ“§ Use it in our marketing materials to show the power of local business partnerships
+📧  A short write-up (or even a quick video) about how we've helped a mutual client or how our services work together
+👥 We both share it on our websites, social media, and with our networks
+📧 Use it in our marketing materials to show the power of local business partnerships
 
 It doesn't have to be fancy â€” even a short testimonial exchange would be valuable. People love seeing that local businesses collaborate and support each other.
 
@@ -1557,10 +1557,10 @@ It's been about six weeks since we last connected, and I wanted to do a quick qu
 
 A few things I'd love to catch up on:
 
-ðŸ“Š **How's business?** â€” Anything exciting happening{{#company}} at {{company}}{{/company}}?
-ðŸ¤ **Referral check** â€” Have you come across anyone who might need tech help? I've been keeping an eye out for referrals for you too.
-ðŸ’¡ **New ideas** â€” Any new ways we could collaborate or support each other?
-ðŸ“… **Events** â€” Any upcoming networking events, chamber meetings, or industry events we should attend together?
+📊 **How's business?** â€” Anything exciting happening{{#company}} at {{company}}{{/company}}?
+💡 **Referral check** â€” Have you come across anyone who might need tech help? I've been keeping an eye out for referrals for you too.
+💡 **New ideas** â€” Any new ways we could collaborate or support each other?
+📧  **Events** â€” Any upcoming networking events, chamber meetings, or industry events we should attend together?
 
 I find that partnerships work best when there's regular, intentional communication â€” not just reaching out when we need something.
 
@@ -1648,18 +1648,18 @@ HIDE_STREAMLIT_NAV = """
 """
 
 PAGE_CONFIG = {
-    "Dashboard": {"icon": "ðŸ“Š", "path": "app.py"},
-    "Discovery Call": {"icon": "ðŸ“ž", "path": "pages/01_Discovery.py"},
+    "Dashboard": {"icon": "\U0001F4CA", "path": "app.py"},
+    "Discovery Call": {"icon": "\U0001F4DE", "path": "pages/01_Discovery.py"},
     "Companies": {"icon": "\U0001F3E2", "path": "pages/01a_Companies.py"},
-    "Contacts": {"icon": "ðŸ‘¥", "path": "pages/02_Contacts.py"},
-    "Sales Pipeline": {"icon": "ðŸŽ¯", "path": "pages/03_Pipeline.py"},
-    "Projects": {"icon": "ðŸ“", "path": "pages/04_Projects.py"},
+    "Contacts": {"icon": "\U0001F465", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "\U0001F4C8", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "\U0001F4C1", "path": "pages/04_Projects.py"},
     "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
-    "Tasks": {"icon": "âœ…", "path": "pages/05_Tasks.py"},
-    "Time & Billing": {"icon": "ðŸ’°", "path": "pages/06_Time_Billing.py"},
-    "Marketing": {"icon": "ðŸ“§", "path": "pages/07_Marketing.py"},
-    "Reports": {"icon": "ðŸ“ˆ", "path": "pages/08_Reports.py"},
-    "Settings": {"icon": "âš™ï¸", "path": "pages/09_Settings.py"},
+    "Tasks": {"icon": "\u2705", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "\U0001F4B0", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "\U0001F4E7", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "\U0001F4CA", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "\u2699\uFE0F", "path": "pages/09_Settings.py"},
     "Help": {"icon": "\u2753", "path": "pages/11_Help.py"},
 }
 
@@ -1852,7 +1852,7 @@ def show_campaign_detail(campaign_id):
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        status_icon = {"active": "ðŸŸ¢", "paused": "ðŸŸ¡", "draft": "âšª", "completed": "âœ…"}.get(campaign['status'], "âšª")
+        status_icon = {"active": "💢", "paused": "💡", "draft": "âšª", "completed": "✅"}.get(campaign['status'], "âšª")
         st.markdown(f"## {status_icon} {campaign['name']}")
     with col2:
         if st.button("â† Back to Campaigns"):
@@ -1869,7 +1869,7 @@ def show_campaign_detail(campaign_id):
 
         # Status toggle
         status_options = ["active", "paused", "draft"]
-        status_labels = ["ðŸŸ¢ Active", "ðŸŸ¡ Paused", "âšª Draft"]
+        status_labels = ["💢 Active", "💡 Paused", "âšª Draft"]
         current_idx = status_options.index(campaign['status']) if campaign['status'] in status_options else 0
         new_status_label = st.selectbox("Status", status_labels, index=current_idx)
         campaign['status'] = status_options[status_labels.index(new_status_label)]
@@ -1891,7 +1891,7 @@ def show_campaign_detail(campaign_id):
 
     # Email sequence
     st.markdown("---")
-    st.markdown("### ðŸ“§ Email Sequence")
+    st.markdown("### 📧 Email Sequence")
 
     for i, email in enumerate(campaign['emails']):
         with st.container(border=True):
@@ -1911,7 +1911,7 @@ def show_campaign_detail(campaign_id):
                     st.toast("Email editor coming soon!")
 
             with col3:
-                status_badge = {"active": "ðŸŸ¢", "draft": "âšª", "paused": "ðŸŸ¡"}.get(email['status'], "âšª")
+                status_badge = {"active": "💢", "draft": "âšª", "paused": "💡"}.get(email['status'], "âšª")
                 st.markdown(f"{status_badge} {email['status'].title()}")
 
     # Add email button
@@ -1920,10 +1920,10 @@ def show_campaign_detail(campaign_id):
 
     # Enrollments section
     st.markdown("---")
-    st.markdown("### ðŸ‘¥ Current Enrollments")
+    st.markdown("### 👥 Current Enrollments")
 
     if campaign['enrollments'] > 0:
-        st.info(f"ðŸ“Š {campaign['enrollments']} contacts currently enrolled in this campaign")
+        st.info(f"📊 {campaign['enrollments']} contacts currently enrolled in this campaign")
         if st.button("View All Enrollments"):
             st.toast("Enrollment list coming soon!")
     else:
@@ -1962,20 +1962,20 @@ def show_template_detail(template_id):
             template['subject'] = new_subject
             template['body'] = new_body
 
-        if st.button("ðŸ’¾ Save Template", type="primary"):
+        if st.button("💹  Save Template", type="primary"):
             st.success("Template saved!")
 
         # Send Test Email section
         st.markdown("---")
-        st.markdown("### ðŸ“¤ Send Test Email")
+        st.markdown("### 📧  Send Test Email")
         test_email = st.text_input("Send test to:", value="patrick@metropointtechnology.com", key="test_email_addr")
         test_first_name = st.text_input("Test first name:", value="Patrick", key="test_first_name")
 
-        if st.button("ðŸ“§ Send Test Email", type="secondary"):
+        if st.button("📧 Send Test Email", type="secondary"):
             st.toast("SendGrid integration coming soon!")
 
     with col2:
-        st.markdown("### ðŸ”— Merge Fields")
+        st.markdown("### 👍  Merge Fields")
         st.caption("Click to copy")
 
         merge_fields = [
@@ -1996,7 +1996,7 @@ def show_template_detail(template_id):
             st.caption(description)
 
         st.markdown("---")
-        st.markdown("### ðŸ“‚ Category")
+        st.markdown("### 📧  Category")
         categories = ["follow_up", "welcome", "proposal", "nurture", "re_engagement"]
         cat_labels = ["Follow-up", "Welcome", "Proposal", "Nurture", "Re-engagement"]
         current_idx = categories.index(template['category']) if template['category'] in categories else 0
@@ -2006,14 +2006,14 @@ def show_template_detail(template_id):
         # Show tips if available
         if template.get('tips'):
             st.markdown("---")
-            st.markdown("### ðŸ’¡ Tips")
+            st.markdown("### 💡 Tips")
             st.info(template['tips'])
 
 
 # ============================================
 # MAIN PAGE
 # ============================================
-st.title("ðŸ“§ Marketing")
+st.title("\U0001F4E7 Marketing")
 
 # Check if we're enrolling a contact from the Contacts page
 enroll_contact_id = st.session_state.get('mkt_enroll_contact_id')
@@ -2022,7 +2022,7 @@ enroll_contact_email = st.session_state.get('mkt_enroll_contact_email', '')
 
 if enroll_contact_id:
     st.markdown("---")
-    st.markdown(f"### ðŸ“§ Enroll Contact in Campaign")
+    st.markdown(f"### 📧 Enroll Contact in Campaign")
     st.info(f"**Contact:** {enroll_contact_name} ({enroll_contact_email})")
 
     # Show available campaigns
@@ -2071,35 +2071,35 @@ elif st.session_state.mkt_selected_template:
     show_template_detail(st.session_state.mkt_selected_template)
 else:
     # Tab navigation
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["ðŸ“Š Dashboard", "ðŸ”„ Campaigns", "âœ‰ï¸ Templates", "ðŸ“‡ Card Scanner", "ðŸ” Process Cards", "âš™ï¸ Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["\U0001F4CA Dashboard", "\U0001F4E7 Campaigns", "\U0001F4DD Templates", "\U0001F4C7 Card Scanner", "\U0001F504 Process Cards", "\u2699\uFE0F Settings"])
 
     with tab1:
         # Marketing Dashboard
         st.markdown("### Campaign Performance Overview")
-        st.info("ðŸ“Š Campaign analytics will appear here once you start importing contacts and sending campaigns via the Card Scanner.")
+        st.info("📊 Campaign analytics will appear here once you start importing contacts and sending campaigns via the Card Scanner.")
 
         st.markdown("---")
 
         # Recent activity
-        st.markdown("### ðŸ“¬ Recent Email Activity")
-        st.info("ðŸ“Š SendGrid integration will show real-time email activity here (opens, clicks, bounces)")
+        st.markdown("### 📬 Recent Email Activity")
+        st.info("📊 SendGrid integration will show real-time email activity here (opens, clicks, bounces)")
 
         # Quick actions
-        st.markdown("### âš¡ Quick Actions")
+        st.markdown("### ⚡ Quick Actions")
         action_cols = st.columns(3)
         with action_cols[0]:
-            if st.button("ðŸ“§ Send One-Time Email", use_container_width=True):
+            if st.button("📧 Send One-Time Email", use_container_width=True):
                 st.toast("One-time email sender coming soon!")
         with action_cols[1]:
-            if st.button("ðŸ‘¥ Enroll Contacts", use_container_width=True):
+            if st.button("👥 Enroll Contacts", use_container_width=True):
                 st.toast("Bulk enrollment coming soon!")
         with action_cols[2]:
-            if st.button("ðŸ“ˆ View Full Reports", use_container_width=True):
+            if st.button("📋  View Full Reports", use_container_width=True):
                 st.toast("Detailed reports coming soon!")
 
     with tab2:
         # Campaigns list
-        st.markdown("### ðŸ”„ Drip Campaigns")
+        st.markdown("### 👍  Drip Campaigns")
 
         toolbar_col1, toolbar_col2 = st.columns([3, 1])
         with toolbar_col2:
@@ -2110,23 +2110,23 @@ else:
             with st.container(border=True):
                 col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
 
-                status_icon = {"active": "ðŸŸ¢", "paused": "ðŸŸ¡", "draft": "âšª", "completed": "âœ…"}.get(campaign['status'], "âšª")
+                status_icon = {"active": "💢", "paused": "💡", "draft": "âšª", "completed": "✅"}.get(campaign['status'], "âšª")
 
                 with col1:
                     st.markdown(f"**{status_icon} {campaign['name']}**")
                     st.caption(f"Trigger: {campaign['trigger']}")
 
                 with col2:
-                    st.markdown(f"ðŸ“§ {len(campaign['emails'])} emails")
-                    st.caption(f"ðŸ‘¥ {campaign['enrollments']} enrolled")
+                    st.markdown(f"📧 {len(campaign['emails'])} emails")
+                    st.caption(f"👥 {campaign['enrollments']} enrolled")
 
                 with col3:
                     if campaign['sent'] > 0:
                         open_rate = (campaign['opened'] / campaign['sent']) * 100
-                        st.markdown(f"ðŸ“¬ {campaign['sent']} sent")
-                        st.caption(f"ðŸ“– {open_rate:.0f}% open rate")
+                        st.markdown(f"📬 {campaign['sent']} sent")
+                        st.caption(f"📧  {open_rate:.0f}% open rate")
                     else:
-                        st.markdown("ðŸ“¬ 0 sent")
+                        st.markdown("📬 0 sent")
                         st.caption("No data yet")
 
                 with col4:
@@ -2152,11 +2152,11 @@ else:
             categories[cat].append(template)
 
         cat_labels = {
-            "follow_up": "ðŸ“ž Follow-up",
-            "welcome": "ðŸ‘‹ Welcome",
-            "proposal": "ðŸ“ Proposal",
-            "nurture": "ðŸŒ± Nurture",
-            "re_engagement": "ðŸ”„ Re-engagement"
+            "follow_up": "📞 Follow-up",
+            "welcome": "💰   Welcome",
+            "proposal": "📧  Proposal",
+            "nurture": "👥± Nurture",
+            "re_engagement": "👍  Re-engagement"
         }
 
         for cat, templates in categories.items():
@@ -2179,7 +2179,7 @@ else:
         # ============================================
         # CARD SCANNER TAB
         # ============================================
-        st.markdown("### ðŸ“‡ Business Card Scanner")
+        st.markdown("### 📧  Business Card Scanner")
         st.caption("Upload business cards from networking events to extract contacts and start drip campaigns")
 
         # Check for import results to display
@@ -2202,11 +2202,11 @@ else:
                     st.warning("The following contacts were skipped because they already exist in your database:")
                     for skip in results['skipped']:
                         st.markdown(f"- **{skip['name']}** ({skip['email']}) - {skip['reason']}")
-                    st.caption("ðŸ’¡ Tip: To add card info to existing contacts, select 'merge' from the dropdown during review.")
+                    st.caption("💡 Tip: To add card info to existing contacts, select 'merge' from the dropdown during review.")
 
             # Show merged contacts if any
             if results.get('merged'):
-                with st.expander(f"ðŸ”€ {len(results['merged'])} Contacts Merged"):
+                with st.expander(f"👍   {len(results['merged'])} Contacts Merged"):
                     st.info("The following cards were merged into existing contacts:")
                     for merge in results['merged']:
                         st.markdown(f"- **{merge['name']}** â†’ merged with **{merge['merged_with']}**")
@@ -2220,31 +2220,31 @@ else:
 
             # Detailed import log
             if results.get('import_log'):
-                with st.expander("ðŸ“‹ Detailed Import Log", expanded=False):
+                with st.expander("📋 Detailed Import Log", expanded=False):
                     for log_entry in results['import_log']:
                         st.text(log_entry)
 
             if results.get('enrollments_created', 0) > 0:
                 # Show email schedule (use networking as default preview)
-                with st.expander("ðŸ“… View Email Schedule", expanded=True):
+                with st.expander("📧  View Email Schedule", expanded=True):
                     schedule = calculate_drip_schedule(campaign=NETWORKING_DRIP_CAMPAIGN)
                     for i, step in enumerate(schedule):
                         scheduled_date = datetime.fromisoformat(step['scheduled_for'])
-                        status_icon = "âœ…" if i == 0 else "ðŸ“…"
+                        status_icon = "✅" if i == 0 else "📧 "
                         status_text = "Sent" if i == 0 else scheduled_date.strftime("%b %d, %Y")
                         st.markdown(f"**Day {step['day']}** - {step['purpose'].replace('_', ' ').title()} | {status_icon} {status_text}")
                         st.caption(f"Subject: {step['subject']}")
 
             col1, col2, col3 = st.columns(3)
             with col1:
-                if st.button("ðŸ‘¥ View Contacts", use_container_width=True):
+                if st.button("👥 View Contacts", use_container_width=True):
                     st.switch_page("pages/02_Contacts.py")
             with col2:
-                if st.button("ðŸ”„ View Campaigns", use_container_width=True):
+                if st.button("👍  View Campaigns", use_container_width=True):
                     st.session_state.mkt_import_results = None
                     st.rerun()
             with col3:
-                if st.button("ðŸ“‡ Scan More Cards", use_container_width=True):
+                if st.button("📧  Scan More Cards", use_container_width=True):
                     st.session_state.mkt_import_results = None
                     st.session_state.mkt_scanned_contacts = []
                     st.session_state.mkt_card_images = []
@@ -2266,7 +2266,7 @@ else:
             st.markdown("---")
 
             # Quick Apply to All section
-            with st.expander("âš¡ Quick Apply to All Contacts", expanded=True):
+            with st.expander("⚡ Quick Apply to All Contacts", expanded=True):
                 st.markdown("Set defaults for all contacts at once. You can still edit individual contacts below.")
 
                 quick_col1, quick_col2 = st.columns(2)
@@ -2274,7 +2274,7 @@ else:
                 with quick_col1:
                     # Contact Type
                     quick_contact_types = ["prospect", "lead", "client", "networking", "partner"]
-                    quick_type_labels = ["ðŸ‘¤ Prospect", "ðŸŽ¯ Lead", "âœ… Client", "ðŸ¤ Networking", "ðŸ¤œðŸ¤› Partner"]
+                    quick_type_labels = ["💰  Prospect", "💯 Lead", "✅ Client", "💡 Networking", "💣💡  Partner"]
                     quick_contact_type_idx = 3  # Default to "networking"
                     quick_selected_type_label = st.selectbox("Contact Type", quick_type_labels, index=quick_contact_type_idx, key="quick_type")
                     quick_contact_type = quick_contact_types[quick_type_labels.index(quick_selected_type_label)]
@@ -2302,7 +2302,7 @@ else:
                         "source_detail": quick_source_detail,
                         "tags": quick_tags
                     }
-                    st.success("âœ… Settings applied to all contacts! Review individual contacts below if you need to make changes.")
+                    st.success("✅ Settings applied to all contacts! Review individual contacts below if you need to make changes.")
                     st.rerun()
 
             st.markdown("---")
@@ -2313,7 +2313,7 @@ else:
 
             for idx, contact in enumerate(st.session_state.mkt_scanned_contacts):
                 confidence = contact.get('confidence', 0.5)
-                confidence_icon = "âœ…" if confidence >= 0.7 else "âš ï¸"
+                confidence_icon = "✅" if confidence >= 0.7 else "âš ï¸"
                 confidence_label = "High confidence" if confidence >= 0.7 else "Low confidence - please verify"
 
                 with st.expander(f"{confidence_icon} Card {idx + 1}: {contact.get('first_name', 'Unknown')} {contact.get('last_name', '')} ({confidence_label})", expanded=(confidence < 0.7)):
@@ -2353,7 +2353,7 @@ else:
                             st.warning(f"âš ï¸ Contact with this email already exists: **{email_matches[0]['first_name']} {email_matches[0]['last_name']}**")
 
                         # Show all potential duplicates (sorted by priority: name > company > email)
-                        st.info(f"ðŸ” Found {len(potential_duplicates)} potential match(es)")
+                        st.info(f"👍 Found {len(potential_duplicates)} potential match(es)")
 
                         for dup in potential_duplicates[:3]:  # Show top 3
                             match_info = ", ".join(dup.get('match_reasons', []))
@@ -2386,7 +2386,7 @@ else:
                     with meta_col1:
                         # Contact Type - use Apply to All if set, otherwise default
                         contact_types = ["prospect", "lead", "client", "networking", "partner"]
-                        type_labels = ["ðŸ‘¤ Prospect", "ðŸŽ¯ Lead", "âœ… Client", "ðŸ¤ Networking", "ðŸ¤œðŸ¤› Partner"]
+                        type_labels = ["💰  Prospect", "💯 Lead", "✅ Client", "💡 Networking", "💣💡  Partner"]
                         default_type = apply_to_all_settings.get('contact_type', 'networking')
                         contact_type_idx = contact_types.index(default_type) if default_type in contact_types else 3
                         selected_type_label = st.selectbox("Contact Type", type_labels, index=contact_type_idx, key=f"type_{idx}")
@@ -2457,7 +2457,7 @@ else:
                     st.rerun()
 
             with col_import:
-                if st.button(f"âœ… Import {len(contacts_to_import)} Contacts & Start Campaign", type="primary", use_container_width=True):
+                if st.button(f"✅ Import {len(contacts_to_import)} Contacts & Start Campaign", type="primary", use_container_width=True):
                     if not contacts_to_import:
                         st.error("No contacts selected for import")
                     else:
@@ -2527,7 +2527,7 @@ else:
                                     "email": contact_data.get('email', 'No email'),
                                     "merged_with": f"{merge_contact.get('first_name', '')} {merge_contact.get('last_name', '')}".strip()
                                 })
-                                results['import_log'].append(f"ðŸ”€ Merged: {merge_name} into existing contact {merge_contact.get('first_name', '')} {merge_contact.get('last_name', '')}")
+                                results['import_log'].append(f"👍   Merged: {merge_name} into existing contact {merge_contact.get('first_name', '')} {merge_contact.get('last_name', '')}")
                             else:
                                 # Create new contact in database
                                 new_contact = {
@@ -2553,7 +2553,7 @@ else:
                                     contact_id = created['id']
                                     contact_name = f"{contact_data['first_name']} {contact_data['last_name']}"
                                     print(f"[Import] Contact created successfully with ID: {contact_id}")
-                                    results['import_log'].append(f"âœ… Created: {contact_name} ({contact_data.get('email', 'no email')})")
+                                    results['import_log'].append(f"✅ Created: {contact_name} ({contact_data.get('email', 'no email')})")
 
                                     # Log activity
                                     db_log_activity(
@@ -2604,11 +2604,11 @@ else:
                                 enrollment = db_create_enrollment(enrollment_data)
                                 if enrollment:
                                     results['enrollments_created'] += 1
-                                    results['import_log'].append(f"ðŸ“§ Enrolled: {contact_name} in {selected_campaign['campaign_name']}")
+                                    results['import_log'].append(f"📧 Enrolled: {contact_name} in {selected_campaign['campaign_name']}")
                                 else:
                                     results['import_log'].append(f"âš ï¸ Warning: Failed to enroll {contact_name} in campaign")
                             else:
-                                results['import_log'].append(f"â­ï¸ Skipped enrollment: {contact_name} (not selected for campaign)")
+                                results['import_log'].append(f"⏭️ Skipped enrollment: {contact_name} (not selected for campaign)")
 
                             # Send first email (for both new and merged contacts)
                             if contact_data.get('send_email', True) and contact_data.get('email'):
@@ -2627,7 +2627,7 @@ else:
 
                                 if email_result.get('success'):
                                     results['emails_sent'] += 1
-                                    results['import_log'].append(f"ðŸ“¨ Email sent: {contact_name}")
+                                    results['import_log'].append(f"📨 Email sent: {contact_name}")
                                     db_log_activity(
                                         "email_sent",
                                         f"Welcome email sent: {subject}",
@@ -2650,7 +2650,7 @@ else:
                                                 update_data["status"] = "completed"
                                             db_update_enrollment(enrollment["id"], update_data)
                                         except Exception as update_err:
-                                            results['import_log'].append(f"Ã¢Å¡Â Ã¯Â¸Â Enrollment update failed: {update_err}")
+                                            results['import_log'].append(f"âš ï¸ Enrollment update failed: {update_err}")
                                 else:
                                     error_msg = f"Email failed for {contact_data['email']}: {email_result.get('error')}"
                                     results['errors'].append(error_msg)
@@ -2710,9 +2710,9 @@ else:
                     )
 
                 if uploaded_files:
-                    st.info(f"ðŸ“Ž {len(uploaded_files)} file(s) selected")
+                    st.info(f"📝 {len(uploaded_files)} file(s) selected")
 
-                    if st.button("ðŸ” Scan Cards", type="primary", use_container_width=True, disabled=not anthropic_key):
+                    if st.button("👍 Scan Cards", type="primary", use_container_width=True, disabled=not anthropic_key):
                         st.session_state.mkt_expected_card_count = expected_card_count
                         st.session_state.mkt_scan_event_name = event_name_input
                         st.session_state.mkt_scanning_in_progress = True
@@ -2752,9 +2752,9 @@ else:
 
                         if raw_page_images:
                             if expected_count > 0:
-                                st.info(f"ðŸ“„ Processing {len(raw_page_images)} page(s), expecting {expected_count} cards per page...")
+                                st.info(f"📧  Processing {len(raw_page_images)} page(s), expecting {expected_count} cards per page...")
                             else:
-                                st.info(f"ðŸ“„ Processing {len(raw_page_images)} page(s), detecting individual cards...")
+                                st.info(f"📧  Processing {len(raw_page_images)} page(s), detecting individual cards...")
                             detect_progress = st.progress(0)
 
                             for page_idx, page_data in enumerate(raw_page_images):
@@ -2791,7 +2791,7 @@ else:
             from PIL import Image
 
             st.markdown("### âœ‚ï¸ Manual Card Cropping")
-            st.info("ðŸ‘‡ View the full scanned page below. For each card, enter the crop coordinates to capture just that card.")
+            st.info("💰   View the full scanned page below. For each card, enter the crop coordinates to capture just that card.")
 
             raw_pages = st.session_state.mkt_raw_page_images
             expected_count = st.session_state.get('mkt_expected_card_count', 10)
@@ -2816,7 +2816,7 @@ else:
 
             st.markdown("---")
             st.markdown(f"### Define {expected_count} Card Crop Boxes")
-            st.caption(f"ðŸ’¡ Tip: Look at the page above and note the pixel coordinates around each card. Enter them below.")
+            st.caption(f"💡 Tip: Look at the page above and note the pixel coordinates around each card. Enter them below.")
 
             # Number of cards to extract
             num_cards = st.number_input("Number of cards to extract", min_value=1, max_value=20, value=expected_count, key="num_cards_to_crop")
@@ -2824,7 +2824,7 @@ else:
             crop_boxes = []
 
             for i in range(num_cards):
-                st.markdown(f"#### ðŸ“‡ Card {i + 1}")
+                st.markdown(f"#### 📧  Card {i + 1}")
                 col1, col2, col3, col4 = st.columns(4)
 
                 # Default values for 2x5 grid
@@ -2872,7 +2872,7 @@ else:
                     st.error(f"Failed to crop card {i + 1}: {e}")
 
             st.markdown("---")
-            st.success(f"âœ… {len(adjusted_cards)} cards ready to scan")
+            st.success(f"✅ {len(adjusted_cards)} cards ready to scan")
 
             col_back, col_continue = st.columns(2)
             with col_back:
@@ -2883,11 +2883,11 @@ else:
                     st.rerun()
 
             with col_continue:
-                if st.button("âœ… Continue to Scan", type="primary"):
+                if st.button("✅ Continue to Scan", type="primary"):
                     st.session_state.mkt_manual_crop_mode = False
 
                     # Extract contacts from adjusted images
-                    st.info(f"ðŸ“‡ Extracting contact information from {len(adjusted_cards)} cards...")
+                    st.info(f"📧  Extracting contact information from {len(adjusted_cards)} cards...")
                     scanned_contacts = []
                     progress = st.progress(0)
 
@@ -2948,32 +2948,32 @@ else:
 
             # Show campaign previews
             for campaign_type, campaign_data in CAMPAIGNS.items():
-                with st.expander(f"ðŸ“§ Preview: {campaign_data['campaign_name']}"):
+                with st.expander(f"📧 Preview: {campaign_data['campaign_name']}"):
                     for i, email in enumerate(campaign_data["emails"]):
-                        purpose_icons = {"thank_you": "ðŸ¤", "value_add": "ðŸ’¡", "coffee_invite": "â˜•",
-                                         "check_in": "ðŸ‘‹", "referral_ask": "ðŸ™", "introduction": "ðŸ‘‹",
-                                         "pain_point_awareness": "ðŸŽ¯", "case_study": "ðŸ“Š",
-                                         "consultation_offer": "ðŸ“ž", "overcome_objections": "ðŸ’ª",
-                                         "final_push": "ðŸ", "personalized_followup": "âœ‰ï¸",
-                                         "relevant_case_study": "ðŸ“–", "roi_breakdown": "ðŸ’°",
-                                         "proposal_offer": "ðŸ“", "social_proof_urgency": "â°",
-                                         "last_chance": "ðŸšª", "welcome_onboarding": "ðŸŽ‰",
-                                         "tips_best_practices": "ðŸ’¡", "satisfaction_review": "â­",
-                                         "upsell_awareness": "ðŸ“ˆ", "reconnect": "ðŸ”„",
-                                         "capabilities_showcase": "ðŸš€", "returning_client_offer": "ðŸŽ",
-                                         "success_story": "ðŸ†", "door_open": "ðŸšª",
-                                         "partnership_appreciation": "ðŸ¤", "co_marketing": "ðŸ“£",
-                                         "referral_framework": "ðŸ”—", "joint_success_story": "ðŸ“–",
-                                         "quarterly_planning": "ðŸ“…", "expertise_share": "ðŸ’¡",
-                                         "referral_soft": "ðŸ™"}
-                        st.markdown(f"**Day {email['day']}** - {purpose_icons.get(email['purpose'], 'ðŸ“§')} {email['purpose'].replace('_', ' ').title()}")
+                        purpose_icons = {"thank_you": "💡", "value_add": "💡", "coffee_invite": "â˜•",
+                                         "check_in": "💰  ", "referral_ask": "🔢 ", "introduction": "💰  ",
+                                         "pain_point_awareness": "💯", "case_study": "📊",
+                                         "consultation_offer": "📞", "overcome_objections": "💹 ",
+                                         "final_push": "🏁", "personalized_followup": "âœ‰ï¸",
+                                         "relevant_case_study": "📧 ", "roi_breakdown": "💰",
+                                         "proposal_offer": "📧 ", "social_proof_urgency": "â°",
+                                         "last_chance": "🔊", "welcome_onboarding": "📝 ",
+                                         "tips_best_practices": "💡", "satisfaction_review": "â­",
+                                         "upsell_awareness": "📋 ", "reconnect": "👍 ",
+                                         "capabilities_showcase": "🔌 ", "returning_client_offer": "📝",
+                                         "success_story": "🏏 ", "door_open": "🔊",
+                                         "partnership_appreciation": "💡", "co_marketing": "📧 ",
+                                         "referral_framework": "👍 ", "joint_success_story": "📧 ",
+                                         "quarterly_planning": "📧 ", "expertise_share": "💡",
+                                         "referral_soft": "🔢 "}
+                        st.markdown(f"**Day {email['day']}** - {purpose_icons.get(email['purpose'], '📧')} {email['purpose'].replace('_', ' ').title()}")
                         st.caption(f"Subject: {email['subject']}")
                         if i < len(campaign_data["emails"]) - 1:
                             st.markdown("---")
 
     with tab5:
         # Process Cards - Queue System
-        st.markdown("### ðŸ” Process Cards Queue")
+        st.markdown("### 👍 Process Cards Queue")
         st.markdown("Cards captured with Quick Capture mode on mobile. Extract contact info with AI and import to CRM.")
 
         if not db_is_connected():
@@ -2982,7 +2982,7 @@ else:
             # Add retry button if there was a previous error
             if 'process_cards_error' in st.session_state:
                 st.error(f"Previous error: {st.session_state.process_cards_error}")
-                if st.button("ðŸ”„ Retry Loading Cards"):
+                if st.button("👍  Retry Loading Cards"):
                     del st.session_state.process_cards_error
                     st.rerun()
 
@@ -3007,7 +3007,7 @@ else:
                                 raise retry_err
 
                 if not unprocessed_cards:
-                    st.info("ðŸ“­ No cards in queue. Use Quick Capture on mobile to snap cards at events!")
+                    st.info("📧  No cards in queue. Use Quick Capture on mobile to snap cards at events!")
                     st.markdown("#### How to Use Quick Capture:")
                     st.markdown("""
                     1. Open Quick Capture on your phone: `http://YOUR-IP:5000/quick`
@@ -3016,7 +3016,7 @@ else:
                     4. Extract contact info with AI and import
                     """)
                 else:
-                    st.success(f"ðŸ“¬ {len(unprocessed_cards)} cards ready to process")
+                    st.success(f"📬 {len(unprocessed_cards)} cards ready to process")
 
                     # Process cards one at a time
                     for idx, card in enumerate(unprocessed_cards):
@@ -3036,13 +3036,13 @@ else:
                                             for img_idx, img_file in enumerate(contact_images):
                                                 img_url = db_get_card_image_url(img_file['name'])
                                                 side_label = "Front" if img_idx == 0 else "Back"
-                                                st.image(img_url, caption=f"ðŸ“„ {side_label} Side", use_container_width=True)
+                                                st.image(img_url, caption=f"📧  {side_label} Side", use_container_width=True)
                                         else:
                                             # Fallback to primary image
-                                            st.image(card['card_image_url'], caption="ðŸ“„ Business Card", use_container_width=True)
+                                            st.image(card['card_image_url'], caption="📧  Business Card", use_container_width=True)
                                     except Exception as img_err:
                                         # Fallback to primary image if storage query fails
-                                        st.image(card['card_image_url'], caption="ðŸ“„ Business Card", use_container_width=True)
+                                        st.image(card['card_image_url'], caption="📧  Business Card", use_container_width=True)
                                 else:
                                     st.warning("No image available")
 
@@ -3056,16 +3056,16 @@ else:
                                 # Action buttons
                                 btn_col1, btn_col2 = st.columns(2)
                                 with btn_col1:
-                                    extract_btn = st.button(f"ðŸ¤– Extract Info", key=f"extract_{card['id']}", use_container_width=True)
+                                    extract_btn = st.button(f"💡  Extract Info", key=f"extract_{card['id']}", use_container_width=True)
                                 with btn_col2:
-                                    delete_btn = st.button(f"ðŸ—‘ï¸ Delete", key=f"delete_{card['id']}", use_container_width=True, type="secondary")
+                                    delete_btn = st.button(f"💴  ï¸ Delete", key=f"delete_{card['id']}", use_container_width=True, type="secondary")
 
                                 # Handle delete
                                 if delete_btn:
                                     try:
                                         # Delete the contact
                                         db_delete_contact(card['id'])
-                                        st.success(f"âœ… Card #{idx + 1} deleted")
+                                        st.success(f"✅ Card #{idx + 1} deleted")
                                         # Clear any extracted data
                                         if f'extracted_{card["id"]}' in st.session_state:
                                             del st.session_state[f'extracted_{card["id"]}']
@@ -3101,7 +3101,7 @@ else:
 
                                         # Contact type selection
                                         process_contact_types = ["networking", "lead", "prospect", "client", "former_client", "partner"]
-                                        process_type_labels = ["ðŸ¤ Networking", "ðŸŽ¯ Lead", "ðŸ‘¤ Prospect", "âœ… Client", "ðŸ”„ Former Client", "ðŸ¤œðŸ¤› Partner"]
+                                        process_type_labels = ["💡 Networking", "💯 Lead", "💰  Prospect", "✅ Client", "👍  Former Client", "💣💡  Partner"]
                                         process_type_label = st.selectbox("Contact Type", process_type_labels, index=0, key=f"ptype_{card['id']}")
                                         process_contact_type = process_contact_types[process_type_labels.index(process_type_label)]
 
@@ -3111,9 +3111,9 @@ else:
 
                                         col_a, col_b = st.columns(2)
                                         with col_a:
-                                            submit = st.form_submit_button("âœ… Save Contact", type="primary", use_container_width=True)
+                                            submit = st.form_submit_button("✅ Save Contact", type="primary", use_container_width=True)
                                         with col_b:
-                                            skip = st.form_submit_button("â­ï¸ Skip", use_container_width=True)
+                                            skip = st.form_submit_button("⏭️ Skip", use_container_width=True)
 
                                         if submit:
                                             # Update the contact with extracted data
@@ -3136,7 +3136,7 @@ else:
                                                 if enroll:
                                                     enroll_in_campaign(card['id'], card.get('source_detail', ''), contact_type=process_contact_type)
 
-                                                st.success(f"âœ… Contact saved: {first_name} {last_name}")
+                                                st.success(f"✅ Contact saved: {first_name} {last_name}")
                                                 del st.session_state[f'extracted_{card["id"]}']
                                                 st.rerun()
                                             except Exception as e:
@@ -3157,11 +3157,11 @@ else:
                 error_msg = str(e)
                 st.session_state.process_cards_error = error_msg
                 st.error(f"Error loading queue: {error_msg}")
-                st.info("ðŸ’¡ **Troubleshooting:** This error usually means a network timeout. Try:\n1. Refresh the page\n2. Check your internet connection\n3. Click the 'Retry' button above")
+                st.info("💡 **Troubleshooting:** This error usually means a network timeout. Try:\n1. Refresh the page\n2. Check your internet connection\n3. Click the 'Retry' button above")
 
     with tab6:
         # SendGrid settings
-        st.markdown("### âš™ï¸ SendGrid Configuration")
+        st.markdown("### ⚙ï¸ SendGrid Configuration")
 
         st.markdown("#### API Settings")
         api_key = st.text_input("SendGrid API Key", type="password", placeholder="SG.xxxxxxxxxxxx")
@@ -3181,19 +3181,19 @@ else:
             value="You're receiving this because you connected with Metro Point Technology. [Unsubscribe]({{unsubscribe_link}})"
         )
 
-        if st.button("ðŸ’¾ Save Settings", type="primary"):
+        if st.button("💹  Save Settings", type="primary"):
             st.success("Settings saved! (Note: Full SendGrid integration coming in Phase 4)")
 
         st.markdown("---")
-        st.markdown("#### ðŸ“¡ Webhook Status")
+        st.markdown("#### 📧  Webhook Status")
         st.warning("âš ï¸ Webhook not configured. Set up webhook URL in SendGrid to receive open/click/bounce events.")
         st.code("Webhook URL: https://your-app-url.com/api/sendgrid/webhook")
 
         st.markdown("---")
-        st.markdown("#### ðŸ”‘ Claude API (for Card Scanner)")
+        st.markdown("#### 👍  Claude API (for Card Scanner)")
         anthropic_configured = bool(os.getenv("ANTHROPIC_API_KEY"))
         if anthropic_configured:
-            st.success("âœ… Anthropic API Key configured")
+            st.success("✅ Anthropic API Key configured")
         else:
             st.error("âŒ Anthropic API Key not configured")
             st.caption("Add ANTHROPIC_API_KEY to your .env file to enable business card scanning")
