@@ -367,20 +367,12 @@ elif st.session_state.companies_selected:
     
     if selected_company:
         # Company header
-        col1, col2 = st.columns([3, 1])
+        st.markdown(f"## {selected_company['name']}")
+        if selected_company.get('industry'):
+            st.caption(f"🏭 {selected_company['industry']}")
         
-        with col1:
-            st.markdown(f"## {selected_company['name']}")
-            if selected_company.get('industry'):
-                st.caption(f"🏭 {selected_company['industry']}")
-        
-        with col2:
-            if st.button("✏️ Edit Company", type="primary", use_container_width=True):
-                st.session_state.companies_show_new_form = False
-                # Will show edit form below
-        
-        # Company details in tabs
-        tab1, tab2, tab3 = st.tabs(["📋 Details", "📍 Addresses", "👥 Contacts"])
+        # Company details in tabs (simplified - removed Addresses tab)
+        tab1, tab2 = st.tabs(["📋 Details", "👥 Contacts"])
         
         with tab1:
             # Basic company information
@@ -402,31 +394,6 @@ elif st.session_state.companies_selected:
                 st.markdown(selected_company['notes'])
         
         with tab2:
-            # Address information in expandable sections
-            addresses = [
-                ("📍 Physical Address", "physical"),
-                ("📬 Mailing Address", "mailing"), 
-                ("💳 Billing Address", "billing")
-            ]
-            
-            for title, prefix in addresses:
-                street = selected_company.get(f'{prefix}_street')
-                city = selected_company.get(f'{prefix}_city')
-                state = selected_company.get(f'{prefix}_state')
-                zip_code = selected_company.get(f'{prefix}_zip')
-                
-                if any([street, city, state, zip_code]):
-                    with st.expander(title, expanded=True):
-                        if street:
-                            st.markdown(f"**Street:** {street}")
-                        if city or state or zip_code:
-                            location_parts = [p for p in [city, state, zip_code] if p]
-                            st.markdown(f"**Location:** {', '.join(location_parts)}")
-                else:
-                    with st.expander(title, expanded=False):
-                        st.caption("No address information")
-        
-        with tab3:
             # Company contacts
             contacts = get_company_contacts_cached(st.session_state.companies_selected, _cache_key=cache_key)
             
