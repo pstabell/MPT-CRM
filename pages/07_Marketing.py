@@ -2105,32 +2105,32 @@ else:
         st.markdown("### 👍 Drip Campaigns")
         st.caption("Contact-type based drip campaigns. Contacts are automatically enrolled based on their type.")
         
-        # Get enrollment stats from database
+        # Get enrollment stats from database using db_service
         try:
-            from db_service import db_is_connected
+            from db_service import db_is_connected, db_get_active_enrollments
+            campaign_stats = {}
+            
             if db_is_connected():
-                from supabase import create_client
-                import os
-                db = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+                # Use the existing db_service function to get enrollments
+                enrollments = db_get_active_enrollments() or []
                 
-                # Get enrollment counts grouped by campaign
-                stats_response = db.table("campaign_enrollments").select("campaign_id, status").execute()
-                enrollment_data = stats_response.data or []
-                
-                # Count by campaign_id and status
-                campaign_stats = {}
-                for e in enrollment_data:
-                    cid = e.get("campaign_id", "unknown")
-                    status = e.get("status", "unknown")
-                    if cid not in campaign_stats:
-                        campaign_stats[cid] = {"active": 0, "completed": 0, "paused": 0, "total": 0}
-                    campaign_stats[cid][status] = campaign_stats[cid].get(status, 0) + 1
-                    campaign_stats[cid]["total"] += 1
-            else:
-                campaign_stats = {}
+                # Also get completed enrollments for stats
+                from db_service import db
+                if db:
+                    all_enrollments_resp = db.table("campaign_enrollments").select("campaign_id, status").execute()
+                    all_enrollments = all_enrollments_resp.data or []
+                    
+                    # Count by campaign_id and status
+                    for e in all_enrollments:
+                        cid = e.get("campaign_id", "unknown")
+                        status = e.get("status", "unknown")
+                        if cid not in campaign_stats:
+                            campaign_stats[cid] = {"active": 0, "completed": 0, "paused": 0, "total": 0}
+                        campaign_stats[cid][status] = campaign_stats[cid].get(status, 0) + 1
+                        campaign_stats[cid]["total"] += 1
         except Exception as e:
             campaign_stats = {}
-            st.warning(f"Could not load enrollment stats: {e}")
+            # Don't show warning - just show 0 stats if DB unavailable
         
         # Display each campaign template
         campaign_icons = {
