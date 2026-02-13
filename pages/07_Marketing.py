@@ -1,4 +1,4 @@
-﻿"""
+"""
 MPT-CRM Marketing Page
 Drip campaigns, email templates, SendGrid integration, and Business Card Scanner
 
@@ -1060,11 +1060,11 @@ I didn't want you to miss out if this is something you've been thinking about. W
 
 Here's what a few recent clients have said:
 
-â­ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
+⭐ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
 
-â­ "I wish we'd done this two years ago. The ROI was almost immediate."
+⭐ "I wish we'd done this two years ago. The ROI was almost immediate."
 
-â­ "Working with Metro Point felt like having a tech partner, not just a vendor."
+⭐ "Working with Metro Point felt like having a tech partner, not just a vendor."
 
 If you'd like to get on the calendar, now would be a great time to start the conversation. Even a quick call to scope things out would give us a better timeline.
 
@@ -2614,7 +2614,7 @@ else:
                                 else:
                                     results['import_log'].append(f"âš ï¸ Warning: Failed to enroll {contact_name} in campaign")
                             else:
-                                results['import_log'].append(f"â­ï¸ Skipped enrollment: {contact_name} (not selected for campaign)")
+                                results['import_log'].append(f"⏭️ Skipped enrollment: {contact_name} (not selected for campaign)")
 
                             # Send first email (for both new and merged contacts)
                             if contact_data.get('send_email', True) and contact_data.get('email'):
@@ -2656,7 +2656,7 @@ else:
                                                 update_data["status"] = "completed"
                                             db_update_enrollment(enrollment["id"], update_data)
                                         except Exception as update_err:
-                                            results['import_log'].append(f"Ã¢Å¡Â Ã¯Â¸Â Enrollment update failed: {update_err}")
+                                            results['import_log'].append(f"âš ï¸ Enrollment update failed: {update_err}")
                                 else:
                                     error_msg = f"Email failed for {contact_data['email']}: {email_result.get('error')}"
                                     results['errors'].append(error_msg)
@@ -3119,7 +3119,7 @@ else:
                                         with col_a:
                                             submit = st.form_submit_button("âœ… Save Contact", type="primary", use_container_width=True)
                                         with col_b:
-                                            skip = st.form_submit_button("â­ï¸ Skip", use_container_width=True)
+                                            skip = st.form_submit_button("⏭️ Skip", use_container_width=True)
 
                                         if submit:
                                             # Update the contact with extracted data
