@@ -56,19 +56,19 @@ HIDE_STREAMLIT_NAV = """
 """
 
 PAGE_CONFIG = {
-    "Dashboard": {"icon": "ðŸ“Š", "path": "app.py"},
-    "Discovery Call": {"icon": "ðŸ“ž", "path": "pages/01_Discovery.py"},
-    "Companies": {"icon": "\U0001F3E2", "path": "pages/01a_Companies.py"},
-    "Contacts": {"icon": "ðŸ‘¥", "path": "pages/02_Contacts.py"},
-    "Sales Pipeline": {"icon": "ðŸŽ¯", "path": "pages/03_Pipeline.py"},
-    "Projects": {"icon": "ðŸ“", "path": "pages/04_Projects.py"},
-    "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
-    "Tasks": {"icon": "âœ…", "path": "pages/05_Tasks.py"},
-    "Time & Billing": {"icon": "ðŸ’°", "path": "pages/06_Time_Billing.py"},
-    "Marketing": {"icon": "ðŸ“§", "path": "pages/07_Marketing.py"},
-    "Reports": {"icon": "ðŸ“ˆ", "path": "pages/08_Reports.py"},
-    "Settings": {"icon": "âš™ï¸", "path": "pages/09_Settings.py"},
-    "Help": {"icon": "â“", "path": "pages/11_Help.py"},
+    "Dashboard": {"icon": ":material/dashboard:", "path": "app.py"},
+    "Discovery Call": {"icon": ":material/phone:", "path": "pages/01_Discovery.py"},
+    "Companies": {"icon": ":material/business:", "path": "pages/01a_Companies.py"},
+    "Contacts": {"icon": ":material/people:", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": ":material/trending_up:", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": ":material/folder:", "path": "pages/04_Projects.py"},
+    "Service": {"icon": ":material/build:", "path": "pages/10_Service.py"},
+    "Tasks": {"icon": ":material/check_box:", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": ":material/payments:", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": ":material/campaign:", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": ":material/analytics:", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": ":material/settings:", "path": "pages/09_Settings.py"},
+    "Help": {"icon": ":material/help:", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Dashboard"):
@@ -96,7 +96,7 @@ def render_sidebar(current_page="Dashboard"):
         st.markdown("---")
         
         # External link to Mission Control
-        st.markdown("### ðŸŽ¯ Mission Control")
+        st.markdown("### :material/rocket_launch: Mission Control")
         st.markdown("[Open Mission Control â†’](https://mpt-mission-control.vercel.app/)", unsafe_allow_html=True)
         
         st.markdown("---")
@@ -220,7 +220,7 @@ with st.sidebar:
 # ============================================
 # MAIN DASHBOARD
 # ============================================
-st.title("ðŸ“Š MPT-CRM Dashboard")
+st.title(":material/dashboard: MPT-CRM Dashboard")
 st.markdown("### Metro Point Technology - Customer Relationship Management")
 
 st.divider()
@@ -265,7 +265,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     with st.container(border=True):
-        st.markdown("### ðŸ‘¥ Contacts")
+        st.markdown("### :material/people: Contacts")
         st.markdown("Manage networking contacts, prospects, leads, and clients.")
         st.markdown(f"**{stats.get('total_contacts', 0)}** total contacts")
         if st.button("Go to Contacts", key="nav_contacts"):
@@ -273,7 +273,7 @@ with col1:
 
 with col2:
     with st.container(border=True):
-        st.markdown("### ðŸŽ¯ Sales Pipeline")
+        st.markdown("### :material/trending_up: Sales Pipeline")
         st.markdown("Track deals through your sales process.")
         st.markdown(f"**{stats.get('active_deals', 0)}** active deals | **${stats.get('pipeline_value', 0):,.0f}** in pipeline")
         if st.button("Go to Pipeline", key="nav_pipeline"):
@@ -281,7 +281,7 @@ with col2:
 
 with col3:
     with st.container(border=True):
-        st.markdown("### ðŸ“§ Marketing")
+        st.markdown("### :material/campaign: Marketing")
         st.markdown("Email campaigns, drip sequences, and templates.")
         st.markdown("Email templates and campaigns")
         if st.button("Go to Marketing", key="nav_marketing"):
