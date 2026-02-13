@@ -63,8 +63,8 @@ HIDE_STREAMLIT_NAV = """
 PAGE_CONFIG = {
     "Dashboard": {"icon": "📊", "path": "app.py"},
     "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
-    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Companies": {"icon": "🏢", "path": "pages/01a_Companies.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
     "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
     "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
     "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
@@ -434,9 +434,14 @@ elif st.session_state.companies_selected:
                     # Navigate to contacts page to add new contact
                     st.switch_page("pages/02_Contacts.py")
         
-        # Edit form below if editing
-        if st.session_state.companies_selected and not st.session_state.companies_show_new_form:
-            st.markdown("---")
+        # Edit button at the bottom (opens inline editor when clicked)
+        st.markdown("---")
+        if st.button("✏️ Edit Company", use_container_width=False):
+            st.session_state.companies_show_new_form = True
+            st.rerun()
+        
+        # Show edit form only when explicitly requested
+        if st.session_state.companies_show_new_form and st.session_state.companies_selected:
             render_company_form(selected_company, f"edit_form_{selected_company['id']}")
     
     else:
