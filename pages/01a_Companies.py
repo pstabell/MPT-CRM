@@ -358,91 +358,198 @@ cache_key = st.session_state.companies_cache_version
 companies = get_companies(_cache_key=cache_key)
 
 # Check if we should show new form or selected company
-if st.session_state.companies_show_new_form:
+if st.session_state.companies_show_new_form and not st.session_state.companies_selected:
+    # Only show new form when creating a NEW company (not editing)
     render_company_form()
 
 elif st.session_state.companies_selected:
-    # Show selected company details
+    # Show selected company with INLINE EDITING
     selected_company = next((c for c in companies if c['id'] == st.session_state.companies_selected), None)
     
     if selected_company:
-        # Company header
-        st.markdown(f"## {selected_company['name']}")
-        if selected_company.get('industry'):
-            st.caption(f"🏭 {selected_company['industry']}")
+        # Back button
+        if st.button("← Back to Companies"):
+            st.session_state.companies_selected = None
+            st.rerun()
         
-        # Company details in tabs (simplified - removed Addresses tab)
-        tab1, tab2 = st.tabs(["📋 Details", "👥 Contacts"])
+        st.markdown(f"## 🏢 {selected_company['name']}")
+        st.caption(f"Created: {str(selected_company.get('created_at', '')).split('T')[0]}")
         
-        with tab1:
-            # Basic company information
+        # INLINE EDITABLE FORM (no separate view/edit modes)
+        with st.form(key=f"edit_company_{selected_company['id']}"):
+            
+            # Basic Information
             col1, col2 = st.columns(2)
             
             with col1:
-                if selected_company.get('website'):
-                    st.markdown(f"🌐 **Website:** [{selected_company['website']}]({selected_company['website']})")
-                if selected_company.get('phone'):
-                    st.markdown(f"📞 **Phone:** {selected_company['phone']}")
+                name = st.text_input("Company Name *", 
+                                   value=selected_company.get('name', ''),
+                                   placeholder="e.g., Metro Point Technology")
+                
+                website = st.text_input("Website", 
+                                      value=selected_company.get('website', '') or '',
+                                      placeholder="https://example.com")
             
             with col2:
-                if selected_company.get('industry'):
-                    st.markdown(f"🏭 **Industry:** {selected_company['industry']}")
-                st.markdown(f"📅 **Created:** {str(selected_company.get('created_at', '')).split('T')[0]}")
-            
-            if selected_company.get('notes'):
-                st.markdown("**Notes:**")
-                st.markdown(selected_company['notes'])
-        
-        with tab2:
-            # Company contacts
-            contacts = get_company_contacts_cached(st.session_state.companies_selected, _cache_key=cache_key)
-            
-            if contacts:
-                st.markdown(f"### {len(contacts)} Contact{'s' if len(contacts) != 1 else ''}")
+                industry = st.text_input("Industry", 
+                                       value=selected_company.get('industry', '') or '',
+                                       placeholder="e.g., Technology Services")
                 
-                for contact in contacts:
-                    with st.container(border=True):
-                        col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-                        
-                        with col1:
-                            role_icon = "👑" if contact.get('role') == "Owner" else "💼" 
-                            st.markdown(f"**{role_icon} {contact['first_name']} {contact['last_name']}**")
-                            if contact.get('role'):
-                                st.caption(f"Role: {contact['role']}")
-                        
-                        with col2:
-                            if contact.get('email'):
-                                st.markdown(f"📧 {contact['email']}")
-                            if contact.get('phone'):
-                                st.caption(f"📞 {contact['phone']}")
-                        
-                        with col3:
-                            if contact.get('card_image_url'):
-                                st.caption("📇 Business card available")
-                            created = str(contact.get('created_at', '')).split('T')[0]
-                            st.caption(f"Added: {created}")
-                        
-                        with col4:
-                            if st.button("Open", key=f"contact_{contact['id']}"):
-                                # Navigate to contacts page with this contact selected
-                                st.session_state.selected_contact = contact['id']
-                                st.switch_page("pages/02_Contacts.py")
+                phone = st.text_input("Phone", 
+                                    value=selected_company.get('phone', '') or '',
+                                    placeholder="(555) 123-4567")
+            
+            # Addresses Section
+            st.markdown("---")
+            
+            # Physical Address
+            with st.expander("📍 Physical Address", expanded=True):
+                phys_col1, phys_col2 = st.columns(2)
                 
-            else:
-                st.info("No contacts for this company yet.")
-                if st.button("➕ Add Contact"):
-                    # Navigate to contacts page to add new contact
-                    st.switch_page("pages/02_Contacts.py")
+                with phys_col1:
+                    physical_street = st.text_area("Street Address", 
+                                                 value=selected_company.get('physical_street', '') or '',
+                                                 height=60)
+                    physical_city = st.text_input("City", 
+                                                value=selected_company.get('physical_city', '') or '')
+                
+                with phys_col2:
+                    physical_state = st.text_input("State", 
+                                                 value=selected_company.get('physical_state', '') or '')
+                    physical_zip = st.text_input("ZIP Code", 
+                                               value=selected_company.get('physical_zip', '') or '')
+            
+            # Mailing Address
+            with st.expander("📬 Mailing Address (if different)", expanded=False):
+                mail_col1, mail_col2 = st.columns(2)
+                
+                with mail_col1:
+                    mailing_street = st.text_area("Mailing Street", 
+                                                value=selected_company.get('mailing_street', '') or '',
+                                                height=60)
+                    mailing_city = st.text_input("Mailing City", 
+                                               value=selected_company.get('mailing_city', '') or '')
+                
+                with mail_col2:
+                    mailing_state = st.text_input("Mailing State", 
+                                                value=selected_company.get('mailing_state', '') or '')
+                    mailing_zip = st.text_input("Mailing ZIP", 
+                                              value=selected_company.get('mailing_zip', '') or '')
+            
+            # Billing Address
+            with st.expander("💳 Billing Address (if different)", expanded=False):
+                bill_col1, bill_col2 = st.columns(2)
+                
+                with bill_col1:
+                    billing_street = st.text_area("Billing Street", 
+                                                value=selected_company.get('billing_street', '') or '',
+                                                height=60)
+                    billing_city = st.text_input("Billing City", 
+                                               value=selected_company.get('billing_city', '') or '')
+                
+                with bill_col2:
+                    billing_state = st.text_input("Billing State", 
+                                                value=selected_company.get('billing_state', '') or '')
+                    billing_zip = st.text_input("Billing ZIP", 
+                                              value=selected_company.get('billing_zip', '') or '')
+            
+            # Notes
+            notes = st.text_area("Notes", 
+                               value=selected_company.get('notes', '') or '',
+                               height=100)
+            
+            st.markdown("---")
+            
+            # Action buttons at bottom
+            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1])
+            
+            with btn_col1:
+                save_clicked = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+            
+            with btn_col2:
+                cancel_clicked = st.form_submit_button("❌ Cancel", use_container_width=True)
+            
+            with btn_col3:
+                delete_clicked = st.form_submit_button("🗑️ Delete Company", use_container_width=True)
+            
+            # Handle form submissions
+            if save_clicked:
+                if not name.strip():
+                    st.error("Company name is required!")
+                else:
+                    company_data = {
+                        'name': name.strip(),
+                        'website': website.strip() if website.strip() else None,
+                        'industry': industry.strip() if industry.strip() else None,
+                        'phone': phone.strip() if phone.strip() else None,
+                        'physical_street': physical_street.strip() if physical_street.strip() else None,
+                        'physical_city': physical_city.strip() if physical_city.strip() else None,
+                        'physical_state': physical_state.strip() if physical_state.strip() else None,
+                        'physical_zip': physical_zip.strip() if physical_zip.strip() else None,
+                        'mailing_street': mailing_street.strip() if mailing_street.strip() else None,
+                        'mailing_city': mailing_city.strip() if mailing_city.strip() else None,
+                        'mailing_state': mailing_state.strip() if mailing_state.strip() else None,
+                        'mailing_zip': mailing_zip.strip() if mailing_zip.strip() else None,
+                        'billing_street': billing_street.strip() if billing_street.strip() else None,
+                        'billing_city': billing_city.strip() if billing_city.strip() else None,
+                        'billing_state': billing_state.strip() if billing_state.strip() else None,
+                        'billing_zip': billing_zip.strip() if billing_zip.strip() else None,
+                        'notes': notes.strip() if notes.strip() else None
+                    }
+                    
+                    if update_company(selected_company['id'], company_data):
+                        st.success("✅ Company saved!")
+                        time.sleep(1)
+                        st.rerun()
+            
+            if cancel_clicked:
+                st.session_state.companies_selected = None
+                st.rerun()
+            
+            if delete_clicked:
+                if delete_company(selected_company['id']):
+                    st.success("Company deleted!")
+                    st.session_state.companies_selected = None
+                    time.sleep(1)
+                    st.rerun()
         
-        # Edit button at the bottom (opens inline editor when clicked)
+        # Associated Contacts section (below the form)
         st.markdown("---")
-        if st.button("✏️ Edit Company", use_container_width=False):
-            st.session_state.companies_show_new_form = True
-            st.rerun()
+        st.markdown("### 👥 Associated Contacts")
         
-        # Show edit form only when explicitly requested
-        if st.session_state.companies_show_new_form and st.session_state.companies_selected:
-            render_company_form(selected_company, f"edit_form_{selected_company['id']}")
+        contacts = get_company_contacts_cached(st.session_state.companies_selected, _cache_key=cache_key)
+        
+        if contacts:
+            for contact in contacts:
+                with st.container(border=True):
+                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                    
+                    with col1:
+                        role_icon = "👑" if contact.get('role') == "Owner" else "💼" 
+                        st.markdown(f"**{role_icon} {contact['first_name']} {contact['last_name']}**")
+                        if contact.get('role'):
+                            st.caption(f"Role: {contact['role']}")
+                    
+                    with col2:
+                        if contact.get('email'):
+                            st.markdown(f"📧 {contact['email']}")
+                        if contact.get('phone'):
+                            st.caption(f"📞 {contact['phone']}")
+                    
+                    with col3:
+                        if contact.get('card_image_url'):
+                            st.caption("📇 Business card available")
+                        created = str(contact.get('created_at', '')).split('T')[0]
+                        st.caption(f"Added: {created}")
+                    
+                    with col4:
+                        if st.button("Open", key=f"contact_{contact['id']}"):
+                            st.session_state.selected_contact = contact['id']
+                            st.switch_page("pages/02_Contacts.py")
+        else:
+            st.info("No contacts for this company yet.")
+            if st.button("➕ Add Contact"):
+                st.switch_page("pages/02_Contacts.py")
     
     else:
         st.error("Selected company not found!")
