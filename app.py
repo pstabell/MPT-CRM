@@ -56,19 +56,19 @@ HIDE_STREAMLIT_NAV = """
 """
 
 PAGE_CONFIG = {
-    "Dashboard": {"icon": ":material/dashboard:", "path": "app.py"},
-    "Discovery Call": {"icon": ":material/phone:", "path": "pages/01_Discovery.py"},
-    "Companies": {"icon": ":material/business:", "path": "pages/01a_Companies.py"},
-    "Contacts": {"icon": ":material/people:", "path": "pages/02_Contacts.py"},
-    "Sales Pipeline": {"icon": ":material/trending_up:", "path": "pages/03_Pipeline.py"},
-    "Projects": {"icon": ":material/folder:", "path": "pages/04_Projects.py"},
-    "Service": {"icon": ":material/build:", "path": "pages/10_Service.py"},
-    "Tasks": {"icon": ":material/check_box:", "path": "pages/05_Tasks.py"},
-    "Time & Billing": {"icon": ":material/payments:", "path": "pages/06_Time_Billing.py"},
-    "Marketing": {"icon": ":material/campaign:", "path": "pages/07_Marketing.py"},
-    "Reports": {"icon": ":material/analytics:", "path": "pages/08_Reports.py"},
-    "Settings": {"icon": ":material/settings:", "path": "pages/09_Settings.py"},
-    "Help": {"icon": ":material/help:", "path": "pages/11_Help.py"},
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Companies": {"icon": "🏢", "path": "pages/01a_Companies.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "📈", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "🔧", "path": "pages/10_Service.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📊", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Dashboard"):
@@ -96,7 +96,7 @@ def render_sidebar(current_page="Dashboard"):
         st.markdown("---")
         
         # External link to Mission Control
-        st.markdown("### :material/rocket_launch: Mission Control")
+        st.markdown("### 🚀 Mission Control")
         st.markdown("[Open Mission Control â†’](https://mpt-mission-control.vercel.app/)", unsafe_allow_html=True)
         
         st.markdown("---")
@@ -199,9 +199,9 @@ render_sidebar_stats({
 # Show database connection status in sidebar
 with st.sidebar:
     if db_is_connected():
-        st.success("Database connected", icon=":material/check_circle:")
+        st.success("Database connected", icon="✅")
     else:
-        st.error("Database not connected - check .env file", icon=":material/error:")
+        st.error("Database not connected - check .env file", icon="❌")
 
     # Drip scheduler status
     if scheduler_running:
@@ -220,7 +220,7 @@ with st.sidebar:
 # ============================================
 # MAIN DASHBOARD
 # ============================================
-st.title(":material/dashboard: MPT-CRM Dashboard")
+st.title("📊 MPT-CRM Dashboard")
 st.markdown("### Metro Point Technology - Customer Relationship Management")
 
 st.divider()
@@ -265,7 +265,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     with st.container(border=True):
-        st.markdown("### :material/people: Contacts")
+        st.markdown("### 👥 Contacts")
         st.markdown("Manage networking contacts, prospects, leads, and clients.")
         st.markdown(f"**{stats.get('total_contacts', 0)}** total contacts")
         if st.button("Go to Contacts", key="nav_contacts"):
@@ -273,7 +273,7 @@ with col1:
 
 with col2:
     with st.container(border=True):
-        st.markdown("### :material/trending_up: Sales Pipeline")
+        st.markdown("### 📈 Sales Pipeline")
         st.markdown("Track deals through your sales process.")
         st.markdown(f"**{stats.get('active_deals', 0)}** active deals | **${stats.get('pipeline_value', 0):,.0f}** in pipeline")
         if st.button("Go to Pipeline", key="nav_pipeline"):
@@ -281,7 +281,7 @@ with col2:
 
 with col3:
     with st.container(border=True):
-        st.markdown("### :material/campaign: Marketing")
+        st.markdown("### 📧 Marketing")
         st.markdown("Email campaigns, drip sequences, and templates.")
         st.markdown("Email templates and campaigns")
         if st.button("Go to Marketing", key="nav_marketing"):
