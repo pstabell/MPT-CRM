@@ -1714,14 +1714,7 @@ render_sidebar("Marketing")
 # INITIALIZE SESSION STATE
 # ============================================
 if 'mkt_campaigns' not in st.session_state:
-    # Initialize with predefined drip campaigns
-    st.session_state.mkt_campaigns = [
-        {"id": "networking-drip-6week", "name": "Networking Follow-Up (6 Week)", "status": "active", "trigger": "New networking contact", "emails": 6, "enrollments": 0, "sent": 0, "opened": 0},
-        {"id": "lead-drip", "name": "Lead Nurture (4 Week)", "status": "active", "trigger": "New lead", "emails": 4, "enrollments": 0, "sent": 0, "opened": 0},
-        {"id": "prospect-drip-5week", "name": "Prospect Conversion (5 Week)", "status": "active", "trigger": "Lead to Prospect", "emails": 5, "enrollments": 0, "sent": 0, "opened": 0},
-        {"id": "client-drip-8week", "name": "Client Success (8 Week)", "status": "active", "trigger": "Prospect to Client", "emails": 8, "enrollments": 0, "sent": 0, "opened": 0},
-        {"id": "former-client-drip-6week", "name": "Win-Back (6 Week)", "status": "active", "trigger": "Client to Former Client", "emails": 6, "enrollments": 0, "sent": 0, "opened": 0}
-    ]
+    st.session_state.mkt_campaigns = []
 
 if 'mkt_email_templates' not in st.session_state:
     st.session_state.mkt_email_templates = [
@@ -2124,7 +2117,7 @@ else:
                     st.caption(f"Trigger: {campaign['trigger']}")
 
                 with col2:
-                    st.markdown(f"ðŸ“§ {campaign['emails']} emails")
+                    st.markdown(f"ðŸ“§ {len(campaign['emails'])} emails")
                     st.caption(f"ðŸ‘¥ {campaign['enrollments']} enrolled")
 
                 with col3:
@@ -3204,4 +3197,3 @@ else:
         else:
             st.error("âŒ Anthropic API Key not configured")
             st.caption("Add ANTHROPIC_API_KEY to your .env file to enable business card scanning")
-
