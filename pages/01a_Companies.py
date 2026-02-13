@@ -228,15 +228,19 @@ def render_company_form(company=None, form_key="company_form"):
             with phys_col1:
                 physical_street = st.text_area("Street Address", 
                                              value=company.get('physical_street', '') if is_edit else '',
-                                             height=60)
+                                             height=60,
+                                             key=f"{form_key}_phys_street")
                 physical_city = st.text_input("City", 
-                                            value=company.get('physical_city', '') if is_edit else '')
+                                            value=company.get('physical_city', '') if is_edit else '',
+                                            key=f"{form_key}_phys_city")
             
             with phys_col2:
                 physical_state = st.text_input("State", 
-                                             value=company.get('physical_state', '') if is_edit else '')
+                                             value=company.get('physical_state', '') if is_edit else '',
+                                             key=f"{form_key}_phys_state")
                 physical_zip = st.text_input("ZIP Code", 
-                                           value=company.get('physical_zip', '') if is_edit else '')
+                                           value=company.get('physical_zip', '') if is_edit else '',
+                                           key=f"{form_key}_phys_zip")
         
         # Mailing Address
         with st.expander("📬 Mailing Address (if different)", expanded=False):
@@ -245,15 +249,19 @@ def render_company_form(company=None, form_key="company_form"):
             with mail_col1:
                 mailing_street = st.text_area("Street Address", 
                                             value=company.get('mailing_street', '') if is_edit else '',
-                                            height=60)
+                                            height=60,
+                                            key=f"{form_key}_mail_street")
                 mailing_city = st.text_input("City", 
-                                           value=company.get('mailing_city', '') if is_edit else '')
+                                           value=company.get('mailing_city', '') if is_edit else '',
+                                           key=f"{form_key}_mail_city")
             
             with mail_col2:
                 mailing_state = st.text_input("State", 
-                                            value=company.get('mailing_state', '') if is_edit else '')
+                                            value=company.get('mailing_state', '') if is_edit else '',
+                                            key=f"{form_key}_mail_state")
                 mailing_zip = st.text_input("ZIP Code", 
-                                          value=company.get('mailing_zip', '') if is_edit else '')
+                                          value=company.get('mailing_zip', '') if is_edit else '',
+                                          key=f"{form_key}_mail_zip")
         
         # Billing Address
         with st.expander("💳 Billing Address (if different)", expanded=False):
@@ -262,15 +270,19 @@ def render_company_form(company=None, form_key="company_form"):
             with bill_col1:
                 billing_street = st.text_area("Street Address", 
                                             value=company.get('billing_street', '') if is_edit else '',
-                                            height=60)
+                                            height=60,
+                                            key=f"{form_key}_bill_street")
                 billing_city = st.text_input("City", 
-                                           value=company.get('billing_city', '') if is_edit else '')
+                                           value=company.get('billing_city', '') if is_edit else '',
+                                           key=f"{form_key}_bill_city")
             
             with bill_col2:
                 billing_state = st.text_input("State", 
-                                            value=company.get('billing_state', '') if is_edit else '')
+                                            value=company.get('billing_state', '') if is_edit else '',
+                                            key=f"{form_key}_bill_state")
                 billing_zip = st.text_input("ZIP Code", 
-                                          value=company.get('billing_zip', '') if is_edit else '')
+                                          value=company.get('billing_zip', '') if is_edit else '',
+                                          key=f"{form_key}_bill_zip")
         
         # Notes
         notes = st.text_area("Notes", 
