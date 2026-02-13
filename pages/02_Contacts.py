@@ -1545,9 +1545,11 @@ def show_new_contact_form():
             company = st.text_input("Company", value=scanned.get('company', '') or '', placeholder="e.g., Smith Consulting")
             type_options = list(CONTACT_TYPES.keys())
             type_labels = [f"{CONTACT_TYPES[t]['icon']} {CONTACT_TYPES[t]['label']}" for t in type_options]
-            contact_type = st.selectbox("Contact Type", type_labels, index=1)
+            # Default to "networking" (index 6 in the dict order)
+            networking_idx = type_options.index("networking") if "networking" in type_options else 1
+            contact_type = st.selectbox("Contact Type", type_labels, index=networking_idx)
             source = st.selectbox("Source", ["Networking", "Referral", "Website", "LinkedIn", "Cold Outreach", "Conference"])
-            source_detail = st.text_input("Source Detail", placeholder="e.g., Cape Coral Chamber event")
+            source_detail = st.text_input("Source Detail", value="Cape Coral Chamber", placeholder="e.g., Cape Coral Chamber event")
 
         title = st.text_input("Title", value=scanned.get('title', '') or '', placeholder="e.g., CEO, Sales Manager")
         notes = st.text_area("Notes", placeholder="Any initial notes about this contact...")
@@ -1570,7 +1572,7 @@ def show_new_contact_form():
                 "source": source.lower().replace(" ", "_"),
                 "source_detail": source_detail,
                 "notes": notes,
-                "tags": [],
+                "tags": ["Cape Coral Chamber"],  # Default tag
                 "email_status": "active"
             }
 
