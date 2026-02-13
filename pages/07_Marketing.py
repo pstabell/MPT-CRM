@@ -918,7 +918,7 @@ Through the end of this month, I'm offering a **free technology assessment** for
 📝  Full review of your current tools, software, and workflows
 📊 A written report with prioritized recommendations
 💰 Estimated ROI for the top 2-3 improvements
-💴  ï¸ An action plan you can use whether you work with us or not
+💴  ️ An action plan you can use whether you work with us or not
 
 There's no catch â€” I do these because they consistently lead to great working relationships. And even if we never work together, you'll walk away with a clear picture of where technology can help.
 
@@ -1033,9 +1033,9 @@ I've been thinking about your situation and I'd love to put together a specific 
 
 Here's what I have in mind:
 
-1ï¸âƒ£ **Quick discovery call** (30 min) â€” Walk me through your day-to-day workflows so I can understand exactly what needs to happen
-2ï¸âƒ£ **Custom proposal** â€” I'll put together a detailed plan with scope, timeline, and investment â€” no vague estimates
-3ï¸âƒ£ **Live demo** â€” If you'd like, I can show you similar solutions we've built so you can see exactly what you'd be getting
+1️âƒ£ **Quick discovery call** (30 min) â€” Walk me through your day-to-day workflows so I can understand exactly what needs to happen
+2️âƒ£ **Custom proposal** â€” I'll put together a detailed plan with scope, timeline, and investment â€” no vague estimates
+3️âƒ£ **Live demo** â€” If you'd like, I can show you similar solutions we've built so you can see exactly what you'd be getting
 
 The discovery call is completely free, and the proposal comes with no obligation. I want you to have something concrete to evaluate â€” not just a sales pitch.
 
@@ -1182,7 +1182,7 @@ As we continue building out your solution, I wanted to share some tips and best 
 
 📊 **Track your baseline** â€” Note how long things take now so you can measure the improvement. Clients love seeing the before-and-after numbers.
 
-💴 ï¸ **Give honest feedback** â€” If something doesn't feel right, tell me. It's much easier to adjust during development than after launch.
+💴 ️ **Give honest feedback** â€” If something doesn't feel right, tell me. It's much easier to adjust during development than after launch.
 
 These might seem simple, but they make a huge difference in how quickly you see value from your investment.
 
@@ -1325,7 +1325,7 @@ Metro Point Technology, LLC
 
 I wanted to share a few recent projects that showcase what we've been up to. These might spark some ideas for{{#company}} {{company}}{{/company}}{{^company}} your business{{/company}}:
 
-**🏏 ï¸ Client Portal for a Service Company**
+**🏏 ️ Client Portal for a Service Company**
 Built a self-service portal where their customers can request services, track status, and view invoices â€” all automated. Cut their phone call volume by 50%.
 
 **📧  Mobile Inventory System for a Local Retailer**
@@ -1446,7 +1446,7 @@ Relationships like ours are what make the Cape Coral and Southwest Florida busin
 
 As a quick refresher, here's what Metro Point Technology specializes in â€” so you know exactly who to think of when opportunities come up:
 
-💳 ï¸ **Custom Software** â€” Built-from-scratch applications tailored to specific business needs
+💳 ️ **Custom Software** â€” Built-from-scratch applications tailored to specific business needs
 👥 **Websites** â€” Modern, fast, conversion-focused websites for local businesses
 💡  **Business Automation** â€” Connecting systems, eliminating manual processes, saving time
 
@@ -1915,7 +1915,7 @@ def show_campaign_detail(campaign_id):
                 st.markdown(f"{status_badge} {email['status'].title()}")
 
     # Add email button
-    if st.button("âž• Add Email to Sequence"):
+    if st.button("➕ Add Email to Sequence"):
         st.toast("Email builder coming soon!")
 
     # Enrollments section
@@ -1929,7 +1929,7 @@ def show_campaign_detail(campaign_id):
     else:
         st.warning("No contacts enrolled yet.")
 
-    if st.button("âž• Manually Enroll Contacts"):
+    if st.button("➕ Manually Enroll Contacts"):
         st.toast("Manual enrollment coming soon!")
 
 
@@ -1941,7 +1941,7 @@ def show_template_detail(template_id):
 
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.markdown(f"## âœ‰ï¸ {template['name']}")
+        st.markdown(f"## ✉️ {template['name']}")
     with col2:
         if st.button("â† Back to Templates"):
             st.session_state.mkt_selected_template = None
@@ -2103,7 +2103,7 @@ else:
 
         toolbar_col1, toolbar_col2 = st.columns([3, 1])
         with toolbar_col2:
-            if st.button("âž• New Campaign", type="primary"):
+            if st.button("➕ New Campaign", type="primary"):
                 st.toast("Campaign builder coming soon!")
 
         for campaign in st.session_state.mkt_campaigns:
@@ -2136,11 +2136,11 @@ else:
 
     with tab3:
         # Email templates
-        st.markdown("### âœ‰ï¸ Email Templates")
+        st.markdown("### ✉️ Email Templates")
 
         toolbar_col1, toolbar_col2 = st.columns([3, 1])
         with toolbar_col2:
-            if st.button("âž• New Template", type="primary"):
+            if st.button("➕ New Template", type="primary"):
                 st.toast("Template builder coming soon!")
 
         # Group by category
@@ -2198,7 +2198,7 @@ else:
 
             # Show skipped contacts if any
             if results.get('skipped'):
-                with st.expander(f"âš ï¸ {len(results['skipped'])} Contacts Skipped", expanded=True):
+                with st.expander(f"⚠️ {len(results['skipped'])} Contacts Skipped", expanded=True):
                     st.warning("The following contacts were skipped because they already exist in your database:")
                     for skip in results['skipped']:
                         st.markdown(f"- **{skip['name']}** ({skip['email']}) - {skip['reason']}")
@@ -2313,7 +2313,7 @@ else:
 
             for idx, contact in enumerate(st.session_state.mkt_scanned_contacts):
                 confidence = contact.get('confidence', 0.5)
-                confidence_icon = "✅" if confidence >= 0.7 else "âš ï¸"
+                confidence_icon = "✅" if confidence >= 0.7 else "⚠️"
                 confidence_label = "High confidence" if confidence >= 0.7 else "Low confidence - please verify"
 
                 with st.expander(f"{confidence_icon} Card {idx + 1}: {contact.get('first_name', 'Unknown')} {contact.get('last_name', '')} ({confidence_label})", expanded=(confidence < 0.7)):
@@ -2350,7 +2350,7 @@ else:
                         email_matches = [d for d in potential_duplicates if "Same email" in d.get('match_reasons', [])]
                         if email_matches:
                             is_exact_email_match = True
-                            st.warning(f"âš ï¸ Contact with this email already exists: **{email_matches[0]['first_name']} {email_matches[0]['last_name']}**")
+                            st.warning(f"⚠️ Contact with this email already exists: **{email_matches[0]['first_name']} {email_matches[0]['last_name']}**")
 
                         # Show all potential duplicates (sorted by priority: name > company > email)
                         st.info(f"👍 Found {len(potential_duplicates)} potential match(es)")
@@ -2606,7 +2606,7 @@ else:
                                     results['enrollments_created'] += 1
                                     results['import_log'].append(f"📧 Enrolled: {contact_name} in {selected_campaign['campaign_name']}")
                                 else:
-                                    results['import_log'].append(f"âš ï¸ Warning: Failed to enroll {contact_name} in campaign")
+                                    results['import_log'].append(f"⚠️ Warning: Failed to enroll {contact_name} in campaign")
                             else:
                                 results['import_log'].append(f"⏭️ Skipped enrollment: {contact_name} (not selected for campaign)")
 
@@ -2650,13 +2650,13 @@ else:
                                                 update_data["status"] = "completed"
                                             db_update_enrollment(enrollment["id"], update_data)
                                         except Exception as update_err:
-                                            results['import_log'].append(f"âš ï¸ Enrollment update failed: {update_err}")
+                                            results['import_log'].append(f"⚠️ Enrollment update failed: {update_err}")
                                 else:
                                     error_msg = f"Email failed for {contact_data['email']}: {email_result.get('error')}"
                                     results['errors'].append(error_msg)
                                     results['import_log'].append(f"âŒ Email error: {contact_name} - {email_result.get('error')}")
                             elif contact_data.get('send_email', True) and not contact_data.get('email'):
-                                results['import_log'].append(f"âš ï¸ No email: {contact_name} - cannot send welcome email")
+                                results['import_log'].append(f"⚠️ No email: {contact_name} - cannot send welcome email")
 
                         progress_bar.empty()
                         status_text.empty()
@@ -2676,11 +2676,11 @@ else:
             sendgrid_key = os.getenv("SENDGRID_API_KEY")
 
             if not anthropic_key:
-                st.error("âš ï¸ **Anthropic API Key not configured.** Add ANTHROPIC_API_KEY to your .env file to enable card scanning.")
+                st.error("⚠️ **Anthropic API Key not configured.** Add ANTHROPIC_API_KEY to your .env file to enable card scanning.")
                 st.code("ANTHROPIC_API_KEY=your-api-key-here")
 
             if not sendgrid_key:
-                st.warning("âš ï¸ **SendGrid API Key not configured.** Emails will not be sent. Add SENDGRID_API_KEY to your .env file.")
+                st.warning("⚠️ **SendGrid API Key not configured.** Emails will not be sent. Add SENDGRID_API_KEY to your .env file.")
 
             # Upload section
             with st.container(border=True):
@@ -2790,7 +2790,7 @@ else:
         if st.session_state.get('mkt_manual_crop_mode'):
             from PIL import Image
 
-            st.markdown("### âœ‚ï¸ Manual Card Cropping")
+            st.markdown("### âœ‚️ Manual Card Cropping")
             st.info("💰   View the full scanned page below. For each card, enter the crop coordinates to capture just that card.")
 
             raw_pages = st.session_state.mkt_raw_page_images
@@ -2954,7 +2954,7 @@ else:
                                          "check_in": "💰  ", "referral_ask": "🔢 ", "introduction": "💰  ",
                                          "pain_point_awareness": "💯", "case_study": "📊",
                                          "consultation_offer": "📞", "overcome_objections": "💹 ",
-                                         "final_push": "🏁", "personalized_followup": "âœ‰ï¸",
+                                         "final_push": "🏁", "personalized_followup": "✉️",
                                          "relevant_case_study": "📧 ", "roi_breakdown": "💰",
                                          "proposal_offer": "📧 ", "social_proof_urgency": "â°",
                                          "last_chance": "🔊", "welcome_onboarding": "📝 ",
@@ -3058,7 +3058,7 @@ else:
                                 with btn_col1:
                                     extract_btn = st.button(f"💡  Extract Info", key=f"extract_{card['id']}", use_container_width=True)
                                 with btn_col2:
-                                    delete_btn = st.button(f"💴  ï¸ Delete", key=f"delete_{card['id']}", use_container_width=True, type="secondary")
+                                    delete_btn = st.button(f"💴  ️ Delete", key=f"delete_{card['id']}", use_container_width=True, type="secondary")
 
                                 # Handle delete
                                 if delete_btn:
@@ -3161,7 +3161,7 @@ else:
 
     with tab6:
         # SendGrid settings
-        st.markdown("### ⚙ï¸ SendGrid Configuration")
+        st.markdown("### ⚙️ SendGrid Configuration")
 
         st.markdown("#### API Settings")
         api_key = st.text_input("SendGrid API Key", type="password", placeholder="SG.xxxxxxxxxxxx")
@@ -3186,7 +3186,7 @@ else:
 
         st.markdown("---")
         st.markdown("#### 📧  Webhook Status")
-        st.warning("âš ï¸ Webhook not configured. Set up webhook URL in SendGrid to receive open/click/bounce events.")
+        st.warning("⚠️ Webhook not configured. Set up webhook URL in SendGrid to receive open/click/bounce events.")
         st.code("Webhook URL: https://your-app-url.com/api/sendgrid/webhook")
 
         st.markdown("---")
