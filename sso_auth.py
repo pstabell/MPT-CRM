@@ -214,3 +214,8 @@ def _auto_init():
 
 # Run auto-init
 _auto_init()
+
+
+def render_change_password_form():
+    """Render a change password form (placeholder for SSO environments)"""
+    st.info("Password management is handled through SSO provider. Contact your administrator for password changes.")

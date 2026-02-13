@@ -184,7 +184,7 @@ with tab1:
 
         for status, label in status_labels.items():
             status_projects = [p for p in projects if p.get('status') == status]
-            total_budget = sum(p.get('budget', 0) for p in status_projects)
+            total_budget = sum((p.get('budget') or 0) for p in status_projects)
 
             with st.container(border=True):
                 inner_col1, inner_col2 = st.columns([3, 1])
