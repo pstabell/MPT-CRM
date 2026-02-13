@@ -1,4 +1,4 @@
-﻿# Build trigger: 2026-02-13 16:41:40
+# Build trigger: 2026-02-13 16:41:40
 """
 MPT-CRM - Metro Point Technology Customer Relationship Management
 Main application entry point for Streamlit multi-page app
