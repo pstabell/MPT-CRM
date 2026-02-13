@@ -1648,7 +1648,19 @@ HIDE_STREAMLIT_NAV = """
 """
 
 PAGE_CONFIG = {
-    "Dashboard": {"icon": "ðŸ“Š", "path": "app.py"},
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Companies": {"icon": "🏢", "path": "pages/01a_Companies.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "📈", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "🔧", "path": "pages/10_Service.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📊", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+},
     "Discovery Call": {"icon": "ðŸ“ž", "path": "pages/01_Discovery.py"},
     "Companies": {"icon": "ðŸ¢", "path": "pages/01a_Companies.py"},
     "Contacts": {"icon": "ðŸ‘¥", "path": "pages/02_Contacts.py"},
@@ -2019,7 +2031,7 @@ def show_template_detail(template_id):
 # ============================================
 # MAIN PAGE
 # ============================================
-st.title("ðŸ“§ Marketing")
+st.title("📧 Marketing")
 
 # Check if we're enrolling a contact from the Contacts page
 enroll_contact_id = st.session_state.get('mkt_enroll_contact_id')
@@ -2077,21 +2089,21 @@ elif st.session_state.mkt_selected_template:
     show_template_detail(st.session_state.mkt_selected_template)
 else:
     # Tab navigation
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["ðŸ“Š Dashboard", "ðŸ”„ Campaigns", "âœ‰ï¸ Templates", "ðŸ“‡ Card Scanner", "ðŸ” Process Cards", "âš™ï¸ Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Dashboard", "📧 Campaigns", "📝 Templates", "📇 Card Scanner", "🔄 Process Cards", "⚙️ Settings"])
 
     with tab1:
         # Marketing Dashboard
-        st.markdown("### Campaign Performance Overview")
+        st.markdown("### 📊 Campaign Performance Overview")
         st.info("ðŸ“Š Campaign analytics will appear here once you start importing contacts and sending campaigns via the Card Scanner.")
 
         st.markdown("---")
 
         # Recent activity
-        st.markdown("### ðŸ“¬ Recent Email Activity")
+        st.markdown("### 📬 Recent Email Activity")
         st.info("ðŸ“Š SendGrid integration will show real-time email activity here (opens, clicks, bounces)")
 
         # Quick actions
-        st.markdown("### âš¡ Quick Actions")
+        st.markdown("### ⚡ Quick Actions")
         action_cols = st.columns(3)
         with action_cols[0]:
             if st.button("ðŸ“§ Send One-Time Email", use_container_width=True):
@@ -2105,7 +2117,7 @@ else:
 
     with tab2:
         # Campaigns list
-        st.markdown("### ðŸ”„ Drip Campaigns")
+        st.markdown("### 📧 Drip Campaigns")
 
         toolbar_col1, toolbar_col2 = st.columns([3, 1])
         with toolbar_col2:
