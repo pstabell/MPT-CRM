@@ -1,4 +1,4 @@
-"""
+﻿"""
 MPT-CRM Settings Page
 Configure integrations, user preferences, and system settings
 
@@ -114,7 +114,7 @@ if 'settings_data' not in st.session_state:
         "invoice_prefix": "INV",
         "invoice_due_days": 30,
         "supabase_connected": db_is_connected(),
-        "sendgrid_connected": False,
+        "sendgrid_connected": bool(os.getenv("SENDGRID_API_KEY")),
     }
 
 # ============================================
@@ -394,3 +394,4 @@ with security_tab:
     else:
         st.warning("Admin email is not configured. Set ADMIN_EMAIL or SENDGRID_FROM_EMAIL.")
     st.caption("Only the configured admin email can receive password reset codes.")
+
