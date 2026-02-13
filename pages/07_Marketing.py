@@ -1716,6 +1716,9 @@ render_sidebar("Marketing")
 if 'mkt_campaigns' not in st.session_state:
     st.session_state.mkt_campaigns = []
 
+if 'mkt_view_campaign' not in st.session_state:
+    st.session_state.mkt_view_campaign = None
+
 if 'mkt_email_templates' not in st.session_state:
     st.session_state.mkt_email_templates = [
         {
@@ -2098,41 +2101,93 @@ else:
                 st.toast("Detailed reports coming soon!")
 
     with tab2:
-        # Campaigns list
-        st.markdown("### 👍  Drip Campaigns")
-
-        toolbar_col1, toolbar_col2 = st.columns([3, 1])
-        with toolbar_col2:
-            if st.button("➕ New Campaign", type="primary"):
-                st.toast("Campaign builder coming soon!")
-
-        for campaign in st.session_state.mkt_campaigns:
+        # Campaigns list - show the 6 predefined drip campaigns
+        st.markdown("### 👍 Drip Campaigns")
+        st.caption("Contact-type based drip campaigns. Contacts are automatically enrolled based on their type.")
+        
+        # Get enrollment stats from database
+        try:
+            from db_service import db_is_connected
+            if db_is_connected():
+                from supabase import create_client
+                import os
+                db = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+                
+                # Get enrollment counts grouped by campaign
+                stats_response = db.table("campaign_enrollments").select("campaign_id, status").execute()
+                enrollment_data = stats_response.data or []
+                
+                # Count by campaign_id and status
+                campaign_stats = {}
+                for e in enrollment_data:
+                    cid = e.get("campaign_id", "unknown")
+                    status = e.get("status", "unknown")
+                    if cid not in campaign_stats:
+                        campaign_stats[cid] = {"active": 0, "completed": 0, "paused": 0, "total": 0}
+                    campaign_stats[cid][status] = campaign_stats[cid].get(status, 0) + 1
+                    campaign_stats[cid]["total"] += 1
+            else:
+                campaign_stats = {}
+        except Exception as e:
+            campaign_stats = {}
+            st.warning(f"Could not load enrollment stats: {e}")
+        
+        # Display each campaign template
+        campaign_icons = {
+            "networking": "🤝",
+            "lead": "🎯",
+            "prospect": "📊",
+            "client": "⭐",
+            "former_client": "🔄",
+            "partner": "🤝"
+        }
+        
+        for campaign_type, campaign in CAMPAIGNS.items():
+            stats = campaign_stats.get(campaign.get("campaign_id", ""), {"active": 0, "completed": 0, "total": 0})
+            icon = campaign_icons.get(campaign_type, "📧")
+            
             with st.container(border=True):
                 col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-
-                status_icon = {"active": "💢", "paused": "💡", "draft": "âšª", "completed": "✅"}.get(campaign['status'], "âšª")
-
+                
                 with col1:
-                    st.markdown(f"**{status_icon} {campaign['name']}**")
-                    st.caption(f"Trigger: {campaign['trigger']}")
-
+                    st.markdown(f"**{icon} {campaign['campaign_name']}**")
+                    st.caption(f"Type: {campaign_type.replace('_', ' ').title()}")
+                
                 with col2:
-                    st.markdown(f"📧 {len(campaign['emails'])} emails")
-                    st.caption(f"👥 {campaign['enrollments']} enrolled")
-
+                    num_emails = len(campaign.get("emails", []))
+                    last_day = max([e.get("day", 0) for e in campaign.get("emails", [])], default=0)
+                    st.markdown(f"📧 {num_emails} emails")
+                    st.caption(f"⏱️ {last_day} day campaign")
+                
                 with col3:
-                    if campaign['sent'] > 0:
-                        open_rate = (campaign['opened'] / campaign['sent']) * 100
-                        st.markdown(f"📬 {campaign['sent']} sent")
-                        st.caption(f"📧  {open_rate:.0f}% open rate")
-                    else:
-                        st.markdown("📬 0 sent")
-                        st.caption("No data yet")
-
+                    active = stats.get("active", 0)
+                    completed = stats.get("completed", 0)
+                    st.markdown(f"👥 {active} active")
+                    st.caption(f"✅ {completed} completed")
+                
                 with col4:
-                    if st.button("Edit", key=f"edit_camp_{campaign['id']}"):
-                        st.session_state.mkt_selected_campaign = campaign['id']
+                    if st.button("View", key=f"view_camp_{campaign_type}"):
+                        st.session_state.mkt_view_campaign = campaign_type
                         st.rerun()
+        
+        # Show campaign details if one is selected
+        if st.session_state.get('mkt_view_campaign'):
+            campaign_type = st.session_state.mkt_view_campaign
+            campaign = CAMPAIGNS.get(campaign_type)
+            
+            if campaign:
+                st.markdown("---")
+                st.markdown(f"### {campaign['campaign_name']} - Email Sequence")
+                
+                if st.button("← Back to Campaigns"):
+                    st.session_state.mkt_view_campaign = None
+                    st.rerun()
+                
+                for i, email in enumerate(campaign.get("emails", [])):
+                    with st.expander(f"Day {email['day']}: {email['subject']}", expanded=(i == 0)):
+                        st.caption(f"Purpose: {email.get('purpose', 'N/A').replace('_', ' ').title()}")
+                        st.markdown("**Email Body:**")
+                        st.text(email.get("body", "")[:500] + "..." if len(email.get("body", "")) > 500 else email.get("body", ""))
 
     with tab3:
         # Email templates
