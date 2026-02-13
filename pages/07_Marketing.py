@@ -2124,7 +2124,7 @@ else:
                     st.caption(f"Trigger: {campaign['trigger']}")
 
                 with col2:
-                    st.markdown(f"ðŸ“§ {len(campaign['emails'])} emails")
+                    st.markdown(f"ðŸ“§ {campaign['emails']} emails")
                     st.caption(f"ðŸ‘¥ {campaign['enrollments']} enrolled")
 
                 with col3:
@@ -3204,3 +3204,4 @@ else:
         else:
             st.error("âŒ Anthropic API Key not configured")
             st.caption("Add ANTHROPIC_API_KEY to your .env file to enable business card scanning")
+
