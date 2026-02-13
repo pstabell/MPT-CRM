@@ -3024,25 +3024,21 @@ else:
                             col1, col2 = st.columns([1, 2])
 
                             with col1:
-                                # Display card images (front and back)
-                                if card.get('card_image_url'):
-                                    contact_id = card['id']
-
-                                    # Try to get all images for this contact
-                                    try:
-                                        contact_images = db_list_card_images(contact_id)
-
-                                        if contact_images:
-                                            for img_idx, img_file in enumerate(contact_images):
-                                                img_url = db_get_card_image_url(img_file['name'])
-                                                side_label = "Front" if img_idx == 0 else "Back"
-                                                st.image(img_url, caption=f"📧  {side_label} Side", use_container_width=True)
-                                        else:
-                                            # Fallback to primary image
-                                            st.image(card['card_image_url'], caption="📧  Business Card", use_container_width=True)
-                                    except Exception as img_err:
-                                        # Fallback to primary image if storage query fails
-                                        st.image(card['card_image_url'], caption="📧  Business Card", use_container_width=True)
+                                # Display card images (front and back) - use direct URL fields
+                                card_image_url = card.get('card_image_url')
+                                card_image_url_2 = card.get('card_image_url_2')
+                                
+                                if card_image_url or card_image_url_2:
+                                    if card_image_url and card_image_url_2:
+                                        # Both sides available
+                                        st.image(card_image_url, caption="📇 Front Side", use_container_width=True)
+                                        st.image(card_image_url_2, caption="📇 Back Side", use_container_width=True)
+                                    elif card_image_url:
+                                        # Only front
+                                        st.image(card_image_url, caption="📇 Business Card", use_container_width=True)
+                                    elif card_image_url_2:
+                                        # Only back (unusual)
+                                        st.image(card_image_url_2, caption="📇 Business Card", use_container_width=True)
                                 else:
                                     st.warning("No image available")
 
