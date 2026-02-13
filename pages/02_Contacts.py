@@ -660,6 +660,23 @@ def show_contact_detail(contact_id):
             if save_btn:
                 # Get source_detail from session state (will be set in col2)
                 new_source_detail = st.session_state.get('edit_source_detail', contact.get('source_detail', ''))
+                
+                # Get address fields from session state
+                new_phys_street = st.session_state.get('edit_phys_street', contact.get('physical_address_street', ''))
+                new_phys_city = st.session_state.get('edit_phys_city', contact.get('physical_address_city', ''))
+                new_phys_state = st.session_state.get('edit_phys_state', contact.get('physical_address_state', ''))
+                new_phys_zip = st.session_state.get('edit_phys_zip', contact.get('physical_address_zip', ''))
+                
+                new_mail_street = st.session_state.get('edit_mail_street', contact.get('mailing_address_street', ''))
+                new_mail_city = st.session_state.get('edit_mail_city', contact.get('mailing_address_city', ''))
+                new_mail_state = st.session_state.get('edit_mail_state', contact.get('mailing_address_state', ''))
+                new_mail_zip = st.session_state.get('edit_mail_zip', contact.get('mailing_address_zip', ''))
+                
+                new_bill_street = st.session_state.get('edit_bill_street', contact.get('billing_address_street', ''))
+                new_bill_city = st.session_state.get('edit_bill_city', contact.get('billing_address_city', ''))
+                new_bill_state = st.session_state.get('edit_bill_state', contact.get('billing_address_state', ''))
+                new_bill_zip = st.session_state.get('edit_bill_zip', contact.get('billing_address_zip', ''))
+                
                 update_data = {
                     "first_name": new_first,
                     "last_name": new_last,
@@ -672,6 +689,21 @@ def show_contact_detail(contact_id):
                     "source": contact.get('source', 'networking'),
                     "tags": contact.get('tags', []),
                     "email_status": contact.get('email_status', 'active'),
+                    # Physical address
+                    "physical_address_street": new_phys_street,
+                    "physical_address_city": new_phys_city,
+                    "physical_address_state": new_phys_state,
+                    "physical_address_zip": new_phys_zip,
+                    # Mailing address
+                    "mailing_address_street": new_mail_street,
+                    "mailing_address_city": new_mail_city,
+                    "mailing_address_state": new_mail_state,
+                    "mailing_address_zip": new_mail_zip,
+                    # Billing address
+                    "billing_address_street": new_bill_street,
+                    "billing_address_city": new_bill_city,
+                    "billing_address_state": new_bill_state,
+                    "billing_address_zip": new_bill_zip,
                 }
 
                 # Detect contact type change and auto-switch campaign
@@ -953,118 +985,146 @@ def show_contact_detail(contact_id):
     st.sidebar.caption(f"⏱️ Col1 done: {col1_time:.2f}s")
 
     with col2:
-        # Business Card Section - with upload capability
-        st.markdown("### 📇 Business Card")
+        # Business Card Section - with dual card images side by side
+        st.markdown("### 📇 Business Cards")
         card_image_url = contact.get('card_image_url')
+        card_image_url_2 = contact.get('card_image_url_2')
 
         with st.container(border=True):
-            if card_image_url:
-                try:
-                    # Initialize session state for card image index and rotation
-                    if 'card_image_index' not in st.session_state:
-                        st.session_state.card_image_index = 0
-                    if 'card_image_enlarged' not in st.session_state:
-                        st.session_state.card_image_enlarged = False
-                    if f'card_rotation_{contact_id}' not in st.session_state:
-                        st.session_state[f'card_rotation_{contact_id}'] = {}
-
-                    # Get all card images for this contact from storage
-                    card_images = []
-                    cid = contact['id']
-
-                    # Try to list all card images from Supabase Storage
+            # Check if we have any card images
+            if card_image_url or card_image_url_2:
+                # Create columns for side-by-side display
+                if card_image_url and card_image_url_2:
+                    card_col1, card_col2 = st.columns(2)
+                    
+                    with card_col1:
+                        st.markdown("**Front**")
+                        try:
+                            # Initialize rotation state for card 1
+                            rotation_key_1 = f'card_rotation_{contact["id"]}_1'
+                            if rotation_key_1 not in st.session_state:
+                                st.session_state[rotation_key_1] = 270
+                            
+                            # Get rotated image (cached)
+                            rotated_img_1 = get_rotated_image(card_image_url, st.session_state[rotation_key_1])
+                            if rotated_img_1:
+                                st.image(rotated_img_1, use_container_width=True)
+                            else:
+                                st.image(card_image_url, use_container_width=True)
+                            
+                            if st.button("↷ Rotate Front", key="rotate_card_1", use_container_width=True):
+                                st.session_state[rotation_key_1] = (st.session_state[rotation_key_1] + 90) % 360
+                                st.rerun()
+                        except Exception as e:
+                            st.caption(f"_Could not load front image: {str(e)[:30]}_")
+                    
+                    with card_col2:
+                        st.markdown("**Back**")
+                        try:
+                            # Initialize rotation state for card 2
+                            rotation_key_2 = f'card_rotation_{contact["id"]}_2'
+                            if rotation_key_2 not in st.session_state:
+                                st.session_state[rotation_key_2] = 270
+                            
+                            # Get rotated image (cached)
+                            rotated_img_2 = get_rotated_image(card_image_url_2, st.session_state[rotation_key_2])
+                            if rotated_img_2:
+                                st.image(rotated_img_2, use_container_width=True)
+                            else:
+                                st.image(card_image_url_2, use_container_width=True)
+                            
+                            if st.button("↷ Rotate Back", key="rotate_card_2", use_container_width=True):
+                                st.session_state[rotation_key_2] = (st.session_state[rotation_key_2] + 90) % 360
+                                st.rerun()
+                        except Exception as e:
+                            st.caption(f"_Could not load back image: {str(e)[:30]}_")
+                
+                elif card_image_url:
+                    # Only front card exists
+                    st.markdown("**Front** (No back image)")
                     try:
-                        from db_service import db_list_card_images, db_get_card_image_url
-                        storage_files = db_list_card_images(cid)
-                        if storage_files:
-                            card_images = [db_get_card_image_url(f['name']) for f in storage_files if f.get('name')]
-                            card_images = [url for url in card_images if url]  # filter None
-                    except Exception:
-                        pass
-
-                    # Fallback to single image if no images found in storage
-                    if not card_images and card_image_url:
-                        card_images = [card_image_url]
-
-                    # Only display if we have images
-                    if not card_images:
-                        raise Exception("No card image found")
-
-                    # Ensure index is valid
-                    if st.session_state.card_image_index >= len(card_images):
-                        st.session_state.card_image_index = 0
-
-                    # Display current card image
-                    current_img = card_images[st.session_state.card_image_index]
-                    current_img_key = f"img_{st.session_state.card_image_index}"
-
-                    # Get rotation for current image (default 270 for landscape right-side-up)
-                    rotation_dict = st.session_state.get(f'card_rotation_{cid}', {})
-                    current_rotation = rotation_dict.get(current_img_key, 270)
-
-                    # Get rotated image (cached - should be instant after first load)
-                    start = time.time()
-                    rotated_img = get_rotated_image(current_img, current_rotation)
-                    elapsed = time.time() - start
-                    if elapsed > 1:
-                        st.caption(f"⚠️ Image load took {elapsed:.1f}s (should be cached)")
-
-                    # Display image at full container width (always)
-                    if rotated_img:
-                        st.image(rotated_img, use_container_width=True)
-                    else:
-                        st.image(current_img, use_container_width=True)
-
-                    # Pagination if multiple images
-                    if len(card_images) > 1:
-                        st.caption(f"📄 {st.session_state.card_image_index + 1} of {len(card_images)}")
-                        col_prev, col_next = st.columns(2)
-                        with col_prev:
-                            if st.button("◀ Previous", key="prev_card", disabled=st.session_state.card_image_index == 0, use_container_width=True):
-                                st.session_state.card_image_index -= 1
-                                st.rerun()
-                        with col_next:
-                            if st.button("Next ▶", key="next_card", disabled=st.session_state.card_image_index == len(card_images) - 1, use_container_width=True):
-                                st.session_state.card_image_index += 1
-                                st.rerun()
-
-                    # Rotation button
-                    if st.button("↷ Rotate 90°", key="rotate_card", use_container_width=True):
-                        rotation_dict[current_img_key] = (current_rotation + 90) % 360
-                        st.session_state[f'card_rotation_{cid}'] = rotation_dict
-                        st.rerun()
-
-                except Exception as e:
-                    st.caption(f"_Could not load card image: {str(e)[:50]}_")
+                        rotation_key_1 = f'card_rotation_{contact["id"]}_1'
+                        if rotation_key_1 not in st.session_state:
+                            st.session_state[rotation_key_1] = 270
+                        
+                        rotated_img_1 = get_rotated_image(card_image_url, st.session_state[rotation_key_1])
+                        if rotated_img_1:
+                            st.image(rotated_img_1, use_container_width=True)
+                        else:
+                            st.image(card_image_url, use_container_width=True)
+                        
+                        if st.button("↷ Rotate", key="rotate_card_single", use_container_width=True):
+                            st.session_state[rotation_key_1] = (st.session_state[rotation_key_1] + 90) % 360
+                            st.rerun()
+                    except Exception as e:
+                        st.caption(f"_Could not load front image: {str(e)[:30]}_")
+                
+                elif card_image_url_2:
+                    # Only back card exists
+                    st.markdown("**Back** (No front image)")
+                    try:
+                        rotation_key_2 = f'card_rotation_{contact["id"]}_2'
+                        if rotation_key_2 not in st.session_state:
+                            st.session_state[rotation_key_2] = 270
+                        
+                        rotated_img_2 = get_rotated_image(card_image_url_2, st.session_state[rotation_key_2])
+                        if rotated_img_2:
+                            st.image(rotated_img_2, use_container_width=True)
+                        else:
+                            st.image(card_image_url_2, use_container_width=True)
+                        
+                        if st.button("↷ Rotate", key="rotate_card_back_only", use_container_width=True):
+                            st.session_state[rotation_key_2] = (st.session_state[rotation_key_2] + 90) % 360
+                            st.rerun()
+                    except Exception as e:
+                        st.caption(f"_Could not load back image: {str(e)[:30]}_")
+                        
+            else:
+                st.caption("_No business card images uploaded_")
 
             # Upload/Replace Card option
-            with st.expander("📤 Upload New Card" if card_image_url else "📤 Add Business Card"):
+            with st.expander("📤 Upload Business Cards"):
+                st.markdown("**Choose which side to upload:**")
+                
+                # Side selection
+                upload_side = st.radio(
+                    "Upload to:",
+                    ["Front Side", "Back Side"],
+                    key=f"upload_side_{contact['id']}",
+                    horizontal=True
+                )
+                
                 uploaded_card = st.file_uploader(
-                    "Upload card image",
+                    f"Upload {upload_side.lower()} image",
                     type=["png", "jpg", "jpeg", "webp"],
                     key=f"card_upload_{contact['id']}",
                     label_visibility="collapsed"
                 )
 
                 if uploaded_card is not None:
-                    st.image(uploaded_card, caption="Preview", use_container_width=True)
+                    st.image(uploaded_card, caption=f"Preview - {upload_side}", use_container_width=True)
 
+                    # Determine which field to update
+                    field_name = "card_image_url" if upload_side == "Front Side" else "card_image_url_2"
+                    
                     col_upload, col_scan = st.columns(2)
                     with col_upload:
-                        if st.button("💾 Save Card", type="primary", use_container_width=True, key="save_card_btn"):
+                        if st.button(f"💾 Save {upload_side}", type="primary", use_container_width=True, key="save_card_btn"):
                             with st.spinner("Uploading..."):
                                 image_bytes = uploaded_card.getvalue()
-                                card_url = upload_card_image_to_supabase(image_bytes, contact['id'])
+                                # Use different storage names for front vs back
+                                storage_suffix = "" if upload_side == "Front Side" else "_back"
+                                card_url = upload_card_image_to_supabase(image_bytes, contact['id'], suffix=storage_suffix)
                                 if card_url:
-                                    db_update_contact(contact['id'], {"card_image_url": card_url})
-                                    st.success("Card saved!")
+                                    db_update_contact(contact['id'], {field_name: card_url})
+                                    st.success(f"{upload_side} saved!")
                                     st.session_state.contacts_need_refresh = True
                                     st.rerun()
                                 else:
                                     st.error("Upload failed")
 
                     with col_scan:
-                        if st.button("🔍 Scan & Update", use_container_width=True, key="scan_update_btn"):
+                        if st.button("🔍 Scan & Update Contact", use_container_width=True, key="scan_update_btn"):
                             with st.spinner("Scanning with AI..."):
                                 image_bytes = uploaded_card.getvalue()
                                 image_type = f"image/{uploaded_card.type.split('/')[-1]}" if uploaded_card.type and '/' in uploaded_card.type else "image/png"
@@ -1075,12 +1135,13 @@ def show_contact_detail(contact_id):
                                     st.error(f"Scan failed: {result['error']}")
                                 else:
                                     # Upload the image
-                                    card_url = upload_card_image_to_supabase(image_bytes, contact['id'])
+                                    storage_suffix = "" if upload_side == "Front Side" else "_back"
+                                    card_url = upload_card_image_to_supabase(image_bytes, contact['id'], suffix=storage_suffix)
 
                                     # Update contact with scanned data + card URL
                                     update_data = {}
                                     if card_url:
-                                        update_data["card_image_url"] = card_url
+                                        update_data[field_name] = card_url
                                     if result.get('phone') and not contact.get('phone'):
                                         update_data["phone"] = result['phone']
                                     if result.get('email') and not contact.get('email'):
@@ -1092,12 +1153,136 @@ def show_contact_detail(contact_id):
 
                                     if update_data:
                                         db_update_contact(contact['id'], update_data)
-                                        st.success(f"Card saved & info updated!")
+                                        st.success(f"{upload_side} saved & contact info updated!")
                                         st.session_state.contacts_need_refresh = True
                                         st.rerun()
                                     else:
-                                        st.success("Card saved (no new info to update)")
+                                        st.success(f"{upload_side} saved (no new info to update)")
                                         st.rerun()
+
+        # Addresses Section - Collapsible
+        st.markdown("### 📍 Addresses")
+        with st.expander("Address Information", expanded=False):
+            # Physical Address
+            st.markdown("**🏢 Physical Address**")
+            phys_col1, phys_col2 = st.columns(2)
+            with phys_col1:
+                phys_street = st.text_input(
+                    "Street Address", 
+                    value=contact.get('physical_address_street', '') or '',
+                    key="edit_phys_street",
+                    placeholder="123 Main Street"
+                )
+                phys_state = st.text_input(
+                    "State", 
+                    value=contact.get('physical_address_state', '') or '',
+                    key="edit_phys_state",
+                    placeholder="FL"
+                )
+            with phys_col2:
+                phys_city = st.text_input(
+                    "City", 
+                    value=contact.get('physical_address_city', '') or '',
+                    key="edit_phys_city",
+                    placeholder="Cape Coral"
+                )
+                phys_zip = st.text_input(
+                    "ZIP Code", 
+                    value=contact.get('physical_address_zip', '') or '',
+                    key="edit_phys_zip",
+                    placeholder="33904"
+                )
+            
+            st.markdown("---")
+            
+            # Mailing Address
+            st.markdown("**📫 Mailing Address**")
+            mail_col1, mail_col2 = st.columns(2)
+            with mail_col1:
+                mail_street = st.text_input(
+                    "Street Address", 
+                    value=contact.get('mailing_address_street', '') or '',
+                    key="edit_mail_street",
+                    placeholder="P.O. Box 123 or same as physical"
+                )
+                mail_state = st.text_input(
+                    "State", 
+                    value=contact.get('mailing_address_state', '') or '',
+                    key="edit_mail_state",
+                    placeholder="FL"
+                )
+            with mail_col2:
+                mail_city = st.text_input(
+                    "City", 
+                    value=contact.get('mailing_address_city', '') or '',
+                    key="edit_mail_city",
+                    placeholder="Cape Coral"
+                )
+                mail_zip = st.text_input(
+                    "ZIP Code", 
+                    value=contact.get('mailing_address_zip', '') or '',
+                    key="edit_mail_zip",
+                    placeholder="33904"
+                )
+            
+            st.markdown("---")
+            
+            # Billing Address
+            st.markdown("**💳 Billing Address**")
+            bill_col1, bill_col2 = st.columns(2)
+            with bill_col1:
+                bill_street = st.text_input(
+                    "Street Address", 
+                    value=contact.get('billing_address_street', '') or '',
+                    key="edit_bill_street",
+                    placeholder="123 Billing Street"
+                )
+                bill_state = st.text_input(
+                    "State", 
+                    value=contact.get('billing_address_state', '') or '',
+                    key="edit_bill_state",
+                    placeholder="FL"
+                )
+            with bill_col2:
+                bill_city = st.text_input(
+                    "City", 
+                    value=contact.get('billing_address_city', '') or '',
+                    key="edit_bill_city",
+                    placeholder="Cape Coral"
+                )
+                bill_zip = st.text_input(
+                    "ZIP Code", 
+                    value=contact.get('billing_address_zip', '') or '',
+                    key="edit_bill_zip",
+                    placeholder="33904"
+                )
+            
+            # Quick copy buttons
+            st.markdown("**Quick Actions:**")
+            addr_action_col1, addr_action_col2 = st.columns(2)
+            with addr_action_col1:
+                if st.button("📋 Copy Physical to Mailing", key="copy_phys_to_mail"):
+                    if phys_street:
+                        st.session_state.edit_mail_street = phys_street
+                        st.session_state.edit_mail_city = phys_city
+                        st.session_state.edit_mail_state = phys_state
+                        st.session_state.edit_mail_zip = phys_zip
+                        st.success("Copied physical to mailing address")
+                        st.rerun()
+                    else:
+                        st.warning("Physical address is empty")
+            
+            with addr_action_col2:
+                if st.button("💳 Copy Physical to Billing", key="copy_phys_to_bill"):
+                    if phys_street:
+                        st.session_state.edit_bill_street = phys_street
+                        st.session_state.edit_bill_city = phys_city
+                        st.session_state.edit_bill_state = phys_state
+                        st.session_state.edit_bill_zip = phys_zip
+                        st.success("Copied physical to billing address")
+                        st.rerun()
+                    else:
+                        st.warning("Physical address is empty")
 
         # Type selector
         st.markdown("### 🏷️ Contact Type")
