@@ -57,6 +57,7 @@ PAGE_CONFIG = {
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Time & Billing"):

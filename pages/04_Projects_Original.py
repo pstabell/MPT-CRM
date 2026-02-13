@@ -57,6 +57,7 @@ PAGE_CONFIG = {
     "Marketing": {"icon": "\U0001f4e7", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "\U0001f4c8", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "\u2699\ufe0f", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Projects"):

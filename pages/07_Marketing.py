@@ -1,4 +1,4 @@
-﻿"""
+"""
 MPT-CRM Marketing Page
 Drip campaigns, email templates, SendGrid integration, and Business Card Scanner
 
@@ -1661,6 +1661,7 @@ PAGE_CONFIG = {
     "Marketing": {"icon": "ðŸ“§", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "ðŸ“ˆ", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "âš™ï¸", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Marketing"):
