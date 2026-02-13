@@ -1060,11 +1060,11 @@ I didn't want you to miss out if this is something you've been thinking about. W
 
 Here's what a few recent clients have said:
 
-â­ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
+⭐ "Patrick and his team delivered exactly what we needed, on time and on budget. Our team saves hours every week."
 
-â­ "I wish we'd done this two years ago. The ROI was almost immediate."
+⭐ "I wish we'd done this two years ago. The ROI was almost immediate."
 
-â­ "Working with Metro Point felt like having a tech partner, not just a vendor."
+⭐ "Working with Metro Point felt like having a tech partner, not just a vendor."
 
 If you'd like to get on the calendar, now would be a great time to start the conversation. Even a quick call to scope things out would give us a better timeline.
 
@@ -1648,7 +1648,20 @@ HIDE_STREAMLIT_NAV = """
 """
 
 PAGE_CONFIG = {
-    "Dashboard": {"icon": "ðŸ“Š", "path": "app.py"},
+    "Dashboard": {"icon": "📊", "path": "app.py"},
+    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
+    "Companies": {"icon": "🏢", "path": "pages/01a_Companies.py"},
+    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "📈", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Service": {"icon": "🔧", "path": "pages/10_Service.py"},
+    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "📊", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
+},
     "Discovery Call": {"icon": "ðŸ“ž", "path": "pages/01_Discovery.py"},
     "Companies": {"icon": "🏢", "path": "pages/01a_Companies.py"},
     "Companies": {"icon": "ðŸ¢", "path": "pages/01a_Companies.py"},
@@ -2021,7 +2034,7 @@ def show_template_detail(template_id):
 # ============================================
 # MAIN PAGE
 # ============================================
-st.title("ðŸ“§ Marketing")
+st.title("📧 Marketing")
 
 # Check if we're enrolling a contact from the Contacts page
 enroll_contact_id = st.session_state.get('mkt_enroll_contact_id')
@@ -2079,7 +2092,7 @@ elif st.session_state.mkt_selected_template:
     show_template_detail(st.session_state.mkt_selected_template)
 else:
     # Tab navigation
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["ðŸ“Š Dashboard", "ðŸ”„ Campaigns", "âœ‰ï¸ Templates", "ðŸ“‡ Card Scanner", "ðŸ” Process Cards", "âš™ï¸ Settings"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Dashboard", "📧 Campaigns", "📝 Templates", "📇 Card Scanner", "🔄 Process Cards", "⚙️ Settings"])
 
     with tab1:
         # Marketing Dashboard
@@ -2616,7 +2629,7 @@ else:
                                 else:
                                     results['import_log'].append(f"âš ï¸ Warning: Failed to enroll {contact_name} in campaign")
                             else:
-                                results['import_log'].append(f"â­ï¸ Skipped enrollment: {contact_name} (not selected for campaign)")
+                                results['import_log'].append(f"⏭️ Skipped enrollment: {contact_name} (not selected for campaign)")
 
                             # Send first email (for both new and merged contacts)
                             if contact_data.get('send_email', True) and contact_data.get('email'):
@@ -2658,7 +2671,7 @@ else:
                                                 update_data["status"] = "completed"
                                             db_update_enrollment(enrollment["id"], update_data)
                                         except Exception as update_err:
-                                            results['import_log'].append(f"Ã¢Å¡Â Ã¯Â¸Â Enrollment update failed: {update_err}")
+                                            results['import_log'].append(f"âš ï¸ Enrollment update failed: {update_err}")
                                 else:
                                     error_msg = f"Email failed for {contact_data['email']}: {email_result.get('error')}"
                                     results['errors'].append(error_msg)
@@ -3121,7 +3134,7 @@ else:
                                         with col_a:
                                             submit = st.form_submit_button("âœ… Save Contact", type="primary", use_container_width=True)
                                         with col_b:
-                                            skip = st.form_submit_button("â­ï¸ Skip", use_container_width=True)
+                                            skip = st.form_submit_button("⏭️ Skip", use_container_width=True)
 
                                         if submit:
                                             # Update the contact with extracted data
