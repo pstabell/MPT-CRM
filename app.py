@@ -122,7 +122,9 @@ st.set_page_config(
 # ============================================
 # AUTHENTICATION
 # ============================================
-require_sso_auth(allow_bypass=False)
+# TEMPORARY: allow_bypass=True while Mission Control Supabase is down (2026-02-12)
+# TODO: Change back to allow_bypass=False when MC Supabase recovers
+require_sso_auth(allow_bypass=True)
 
 # ============================================
 # START DRIP SCHEDULER (once per process)
