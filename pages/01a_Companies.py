@@ -11,9 +11,12 @@ import time
 import db_service
 from db_service import (
     db_is_connected,
-    db_execute_query,
-    db_fetch_all,
-    db_fetch_one,
+    db_get_companies,
+    db_get_company,
+    db_create_company,
+    db_update_company,
+    db_delete_company,
+    db_get_company_contacts,
 )
 from auth import require_login
 
@@ -107,39 +110,19 @@ def get_companies(_cache_key=None):
     """Get all companies from database with caching"""
     if not db_is_connected():
         return []
-    
-    query = """
-        SELECT id, name, website, industry, phone, 
-               physical_street, physical_city, physical_state, physical_zip,
-               mailing_street, mailing_city, mailing_state, mailing_zip,
-               billing_street, billing_city, billing_state, billing_zip,
-               notes, created_at, updated_at
-        FROM companies 
-        ORDER BY name
-    """
-    
     try:
-        return db_fetch_all(query) or []
+        return db_get_companies() or []
     except Exception as e:
         st.error(f"Error loading companies: {str(e)}")
         return []
 
 @st.cache_data(ttl=300, show_spinner=False)
-def get_company_contacts(company_id, _cache_key=None):
+def get_company_contacts_cached(company_id, _cache_key=None):
     """Get contacts for a specific company with caching"""
     if not db_is_connected():
         return []
-    
-    query = """
-        SELECT id, first_name, last_name, email, phone, role, 
-               card_image_url, card_image_url_2, notes, created_at
-        FROM contacts 
-        WHERE company_id = %s
-        ORDER BY role, last_name, first_name
-    """
-    
     try:
-        return db_fetch_all(query, (company_id,)) or []
+        return db_get_company_contacts(company_id) or []
     except Exception as e:
         st.error(f"Error loading company contacts: {str(e)}")
         return []
@@ -153,38 +136,10 @@ def create_company(company_data):
     """Create a new company in the database"""
     if not db_is_connected():
         return None
-    
-    query = """
-        INSERT INTO companies (name, website, industry, phone, 
-                              physical_street, physical_city, physical_state, physical_zip,
-                              mailing_street, mailing_city, mailing_state, mailing_zip,
-                              billing_street, billing_city, billing_state, billing_zip, notes)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-    """
-    
     try:
-        result = db_fetch_one(query, (
-            company_data.get('name'),
-            company_data.get('website'),
-            company_data.get('industry'),
-            company_data.get('phone'),
-            company_data.get('physical_street'),
-            company_data.get('physical_city'),
-            company_data.get('physical_state'),
-            company_data.get('physical_zip'),
-            company_data.get('mailing_street'),
-            company_data.get('mailing_city'),
-            company_data.get('mailing_state'),
-            company_data.get('mailing_zip'),
-            company_data.get('billing_street'),
-            company_data.get('billing_city'),
-            company_data.get('billing_state'),
-            company_data.get('billing_zip'),
-            company_data.get('notes')
-        ))
+        result = db_create_company(company_data)
         invalidate_companies_cache()
-        return result['id'] if result else None
+        return result.get('id') if result else None
     except Exception as e:
         st.error(f"Error creating company: {str(e)}")
         return None
@@ -193,40 +148,10 @@ def update_company(company_id, company_data):
     """Update a company in the database"""
     if not db_is_connected():
         return False
-    
-    query = """
-        UPDATE companies 
-        SET name = %s, website = %s, industry = %s, phone = %s,
-            physical_street = %s, physical_city = %s, physical_state = %s, physical_zip = %s,
-            mailing_street = %s, mailing_city = %s, mailing_state = %s, mailing_zip = %s,
-            billing_street = %s, billing_city = %s, billing_state = %s, billing_zip = %s,
-            notes = %s, updated_at = NOW()
-        WHERE id = %s
-    """
-    
     try:
-        db_execute_query(query, (
-            company_data.get('name'),
-            company_data.get('website'),
-            company_data.get('industry'),
-            company_data.get('phone'),
-            company_data.get('physical_street'),
-            company_data.get('physical_city'),
-            company_data.get('physical_state'),
-            company_data.get('physical_zip'),
-            company_data.get('mailing_street'),
-            company_data.get('mailing_city'),
-            company_data.get('mailing_state'),
-            company_data.get('mailing_zip'),
-            company_data.get('billing_street'),
-            company_data.get('billing_city'),
-            company_data.get('billing_state'),
-            company_data.get('billing_zip'),
-            company_data.get('notes'),
-            company_id
-        ))
+        result = db_update_company(company_id, company_data)
         invalidate_companies_cache()
-        return True
+        return result
     except Exception as e:
         st.error(f"Error updating company: {str(e)}")
         return False
@@ -235,19 +160,15 @@ def delete_company(company_id):
     """Delete a company from the database"""
     if not db_is_connected():
         return False
-    
     # Check if company has contacts
-    contacts = get_company_contacts(company_id)
+    contacts = get_company_contacts_cached(company_id)
     if contacts:
         st.error(f"Cannot delete company with {len(contacts)} contacts. Remove or reassign contacts first.")
         return False
-    
-    query = "DELETE FROM companies WHERE id = %s"
-    
     try:
-        db_execute_query(query, (company_id,))
+        result = db_delete_company(company_id)
         invalidate_companies_cache()
-        return True
+        return result
     except Exception as e:
         st.error(f"Error deleting company: {str(e)}")
         return False

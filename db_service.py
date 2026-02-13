@@ -1574,13 +1574,14 @@ def db_create_enrollment(enrollment_data):
 # 9. BUSINESS CARDS / STORAGE
 # ============================================================
 
-def upload_card_image_to_supabase(image_bytes, contact_id, file_ext="png"):
+def upload_card_image_to_supabase(image_bytes, contact_id, file_ext="png", suffix=""):
     """Upload a business card image to Supabase Storage.
 
     Args:
         image_bytes: Raw image bytes to upload.
         contact_id: The UUID of the contact (used in filename).
         file_ext: File extension (default 'png').
+        suffix: Optional suffix to differentiate front vs back ("" or "_back").
 
     Returns:
         str or None: The public URL of the uploaded image, or None on failure.
@@ -1590,7 +1591,8 @@ def upload_card_image_to_supabase(image_bytes, contact_id, file_ext="png"):
         return None
     try:
         import uuid as _uuid
-        filename = f"business-cards/{contact_id}_{_uuid.uuid4().hex[:8]}.{file_ext}"
+        # Include suffix in filename to differentiate front vs back images
+        filename = f"business-cards/{contact_id}{suffix}_{_uuid.uuid4().hex[:8]}.{file_ext}"
 
         response = db.storage.from_("card-images").upload(
             filename,
@@ -2512,3 +2514,84 @@ def db_update_contact_and_switch_campaign(contact_id, new_type, old_type=None):
         result["message"] = f"Contact type set to '{new_type}'."
 
     return result
+
+# ============================================
+# COMPANY DATABASE FUNCTIONS
+# ============================================
+
+def db_get_companies():
+    """Get all companies from database"""
+    try:
+        db = get_db()
+        if db is None:
+            return []
+        result = db.table('companies').select('*').order('name').execute()
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting companies: {e}")
+        return []
+
+
+def db_get_company(company_id):
+    """Get a single company by ID"""
+    try:
+        db = get_db()
+        if db is None:
+            return None
+        result = db.table('companies').select('*').eq('id', company_id).single().execute()
+        return result.data
+    except Exception as e:
+        print(f"Error getting company: {e}")
+        return None
+
+
+def db_create_company(company_data):
+    """Create a new company"""
+    try:
+        db = get_db()
+        if db is None:
+            return None
+        result = db.table('companies').insert(company_data).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error creating company: {e}")
+        return None
+
+
+def db_update_company(company_id, company_data):
+    """Update a company"""
+    try:
+        db = get_db()
+        if db is None:
+            return False
+        db.table('companies').update(company_data).eq('id', company_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error updating company: {e}")
+        return False
+
+
+def db_delete_company(company_id):
+    """Delete a company"""
+    try:
+        db = get_db()
+        if db is None:
+            return False
+        db.table('companies').delete().eq('id', company_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error deleting company: {e}")
+        return False
+
+
+def db_get_company_contacts(company_id):
+    """Get all contacts for a company"""
+    try:
+        db = get_db()
+        if db is None:
+            return []
+        result = db.table('contacts').select('*').eq('company_id', company_id).order('last_name').execute()
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting company contacts: {e}")
+        return []
