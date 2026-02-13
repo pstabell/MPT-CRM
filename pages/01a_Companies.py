@@ -122,7 +122,7 @@ def get_company_contacts_cached(company_id, _cache_key=None):
     if not db_is_connected():
         return []
     try:
-        return db_get_company_contacts(company_id) or []
+        return db_get_company_contacts_cached(company_id) or []
     except Exception as e:
         st.error(f"Error loading company contacts: {str(e)}")
         return []
@@ -415,7 +415,7 @@ elif st.session_state.companies_selected:
         
         with tab3:
             # Company contacts
-            contacts = get_company_contacts(st.session_state.companies_selected, _cache_key=cache_key)
+            contacts = get_company_contacts_cached(st.session_state.companies_selected, _cache_key=cache_key)
             
             if contacts:
                 st.markdown(f"### {len(contacts)} Contact{'s' if len(contacts) != 1 else ''}")
@@ -518,7 +518,7 @@ else:
 
                 with col3:
                     # Get contact count
-                    contact_count = len(get_company_contacts(company['id'], _cache_key=cache_key))
+                    contact_count = len(get_company_contacts_cached(company['id'], _cache_key=cache_key))
                     st.markdown(f"👥 {contact_count} contact{'s' if contact_count != 1 else ''}")
                     
                     if company.get('physical_city'):
