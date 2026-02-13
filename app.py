@@ -198,9 +198,9 @@ render_sidebar_stats({
 # Show database connection status in sidebar
 with st.sidebar:
     if db_is_connected():
-        st.success("Database connected", icon="âœ…")
+        st.success("Database connected", icon=":material/check_circle:")
     else:
-        st.error("Database not connected - check .env file", icon="âŒ")
+        st.error("Database not connected - check .env file", icon=":material/error:")
 
     # Drip scheduler status
     if scheduler_running:
