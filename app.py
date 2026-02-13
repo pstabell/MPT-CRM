@@ -23,7 +23,7 @@ from db_service import (
     db_get_dashboard_stats, db_get_activities, db_get_tasks, db_get_deals,
     db_process_due_campaign_enrollments,
 )
-from auth import require_login, logout, is_authenticated
+from sso_auth import require_sso_auth, render_auth_status, logout, is_authenticated
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
@@ -67,6 +67,7 @@ PAGE_CONFIG = {
     "Marketing": {"icon": "ðŸ“§", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "ðŸ“ˆ", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "âš™ï¸", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "â“", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Dashboard"):
@@ -96,6 +97,11 @@ def render_sidebar(current_page="Dashboard"):
         # External link to Mission Control
         st.markdown("### ðŸŽ¯ Mission Control")
         st.markdown("[Open Mission Control â†’](https://mpt-mission-control.vercel.app/)", unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Auth status at bottom
+        render_auth_status()
 
 def render_sidebar_stats(stats: dict):
     """Render stats in the sidebar"""
@@ -117,7 +123,9 @@ st.set_page_config(
 # ============================================
 # AUTHENTICATION
 # ============================================
-require_login()
+# TEMPORARY: allow_bypass=True while Mission Control Supabase is down (2026-02-12)
+# TODO: Change back to allow_bypass=False when MC Supabase recovers
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # START DRIP SCHEDULER (once per process)
@@ -327,4 +335,3 @@ with col2:
 # Footer
 st.divider()
 st.caption("MPT-CRM v0.4.0 | Metro Point Technology, LLC")
-

@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from db_service import db_is_connected, db_test_connection, db_export_all_tables
-from auth import require_login, render_change_password_form
+from sso_auth import require_sso_auth, render_auth_status, render_change_password_form
 from help_system import inject_help_styles, help_header, help_coin_inline
 
 # ============================================
@@ -89,7 +89,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # RENDER SIDEBAR

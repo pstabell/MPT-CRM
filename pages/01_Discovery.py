@@ -17,7 +17,7 @@ from db_service import (
     db_get_intakes, db_get_intake, db_create_intake, db_update_intake,
     db_log_activity, db_create_deal,
 )
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 st.set_page_config(
     page_title="MPT-CRM - Discovery Call",
@@ -25,7 +25,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)

@@ -28,7 +28,7 @@ from db_service import (
 )
 from db_service import db_get_contacts as _raw_get_contacts
 from db_service import db_get_intakes as _raw_get_intakes
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 # Page load timing
 _page_load_start = time.time()
@@ -39,7 +39,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # CACHING LAYER — wraps db_service functions
@@ -258,6 +258,7 @@ PAGE_CONFIG = {
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+    "Help": {"icon": "❓", "path": "pages/11_Help.py"},
 }
 
 def render_sidebar(current_page="Contacts"):
@@ -786,6 +787,79 @@ def show_contact_detail(contact_id):
                 st.session_state.new_deal_company_name = contact.get('company', '')
                 st.session_state.pipeline_show_new_deal = True
                 st.switch_page("pages/03_Pipeline.py")
+
+        # Projects section
+        st.markdown("### 📁 Projects")
+        if db_is_connected():
+            try:
+                # Import the projects function
+                from db_service import db_get_projects_by_contact
+                contact_projects = db_get_projects_by_contact(contact['id'])
+                
+                if contact_projects:
+                    for project in contact_projects:
+                        with st.container(border=True):
+                            col_info, col_action = st.columns([4, 1])
+                            with col_info:
+                                project_name = project.get('name', 'Untitled Project')
+                                st.markdown(f"**{project_name}**")
+                                
+                                # Show project status and value
+                                status = project.get('status', 'active').replace('_', ' ').title()
+                                hours_logged = project.get('hours_logged', 0) or 0
+                                estimated_hours = project.get('estimated_hours', 0) or 0
+                                hourly_rate = project.get('hourly_rate', 150) or 150
+                                value = estimated_hours * hourly_rate
+                                
+                                status_icons = {
+                                    'Planning': '📋', 'Active': '🚀', 'On Hold': '⏸️',
+                                    'Completed': '✅', 'Maintenance': '🛠️', 'Cancelled': '❌'
+                                }
+                                status_icon = status_icons.get(status, '📁')
+                                
+                                if value > 0:
+                                    st.caption(f"{status_icon} {status} | ${value:,.0f} | {hours_logged}/{estimated_hours} hrs")
+                                else:
+                                    st.caption(f"{status_icon} {status} | {hours_logged} hrs logged")
+                                
+                                # Show source deal if available
+                                if project.get('deal_id'):
+                                    st.caption(f"🎯 Source Deal: {project['deal_id'][:8]}...")
+                            
+                            with col_action:
+                                if st.button("Open", key=f"project_{project['id']}", type="primary"):
+                                    st.session_state.proj_selected_project = project['id']
+                                    st.switch_page("pages/04_Projects.py")
+                else:
+                    st.caption("_No projects yet_")
+                    
+                    # Check if this contact has won deals available for project creation
+                    from db_service import db_get_won_deals_by_contact
+                    won_deals = db_get_won_deals_by_contact(contact['id'])
+                    if won_deals:
+                        # Filter out deals already linked to projects
+                        from db_service import db_check_deal_project_link
+                        available_deals = []
+                        for deal in won_deals:
+                            if not db_check_deal_project_link(deal['id']):
+                                available_deals.append(deal)
+                        
+                        if available_deals:
+                            if st.button("➕ Create Project", key="create_project_from_contact"):
+                                # Pre-select this contact for project creation
+                                st.session_state.new_project_contact_id = contact['id']
+                                st.session_state.new_project_client = f"{contact.get('company', '')} ({contact['first_name']} {contact['last_name']})"
+                                st.session_state.proj_show_new_form = True
+                                st.switch_page("pages/04_Projects.py")
+                        else:
+                            st.caption("_All Won deals already have projects_")
+                    else:
+                        st.caption("_Win a deal first to create projects_")
+                        
+            except Exception as e:
+                st.caption(f"_Could not load projects: {str(e)[:30]}_")
+        else:
+            st.caption("_Database required to view projects_")
 
         # Discovery Forms section
         st.markdown("### 📞 Discovery Forms")

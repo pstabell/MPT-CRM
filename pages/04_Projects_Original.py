@@ -3,7 +3,7 @@ MPT-CRM Projects Page
 Manage client projects with status tracking, time logging, and billing
 
 Real MPT project portfolio with pricing at $150/hr.
-Database operations are handled by db_service.py - the single source of truth.
+Database operations are handled by db_service.py — the single source of truth.
 """
 
 import streamlit as st
@@ -232,14 +232,20 @@ def _safe_num(val, default=0):
 def load_projects():
     """Load projects from database first, fall back to defaults.
     
-    ALWAYS use database if connected and has data. Never fall back to
-    hardcoded defaults when live data exists - that causes sync issues.
+    If the DB has projects but none have estimated_hours set,
+    the schema hasn't been updated yet — use defaults instead.
     """
     if db_is_connected():
         try:
             db_projects = db_get_projects()
             if db_projects:
-                # ALWAYS use DB data when available - fill in missing values with defaults
+                # Check if ANY project has pricing data (schema v7 applied)
+                has_pricing = any(p.get('estimated_hours') for p in db_projects)
+                if not has_pricing:
+                    # Schema not updated yet — use defaults
+                    print("[Projects] DB projects found but no pricing data — using defaults")
+                    return [dict(p) for p in DEFAULT_PROJECTS]
+                
                 for p in db_projects:
                     # Force-replace None values (setdefault won't replace existing None keys)
                     p['hourly_rate'] = _safe_num(p.get('hourly_rate'), DEFAULT_HOURLY_RATE)
@@ -255,7 +261,7 @@ def load_projects():
 
 
 # Force reload when code version changes (clears stale session state)
-_CODE_VERSION = "v9-debug-all-projects"
+_CODE_VERSION = "v7-maintenance-status"
 if st.session_state.get('proj_code_version') != _CODE_VERSION:
     st.session_state.proj_projects = load_projects()
     st.session_state.proj_code_version = _CODE_VERSION
@@ -413,23 +419,9 @@ def show_new_project_form():
                 "budget": budget,
             }
 
-            # Try to save to database - only include columns that exist in DB
+            # Try to save to database
             if db_is_connected():
-                # DB columns: name, client_id, deal_id, status, description, 
-                # start_date, target_end_date, budget, estimated_hours
-                db_data = {
-                    'name': name,
-                    'client_id': prefill_contact_id,
-                    'deal_id': prefill_deal_id,
-                    'status': status,
-                    'description': description,
-                    'start_date': start_date.strftime("%Y-%m-%d"),
-                    'target_end_date': target_end_date.strftime("%Y-%m-%d"),
-                    'budget': budget,
-                    'estimated_hours': estimated_hours,
-                }
-                # Remove None values to avoid insert errors
-                db_data = {k: v for k, v in db_data.items() if v is not None}
+                db_data = {k: v for k, v in new_project.items() if k not in ['id', 'client', 'budget']}
                 result = db_create_project(db_data)
                 if result:
                     new_project['id'] = result.get('id', new_project['id'])
@@ -507,18 +499,6 @@ def show_project_detail(project_id):
 
     with col1:
         st.markdown("### \U0001f4cb Project Details")
-        
-        # Show update status from last save attempt
-        if 'last_update_status' in st.session_state:
-            status_type, status_msg = st.session_state.pop('last_update_status')
-            if status_type == 'success':
-                st.success(status_msg)
-            elif status_type == 'error':
-                st.error(status_msg)
-            else:
-                st.warning(status_msg)
-        # Clean up debug info if present
-        st.session_state.pop('last_update_debug', None)
 
         new_name = st.text_input("Project Name", project['name'], key="edit_proj_name")
         new_desc = st.text_area("Description", project.get('description', ''), height=100, key="edit_proj_desc")
@@ -572,31 +552,25 @@ def show_project_detail(project_id):
             if new_end:
                 project['target_end_date'] = new_end.strftime("%Y-%m-%d")
 
-            # ALWAYS persist to database - columns matched to actual DB schema
-            if db_is_connected():
-                update_data = {
+            # Try to persist to database
+            if db_is_connected() and not str(project['id']).startswith('mpt-proj-'):
+                db_update_project(project['id'], {
                     'name': new_name,
                     'description': new_desc or '',
+                    'hourly_rate': new_rate,
                     'estimated_hours': new_est_hours,
                     'start_date': project.get('start_date'),
                     'target_end_date': project.get('target_end_date'),
-                    # DB has 'budget' not 'hourly_rate' - map it
-                    'budget': new_rate,
-                }
-                result, error = db_update_project(project['id'], update_data)
-                if result:
-                    st.session_state['last_update_status'] = ('success', "Project updated and saved to database!")
-                else:
-                    st.session_state['last_update_status'] = ('error', f"Save failed: {error}")
-            else:
-                st.session_state['last_update_status'] = ('warning', "Database not connected - changes saved locally only.")
+                })
+
+            st.success("Project updated!")
             st.rerun()
 
         # Time entries section
         st.markdown("### \u23f1\ufe0f Time Entries")
 
         project_entries = []
-        if db_is_connected():
+        if db_is_connected() and not str(project_id).startswith('mpt-proj-'):
             try:
                 project_entries = db_get_project_time_entries(project_id)
             except Exception:
@@ -661,8 +635,8 @@ def show_project_detail(project_id):
         new_status = status_options[status_labels.index(new_status_label)]
         if new_status != project['status']:
             project['status'] = new_status
-            if db_is_connected():
-                db_update_project(project['id'], {'status': new_status})  # Ignore result for quick status change
+            if db_is_connected() and not str(project['id']).startswith('mpt-proj-'):
+                db_update_project(project['id'], {'status': new_status})
             st.rerun()
 
         # Project type

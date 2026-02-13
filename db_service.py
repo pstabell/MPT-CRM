@@ -1364,17 +1364,17 @@ def db_update_project(project_id, project_data):
         project_data: dict of fields to update.
 
     Returns:
-        dict or None: The updated project record, or None on failure.
+        tuple: (success_bool, error_message_or_none)
     """
     db = get_db()
     if not db:
-        return None
+        return False, "No database connection"
     try:
         response = db.table("projects").update(project_data).eq("id", project_id).execute()
-        return response.data[0] if response.data else None
+        # Success if no exception - Supabase may not return data on update
+        return True, None
     except Exception as e:
-        print(f"[db_service] Error updating project {project_id}: {e}")
-        return None
+        return False, str(e)
 
 
 def db_delete_project(project_id):
@@ -1436,6 +1436,113 @@ def db_get_project_time_entries(project_id):
         return response.data or []
     except Exception as e:
         print(f"[db_service] Error getting time entries for project {project_id}: {e}")
+        return []
+
+
+def db_get_won_deals():
+    """Get all deals with 'won' stage, available for linking to projects.
+
+    Returns:
+        list[dict]: List of won deal records with contact information.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("deals").select(
+            "id, title, value, contact_id, contact_name, company_name, actual_close, contacts(id, first_name, last_name, company)"
+        ).eq("stage", "won").order("actual_close", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting won deals: {e}")
+        return []
+
+
+def db_get_won_deals_by_contact(contact_id):
+    """Get won deals for a specific contact/company.
+
+    Args:
+        contact_id: The UUID of the contact.
+
+    Returns:
+        list[dict]: List of won deals for this contact.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("deals").select(
+            "id, title, value, contact_name, company_name, actual_close"
+        ).eq("contact_id", contact_id).eq("stage", "won").order("actual_close", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting won deals for contact {contact_id}: {e}")
+        return []
+
+
+def db_check_deal_project_link(deal_id):
+    """Check if a deal is already linked to a project.
+
+    Args:
+        deal_id: The UUID of the deal to check.
+
+    Returns:
+        dict or None: The linked project record if exists, None if available.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("projects").select(
+            "id, name, status"
+        ).eq("deal_id", deal_id).limit(1).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error checking deal project link for {deal_id}: {e}")
+        return None
+
+
+def db_get_projects_by_contact(contact_id):
+    """Get all projects for a specific contact/client.
+
+    Args:
+        contact_id: The UUID of the contact.
+
+    Returns:
+        list[dict]: List of projects for this contact with deal info.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("projects").select(
+            "*, deals(id, title, value, stage)"
+        ).eq("client_id", contact_id).order("created_at", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting projects for contact {contact_id}: {e}")
+        return []
+
+
+def db_get_companies_with_won_deals():
+    """Get all companies/contacts that have at least one won deal.
+
+    Returns:
+        list[dict]: List of contact records that have won deals.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("contacts").select(
+            "id, first_name, last_name, company, email"
+        ).in_(
+            "id", 
+            db.table("deals").select("contact_id").eq("stage", "won").execute().data
+        ).order("company", desc=False).order("last_name", desc=False).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting companies with won deals: {e}")
         return []
 
 
