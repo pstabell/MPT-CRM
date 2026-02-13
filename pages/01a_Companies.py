@@ -18,7 +18,7 @@ from db_service import (
     db_delete_company,
     db_get_company_contacts,
 )
-from auth import require_login
+from sso_auth import require_sso_auth, render_auth_status
 
 # Page load timing
 _page_load_start = time.time()
@@ -29,7 +29,7 @@ st.set_page_config(
     layout="wide"
 )
 
-require_login()
+require_sso_auth(allow_bypass=False)
 
 # ============================================
 # NAVIGATION SIDEBAR (self-contained)
