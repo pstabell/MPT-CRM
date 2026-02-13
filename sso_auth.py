@@ -148,7 +148,12 @@ def require_sso_auth(allow_bypass: bool = True) -> Optional[Dict[str, Any]]:
         
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.link_button("🚀 Sign in via Mission Control", "https://mpt-mission-control.vercel.app", use_container_width=True)
+            # Include return URL so Mission Control redirects back with token
+            import urllib.parse
+            crm_url = "https://mpt-crm-streamlit.streamlit.app"
+            return_url = urllib.parse.quote(crm_url, safe='')
+            mc_login_url = f"https://mpt-mission-control.vercel.app?sso_return={return_url}"
+            st.link_button("🚀 Sign in via Mission Control", mc_login_url, use_container_width=True)
         
         st.stop()
 
