@@ -72,8 +72,14 @@ def db_get_intakes(contact_id=None):
 # IMAGE HELPERS
 # ============================================
 @st.cache_data(ttl=3600, show_spinner=False)  # Cache for 1 hour
-def get_rotated_image(image_url, rotation_degrees):
-    """Fetch image from URL and rotate it by specified degrees (cached)"""
+def get_rotated_image(image_url, rotation_degrees, force_landscape=True):
+    """Fetch image from URL and rotate it by specified degrees (cached)
+    
+    Args:
+        image_url: URL of the image to fetch
+        rotation_degrees: Manual rotation to apply (0, 90, 180, 270)
+        force_landscape: If True, auto-rotate portrait images to landscape
+    """
     try:
         print(f"[DEBUG] Rotating image (cache miss): {image_url[:50]}... by {rotation_degrees}°")
         import time
@@ -89,12 +95,22 @@ def get_rotated_image(image_url, rotation_degrees):
 
         # Open with PIL
         img = Image.open(BytesIO(response.content))
+        width, height = img.size
         print(f"[DEBUG] Original image size: {img.size}")
+
+        # AUTO-ROTATE TO LANDSCAPE: If image is portrait (taller than wide), rotate 90°
+        auto_rotation = 0
+        if force_landscape and height > width:
+            auto_rotation = 90
+            print(f"[DEBUG] Auto-rotating portrait to landscape (+90°)")
+
+        # Combine auto-rotation with manual rotation
+        total_rotation = (auto_rotation + rotation_degrees) % 360
 
         # Rotate the image (PIL rotate: positive = counter-clockwise)
         # For 90° clockwise rotation (portrait to landscape), we need -90
-        if rotation_degrees != 0:
-            img = img.rotate(-rotation_degrees, expand=True)
+        if total_rotation != 0:
+            img = img.rotate(-total_rotation, expand=True)
             print(f"[DEBUG] Rotated image size: {img.size}")
 
         # Convert to bytes for Streamlit
@@ -102,7 +118,7 @@ def get_rotated_image(image_url, rotation_degrees):
         img.save(buf, format='JPEG', quality=85)
         buf.seek(0)
 
-        print(f"[DEBUG] Successfully rotated image")
+        print(f"[DEBUG] Successfully rotated image (auto={auto_rotation}° + manual={rotation_degrees}°)")
         return buf.getvalue()  # Return bytes instead of BytesIO for caching
     except Exception as e:
         print(f"[ERROR] Error rotating image: {e}")
@@ -1001,10 +1017,10 @@ def show_contact_detail(contact_id):
                     with card_col1:
                         st.markdown("**Front**")
                         try:
-                            # Initialize rotation state for card 1
+                            # Initialize rotation state for card 1 (0 = no manual rotation, auto-landscape handles orientation)
                             rotation_key_1 = f'card_rotation_{contact["id"]}_1'
                             if rotation_key_1 not in st.session_state:
-                                st.session_state[rotation_key_1] = 270
+                                st.session_state[rotation_key_1] = 0
                             
                             # Get rotated image (cached)
                             rotated_img_1 = get_rotated_image(card_image_url, st.session_state[rotation_key_1])
@@ -1022,10 +1038,10 @@ def show_contact_detail(contact_id):
                     with card_col2:
                         st.markdown("**Back**")
                         try:
-                            # Initialize rotation state for card 2
+                            # Initialize rotation state for card 2 (0 = no manual rotation, auto-landscape handles orientation)
                             rotation_key_2 = f'card_rotation_{contact["id"]}_2'
                             if rotation_key_2 not in st.session_state:
-                                st.session_state[rotation_key_2] = 270
+                                st.session_state[rotation_key_2] = 0
                             
                             # Get rotated image (cached)
                             rotated_img_2 = get_rotated_image(card_image_url_2, st.session_state[rotation_key_2])
@@ -1046,7 +1062,7 @@ def show_contact_detail(contact_id):
                     try:
                         rotation_key_1 = f'card_rotation_{contact["id"]}_1'
                         if rotation_key_1 not in st.session_state:
-                            st.session_state[rotation_key_1] = 270
+                            st.session_state[rotation_key_1] = 0
                         
                         rotated_img_1 = get_rotated_image(card_image_url, st.session_state[rotation_key_1])
                         if rotated_img_1:
@@ -1066,7 +1082,7 @@ def show_contact_detail(contact_id):
                     try:
                         rotation_key_2 = f'card_rotation_{contact["id"]}_2'
                         if rotation_key_2 not in st.session_state:
-                            st.session_state[rotation_key_2] = 270
+                            st.session_state[rotation_key_2] = 0
                         
                         rotated_img_2 = get_rotated_image(card_image_url_2, st.session_state[rotation_key_2])
                         if rotated_img_2:
