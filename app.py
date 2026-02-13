@@ -296,7 +296,7 @@ activities_data = get_recent_activities()
 if activities_data:
     for activity in activities_data:
         activity_type = activity.get('type', 'note')
-        icon = {"email_sent": "ðŸ“§", "call": "ðŸ“ž", "meeting": "ðŸ¤", "deal_stage_change": "ðŸŽ¯", "note": "ðŸ“"}.get(activity_type, "ðŸ“Œ")
+        icon = {"email_sent": "📧", "call": "📞", "meeting": "📅", "deal_stage_change": "📈", "note": "📝"}.get(activity_type, "📌")
         created = activity.get('created_at', '')
         if created and 'T' in str(created):
             created = str(created).split('T')[0]
