@@ -1,9 +1,9 @@
-"""
+﻿"""
 MPT-CRM - Metro Point Technology Customer Relationship Management
 Main application entry point for Streamlit multi-page app
 Connected to Supabase for real-time data
 
-Database operations are handled by db_service.py — the single source of truth.
+Database operations are handled by db_service.py â€” the single source of truth.
 """
 import os
 try:
@@ -55,17 +55,18 @@ HIDE_STREAMLIT_NAV = """
 """
 
 PAGE_CONFIG = {
-    "Dashboard": {"icon": "📊", "path": "app.py"},
-    "Discovery Call": {"icon": "📞", "path": "pages/01_Discovery.py"},
-    "Contacts": {"icon": "👥", "path": "pages/02_Contacts.py"},
-    "Sales Pipeline": {"icon": "🎯", "path": "pages/03_Pipeline.py"},
-    "Projects": {"icon": "📁", "path": "pages/04_Projects.py"},
+    "Dashboard": {"icon": "ðŸ“Š", "path": "app.py"},
+    "Discovery Call": {"icon": "ðŸ“ž", "path": "pages/01_Discovery.py"},
+    "Companies": {"icon": "\U0001F3E2", "path": "pages/01a_Companies.py"},
+    "Contacts": {"icon": "ðŸ‘¥", "path": "pages/02_Contacts.py"},
+    "Sales Pipeline": {"icon": "ðŸŽ¯", "path": "pages/03_Pipeline.py"},
+    "Projects": {"icon": "ðŸ“", "path": "pages/04_Projects.py"},
     "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
-    "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
-    "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
-    "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
-    "Reports": {"icon": "📈", "path": "pages/08_Reports.py"},
-    "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
+    "Tasks": {"icon": "âœ…", "path": "pages/05_Tasks.py"},
+    "Time & Billing": {"icon": "ðŸ’°", "path": "pages/06_Time_Billing.py"},
+    "Marketing": {"icon": "ðŸ“§", "path": "pages/07_Marketing.py"},
+    "Reports": {"icon": "ðŸ“ˆ", "path": "pages/08_Reports.py"},
+    "Settings": {"icon": "âš™ï¸", "path": "pages/09_Settings.py"},
 }
 
 def render_sidebar(current_page="Dashboard"):
@@ -93,8 +94,8 @@ def render_sidebar(current_page="Dashboard"):
         st.markdown("---")
         
         # External link to Mission Control
-        st.markdown("### 🎯 Mission Control")
-        st.markdown("[Open Mission Control →](https://mpt-mission-control.vercel.app/)", unsafe_allow_html=True)
+        st.markdown("### ðŸŽ¯ Mission Control")
+        st.markdown("[Open Mission Control â†’](https://mpt-mission-control.vercel.app/)", unsafe_allow_html=True)
 
 def render_sidebar_stats(stats: dict):
     """Render stats in the sidebar"""
@@ -189,28 +190,28 @@ render_sidebar_stats({
 # Show database connection status in sidebar
 with st.sidebar:
     if db_is_connected():
-        st.success("Database connected", icon="✅")
+        st.success("Database connected", icon="âœ…")
     else:
-        st.error("Database not connected - check .env file", icon="❌")
+        st.error("Database not connected - check .env file", icon="âŒ")
 
     # Drip scheduler status
     if scheduler_running:
-        st.caption("📧 Drip scheduler: running")
+        st.caption("ðŸ“§ Drip scheduler: running")
     else:
-        st.caption("📧 Drip scheduler: stopped")
+        st.caption("ðŸ“§ Drip scheduler: stopped")
 
     # Logout button
     st.markdown("---")
     if is_authenticated():
         st.caption(f"Logged in as: **{st.session_state.get('auth_user', 'unknown')}**")
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("ðŸšª Logout", use_container_width=True):
             logout()
             st.rerun()
 
 # ============================================
 # MAIN DASHBOARD
 # ============================================
-st.title("📊 MPT-CRM Dashboard")
+st.title("ðŸ“Š MPT-CRM Dashboard")
 st.markdown("### Metro Point Technology - Customer Relationship Management")
 
 st.divider()
@@ -255,7 +256,7 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     with st.container(border=True):
-        st.markdown("### 👥 Contacts")
+        st.markdown("### ðŸ‘¥ Contacts")
         st.markdown("Manage networking contacts, prospects, leads, and clients.")
         st.markdown(f"**{stats.get('total_contacts', 0)}** total contacts")
         if st.button("Go to Contacts", key="nav_contacts"):
@@ -263,7 +264,7 @@ with col1:
 
 with col2:
     with st.container(border=True):
-        st.markdown("### 🎯 Sales Pipeline")
+        st.markdown("### ðŸŽ¯ Sales Pipeline")
         st.markdown("Track deals through your sales process.")
         st.markdown(f"**{stats.get('active_deals', 0)}** active deals | **${stats.get('pipeline_value', 0):,.0f}** in pipeline")
         if st.button("Go to Pipeline", key="nav_pipeline"):
@@ -271,7 +272,7 @@ with col2:
 
 with col3:
     with st.container(border=True):
-        st.markdown("### 📧 Marketing")
+        st.markdown("### ðŸ“§ Marketing")
         st.markdown("Email campaigns, drip sequences, and templates.")
         st.markdown("Email templates and campaigns")
         if st.button("Go to Marketing", key="nav_marketing"):
@@ -286,7 +287,7 @@ activities_data = get_recent_activities()
 if activities_data:
     for activity in activities_data:
         activity_type = activity.get('type', 'note')
-        icon = {"email_sent": "📧", "call": "📞", "meeting": "🤝", "deal_stage_change": "🎯", "note": "📝"}.get(activity_type, "📌")
+        icon = {"email_sent": "ðŸ“§", "call": "ðŸ“ž", "meeting": "ðŸ¤", "deal_stage_change": "ðŸŽ¯", "note": "ðŸ“"}.get(activity_type, "ðŸ“Œ")
         created = activity.get('created_at', '')
         if created and 'T' in str(created):
             created = str(created).split('T')[0]
@@ -304,25 +305,26 @@ st.divider()
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("### 📋 Upcoming Tasks")
+    st.markdown("### ðŸ“‹ Upcoming Tasks")
     tasks = get_upcoming_tasks()
     if tasks:
         for task in tasks[:5]:
-            priority_icon = {"urgent": "🔴", "high": "🔴", "medium": "🟡", "low": "🟢"}.get(task.get('priority', 'medium'), "🟡")
+            priority_icon = {"urgent": "ðŸ”´", "high": "ðŸ”´", "medium": "ðŸŸ¡", "low": "ðŸŸ¢"}.get(task.get('priority', 'medium'), "ðŸŸ¡")
             due = task.get('due_date', 'No date')
             st.markdown(f"{priority_icon} **{task.get('title', 'Task')}** - {due}")
     else:
         st.info("No upcoming tasks. Create tasks from deal details!")
 
 with col2:
-    st.markdown("### 📅 Deals Closing Soon")
+    st.markdown("### ðŸ“… Deals Closing Soon")
     closing_soon = get_deals_closing_soon()
     if closing_soon:
         for deal in closing_soon[:5]:
-            st.markdown(f"• **{deal.get('title', 'Deal')}** - {deal.get('expected_close')} (${deal.get('value', 0):,.0f})")
+            st.markdown(f"â€¢ **{deal.get('title', 'Deal')}** - {deal.get('expected_close')} (${deal.get('value', 0):,.0f})")
     else:
         st.info("No deals closing in the next 2 weeks")
 
 # Footer
 st.divider()
 st.caption("MPT-CRM v0.4.0 | Metro Point Technology, LLC")
+
