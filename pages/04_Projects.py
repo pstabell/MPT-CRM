@@ -11,7 +11,10 @@ from datetime import datetime, date, timedelta
 from db_service import (
     db_is_connected, db_get_contact_email, db_get_projects,
     db_create_project, db_update_project, db_delete_project,
-    db_get_project, db_get_project_time_entries
+    db_get_project, db_get_project_time_entries,
+    db_change_project_status, db_get_project_history, db_can_log_time_to_project,
+    db_notify_mission_control_project_status,
+    db_get_project_change_orders, db_create_change_order, db_update_change_order
 )
 from sso_auth import require_sso_auth, render_auth_status
 
@@ -53,6 +56,7 @@ PAGE_CONFIG = {
     "Projects": {"icon": "\U0001f4c1", "path": "pages/04_Projects.py"},
     "Service": {"icon": "\U0001f527", "path": "pages/10_Service.py"},
     "Tasks": {"icon": "\u2705", "path": "pages/05_Tasks.py"},
+    "Change Orders": {"icon": "📝", "path": "pages/06_Change_Orders.py"},
     "Time & Billing": {"icon": "\U0001f4b0", "path": "pages/06_Time_Billing.py"},
     "Marketing": {"icon": "\U0001f4e7", "path": "pages/07_Marketing.py"},
     "Reports": {"icon": "\U0001f4c8", "path": "pages/08_Reports.py"},
@@ -121,10 +125,10 @@ PROJECT_TYPES = {
 PROJECT_STATUS = {
     "planning": {"label": "Planning", "icon": "\U0001f4cb", "color": "#6c757d"},
     "active": {"label": "Active", "icon": "\U0001f680", "color": "#28a745"},
-    "on_hold": {"label": "On Hold", "icon": "\u23f8\ufe0f", "color": "#ffc107"},
+    "on-hold": {"label": "On Hold", "icon": "\u23f8\ufe0f", "color": "#ffc107"},
+    "voided": {"label": "Voided", "icon": "\u274c", "color": "#dc3545"},
     "completed": {"label": "Completed", "icon": "\u2705", "color": "#17a2b8"},
     "maintenance": {"label": "Maintenance", "icon": "\U0001f6e0\ufe0f", "color": "#6f42c1"},
-    "cancelled": {"label": "Cancelled", "icon": "\u274c", "color": "#dc3545"},
 }
 
 # ============================================
@@ -275,6 +279,12 @@ if 'proj_selected_project' not in st.session_state:
 
 if 'proj_show_new_form' not in st.session_state:
     st.session_state.proj_show_new_form = False
+
+if 'show_stop_modal' not in st.session_state:
+    st.session_state.show_stop_modal = False
+
+if 'show_void_modal' not in st.session_state:
+    st.session_state.show_void_modal = False
 
 
 # ============================================
@@ -467,6 +477,12 @@ def show_project_detail(project_id):
     status_info = PROJECT_STATUS.get(project['status'], PROJECT_STATUS['active'])
     type_info = PROJECT_TYPES.get(project.get('project_type', 'project'), PROJECT_TYPES['project'])
 
+    # Status Banner (for on-hold and voided projects)
+    if project['status'] == 'on-hold':
+        st.warning(f"⚠️ **Project On Hold** - {project.get('status_reason', 'No reason provided')}")
+    elif project['status'] == 'voided':
+        st.error(f"🚫 **Project Voided** - {project.get('status_reason', 'No reason provided')} (Read-only)")
+
     # Header
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -652,6 +668,134 @@ def show_project_detail(project_id):
                             st.markdown("\u2b1c Non-billable")
         else:
             st.info("No time entries yet. Log your first entry above.")
+        
+        # Change Orders section
+        st.markdown("### 📝 Change Orders")
+        
+        project_change_orders = []
+        if db_is_connected():
+            try:
+                project_change_orders = db_get_project_change_orders(project_id)
+            except Exception as e:
+                st.warning(f"Could not load change orders: {str(e)}")
+        
+        # Quick stats
+        if project_change_orders:
+            co_stats = st.columns(4)
+            total_cos = len(project_change_orders)
+            pending_cos = len([co for co in project_change_orders if co['status'] == 'pending'])
+            approved_cos = len([co for co in project_change_orders if co['status'] == 'approved'])
+            total_co_value = sum(float(co['total_amount']) for co in project_change_orders if co.get('total_amount'))
+            
+            with co_stats[0]:
+                st.metric("Total", total_cos)
+            with co_stats[1]:
+                st.metric("Pending", pending_cos)
+            with co_stats[2]:
+                st.metric("Approved", approved_cos)
+            with co_stats[3]:
+                st.metric("Value", f"${total_co_value:,.0f}")
+        
+        # Add new change order
+        with st.expander("➕ New Change Order"):
+            with st.form(key=f"new_co_{project_id}"):
+                co_title = st.text_input("Title", key=f"co_title_{project_id}")
+                co_description = st.text_area("Description", height=80, key=f"co_desc_{project_id}")
+                
+                co_col1, co_col2 = st.columns(2)
+                with co_col1:
+                    co_hours = st.number_input("Estimated Hours", min_value=0.0, step=0.5, key=f"co_hours_{project_id}")
+                    co_requires_approval = st.checkbox("Requires Client Approval", key=f"co_approval_{project_id}")
+                with co_col2:
+                    co_rate = st.number_input("Hourly Rate ($)", min_value=0.0, step=1.0, 
+                                           value=float(project.get('hourly_rate', 150)), key=f"co_rate_{project_id}")
+                    co_impact = st.text_input("Impact Description", key=f"co_impact_{project_id}")
+                
+                if st.form_submit_button("Create Change Order", type="primary"):
+                    if co_title.strip():
+                        co_data = {
+                            'project_id': project_id,
+                            'title': co_title.strip(),
+                            'description': co_description.strip() if co_description else None,
+                            'status': 'draft',
+                            'requested_by': 'Patrick Stabell',
+                            'estimated_hours': co_hours if co_hours > 0 else None,
+                            'hourly_rate': co_rate,
+                            'impact_description': co_impact.strip() if co_impact else None,
+                            'requires_client_approval': co_requires_approval
+                        }
+                        
+                        if db_is_connected():
+                            result = db_create_change_order(co_data)
+                            if result:
+                                st.success("Change order created!")
+                                st.rerun()
+                        else:
+                            st.warning("Database not connected - change order not saved")
+                    else:
+                        st.error("Title is required")
+        
+        # Display existing change orders
+        if project_change_orders:
+            for co in sorted(project_change_orders, key=lambda x: x['created_at'], reverse=True):
+                status_color = {
+                    'draft': '🟡',
+                    'pending': '🟠', 
+                    'approved': '🟢',
+                    'rejected': '🔴',
+                    'completed': '🔵'
+                }.get(co['status'], '⚪')
+                
+                with st.container(border=True):
+                    co_col1, co_col2, co_col3 = st.columns([3, 2, 1])
+                    
+                    with co_col1:
+                        st.markdown(f"**{co['title']}**")
+                        st.caption(f"{status_color} {co['status'].title()}")
+                        if co.get('description'):
+                            st.markdown(f"*{co['description'][:100]}{'...' if len(co['description']) > 100 else ''}*")
+                    
+                    with co_col2:
+                        if co.get('estimated_hours'):
+                            st.caption(f"⏰ {co['estimated_hours']} hours")
+                        if co.get('total_amount'):
+                            st.caption(f"💰 ${float(co['total_amount']):,.2f}")
+                        st.caption(f"📅 {datetime.fromisoformat(co['created_at']).strftime('%m/%d/%Y')}")
+                    
+                    with co_col3:
+                        # Quick action buttons based on status
+                        if co['status'] == 'draft':
+                            if st.button("📤", help="Submit for approval", key=f"submit_co_{co['id']}"):
+                                db_update_change_order(co['id'], {'status': 'pending'})
+                                st.rerun()
+                        elif co['status'] == 'pending':
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                if st.button("✅", help="Approve", key=f"approve_co_{co['id']}"):
+                                    db_update_change_order(co['id'], {
+                                        'status': 'approved',
+                                        'approved_by': 'Patrick Stabell',
+                                        'approved_at': datetime.now().isoformat()
+                                    })
+                                    st.rerun()
+                            with col_b:
+                                if st.button("❌", help="Reject", key=f"reject_co_{co['id']}"):
+                                    db_update_change_order(co['id'], {
+                                        'status': 'rejected',
+                                        'approved_by': 'Patrick Stabell',
+                                        'approved_at': datetime.now().isoformat()
+                                    })
+                                    st.rerun()
+                        elif co['status'] == 'approved':
+                            if st.button("🏁", help="Mark complete", key=f"complete_co_{co['id']}"):
+                                db_update_change_order(co['id'], {'status': 'completed'})
+                                st.rerun()
+        else:
+            st.info("No change orders yet. Create one above to track scope changes.")
+        
+        # Link to full Change Orders page
+        if st.button("📝 Open Change Orders Page", key=f"open_co_page_{project_id}"):
+            st.switch_page("pages/06_Change_Orders.py")
 
     with col2:
         # Status
@@ -689,8 +833,44 @@ def show_project_detail(project_id):
             st.progress(usage)
             st.caption(f"{usage * 100:.0f}% of value earned")
 
-        # Quick actions
-        st.markdown("### \u26a1 Quick Actions")
+        # Project Status Actions
+        st.markdown("### \u26a1 Project Actions")
+        
+        current_status = project.get('status', 'active')
+        
+        # Stop/Resume Project Button
+        if current_status == 'active':
+            if st.button("\u23f8\ufe0f Stop Project", use_container_width=True, type="secondary"):
+                st.session_state.show_stop_modal = True
+                st.rerun()
+        elif current_status == 'on-hold':
+            if st.button("\u25b6\ufe0f Resume Project", use_container_width=True, type="primary"):
+                success, error = db_change_project_status(
+                    project_id=project['id'],
+                    new_status='active',
+                    reason='Project resumed',
+                    changed_by='Metro Bot'
+                )
+                if success:
+                    project['status'] = 'active'
+                    project['status_reason'] = 'Project resumed'
+                    db_notify_mission_control_project_status(
+                        project['id'], project['name'], 'active', 'Project resumed'
+                    )
+                    st.success("Project resumed successfully!")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to resume project: {error}")
+        
+        # Void Project Button (only for active or on-hold projects)
+        if current_status in ('active', 'on-hold'):
+            if st.button("\u274c Void Project", use_container_width=True):
+                st.session_state.show_void_modal = True
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Standard Actions
         if st.button("\U0001f4c4 Generate Invoice", use_container_width=True):
             invoice_text = f"""INVOICE
 {'='*50}

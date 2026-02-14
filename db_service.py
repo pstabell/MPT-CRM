@@ -1524,6 +1524,163 @@ def db_get_projects_by_contact(contact_id):
         return []
 
 
+def db_get_project_contacts(project_id):
+    """Get all contacts associated with a project and their roles.
+
+    Args:
+        project_id: The UUID of the project.
+
+    Returns:
+        list[dict]: List of project contact records with contact info.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("project_contacts").select(
+            "*, contacts(id, first_name, last_name, email, company)"
+        ).eq("project_id", project_id).order("role").execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting project contacts for {project_id}: {e}")
+        return []
+
+
+def db_add_project_contact(project_id, contact_id, role, is_primary=False, notes=None):
+    """Add a contact to a project with a specific role.
+
+    Args:
+        project_id: The UUID of the project.
+        contact_id: The UUID of the contact.
+        role: The role string (e.g., 'Project Manager', 'Developer').
+        is_primary: Whether this is the primary contact for this role.
+        notes: Optional notes about the role.
+
+    Returns:
+        dict or None: The created project contact record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("project_contacts").insert({
+            "project_id": project_id,
+            "contact_id": contact_id,
+            "role": role,
+            "is_primary": is_primary,
+            "notes": notes
+        }).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error adding project contact: {e}")
+        return None
+
+
+def db_remove_project_contact(project_contact_id):
+    """Remove a contact from a project.
+
+    Args:
+        project_contact_id: The UUID of the project contact record.
+
+    Returns:
+        bool: True if removed successfully.
+    """
+    db = get_db()
+    if not db:
+        return False
+    try:
+        db.table("project_contacts").delete().eq("id", project_contact_id).execute()
+        return True
+    except Exception as e:
+        print(f"[db_service] Error removing project contact: {e}")
+        return False
+
+
+def db_get_project_files(project_id):
+    """Get all files associated with a project.
+
+    Args:
+        project_id: The UUID of the project.
+
+    Returns:
+        list[dict]: List of project file records.
+    """
+    db = get_db()
+    if not db:
+        return []
+    try:
+        response = db.table("project_files").select("*").eq(
+            "project_id", project_id
+        ).order("created_at", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"[db_service] Error getting project files for {project_id}: {e}")
+        return []
+
+
+def db_add_project_file(file_data):
+    """Add a file record to a project.
+
+    Args:
+        file_data: dict with file fields (project_id, filename, storage_url, etc.)
+
+    Returns:
+        dict or None: The created file record, or None on failure.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        response = db.table("project_files").insert(file_data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"[db_service] Error adding project file: {e}")
+        return None
+
+
+def db_delete_project_file(file_id):
+    """Delete a project file record.
+
+    Args:
+        file_id: The UUID of the file record.
+
+    Returns:
+        bool: True if deleted successfully.
+    """
+    db = get_db()
+    if not db:
+        return False
+    try:
+        db.table("project_files").delete().eq("id", file_id).execute()
+        return True
+    except Exception as e:
+        print(f"[db_service] Error deleting project file: {e}")
+        return False
+
+
+def db_update_project_hours(project_id, actual_hours):
+    """Update the actual hours logged for a project.
+
+    Args:
+        project_id: The UUID of the project.
+        actual_hours: The new actual hours value.
+
+    Returns:
+        bool: True if updated successfully.
+    """
+    db = get_db()
+    if not db:
+        return False
+    try:
+        response = db.table("projects").update({
+            "actual_hours": actual_hours
+        }).eq("id", project_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"[db_service] Error updating project hours: {e}")
+        return False
+
+
 def db_get_companies_with_won_deals():
     """Get all companies/contacts that have at least one won deal.
 
@@ -1926,8 +2083,35 @@ def db_create_service_ticket(ticket_data):
     if not db:
         return None
     try:
+        # Create the service ticket first
         response = db.table("service_tickets").insert(ticket_data).execute()
-        return response.data[0] if response.data else None
+        created_ticket = response.data[0] if response.data else None
+        
+        if created_ticket:
+            # Try to create Mission Control card
+            try:
+                from mission_control_service import create_mission_control_card
+                
+                # Determine ticket type for Mission Control
+                ticket_type = created_ticket.get("ticket_type", "service")
+                
+                # Create Mission Control card
+                mc_card_id = create_mission_control_card(created_ticket, ticket_type)
+                
+                # Update ticket with Mission Control card ID if successful
+                if mc_card_id:
+                    update_data = {"mission_control_card_id": mc_card_id}
+                    db.table("service_tickets").update(update_data).eq("id", created_ticket["id"]).execute()
+                    created_ticket["mission_control_card_id"] = mc_card_id
+                    print(f"[db_service] Created Mission Control card {mc_card_id} for ticket {created_ticket['id']}")
+                else:
+                    print(f"[db_service] Failed to create Mission Control card for ticket {created_ticket['id']}")
+                    
+            except Exception as e:
+                print(f"[db_service] Error creating Mission Control card: {e}")
+                # Don't fail the ticket creation if MC integration fails
+        
+        return created_ticket
     except Exception as e:
         print(f"[db_service] Error creating service ticket: {e}")
         return None
@@ -2595,3 +2779,330 @@ def db_get_company_contacts(company_id):
     except Exception as e:
         print(f"Error getting company contacts: {e}")
         return []
+
+
+# ============================================
+# PROJECT STATUS MANAGEMENT FUNCTIONS
+# ============================================
+
+def db_change_project_status(project_id, new_status, reason, changed_by="Metro Bot"):
+    """Change a project's status with reason tracking and history logging.
+    
+    Args:
+        project_id: The UUID of the project
+        new_status: New status value ('on-hold', 'voided', 'active', etc.)
+        reason: Reason for the status change (required for on-hold/voided)
+        changed_by: Who initiated the change
+    
+    Returns:
+        tuple: (success_bool, error_message_or_none)
+    """
+    db = get_db()
+    if not db:
+        return False, "No database connection"
+    
+    # Validate required reason for certain status changes
+    if new_status in ('on-hold', 'voided') and not reason:
+        return False, "Reason is required for on-hold and voided status"
+    
+    try:
+        # Get current project data
+        current = db.table("projects").select("*").eq("id", project_id).single().execute()
+        if not current.data:
+            return False, "Project not found"
+        
+        old_status = current.data.get('status')
+        
+        # Update project with new status and metadata
+        update_data = {
+            "status": new_status,
+            "status_reason": reason,
+            "status_changed_by": changed_by,
+            "status_changed_at": datetime.now().isoformat()
+        }
+        
+        # Set actual_end_date if completing or voiding
+        if new_status in ('completed', 'voided'):
+            update_data["actual_end_date"] = datetime.now().date().isoformat()
+        
+        response = db.table("projects").update(update_data).eq("id", project_id).execute()
+        
+        # Log to project history (if table exists, otherwise skip gracefully)
+        try:
+            db.table("project_history").insert({
+                "project_id": project_id,
+                "old_status": old_status,
+                "new_status": new_status,
+                "reason": reason,
+                "changed_by": changed_by
+            }).execute()
+        except Exception:
+            # Project history table might not exist yet, that's ok
+            pass
+        
+        return True, None
+        
+    except Exception as e:
+        return False, str(e)
+
+
+def db_get_project_history(project_id):
+    """Get status change history for a project.
+    
+    Args:
+        project_id: The UUID of the project
+        
+    Returns:
+        list[dict]: List of history records, newest first
+    """
+    db = get_db()
+    if not db:
+        return []
+    
+    try:
+        response = db.table("project_history").select("*").eq(
+            "project_id", project_id
+        ).order("changed_at", desc=True).execute()
+        return response.data or []
+    except Exception:
+        # Table might not exist yet
+        return []
+
+
+def db_can_log_time_to_project(project_id):
+    """Check if time entries can be logged to this project.
+    
+    Stopped (on-hold) and voided projects should not accept new time entries.
+    
+    Args:
+        project_id: The UUID of the project
+        
+    Returns:
+        bool: True if time can be logged, False otherwise
+    """
+    db = get_db()
+    if not db:
+        return False
+    
+    try:
+        response = db.table("projects").select("status").eq("id", project_id).single().execute()
+        if not response.data:
+            return False
+        
+        status = response.data.get('status')
+        # Allow time logging for active, planning, completed, and maintenance projects
+        # Disallow for on-hold and voided
+        return status not in ('on-hold', 'voided')
+        
+    except Exception:
+        return False
+
+
+def db_notify_mission_control_project_status(project_id, project_name, new_status, reason):
+    """Notify Mission Control about project status change for related cards.
+    
+    This function integrates with the Mission Control API to move related cards
+    to backlog or archive when projects are stopped/voided.
+    
+    Args:
+        project_id: The UUID of the project
+        project_name: Name of the project
+        new_status: The new status ('on-hold', 'voided', etc.)
+        reason: Reason for the change
+        
+    Returns:
+        bool: True if notification was successful, False otherwise
+    """
+    try:
+        import requests
+        
+        # Mission Control API endpoint
+        mc_api_url = "https://mpt-mission-control.vercel.app/api"
+        
+        # Search for cards related to this project
+        search_response = requests.get(
+            f"{mc_api_url}/tasks",
+            params={"search": project_name},
+            timeout=10
+        )
+        
+        if search_response.status_code != 200:
+            print(f"[db_service] Mission Control API not available: {search_response.status_code}")
+            return False
+        
+        related_cards = search_response.json()
+        
+        # Determine target status based on project status
+        if new_status == 'on-hold':
+            target_card_status = 'backlog'
+            action_msg = 'moved to backlog'
+        elif new_status == 'voided':
+            target_card_status = 'archive'
+            action_msg = 'archived'
+        else:
+            # No action needed for other status changes
+            return True
+        
+        # Update related cards
+        updated_count = 0
+        for card in related_cards:
+            if card.get('status') in ('in-progress', 'queue'):
+                try:
+                    update_response = requests.put(
+                        f"{mc_api_url}/tasks/{card['id']}",
+                        json={
+                            "status": target_card_status,
+                            "notes": f"Auto-{action_msg}: Project {project_name} {new_status} - {reason}"
+                        },
+                        timeout=10
+                    )
+                    if update_response.status_code == 200:
+                        updated_count += 1
+                except Exception as e:
+                    print(f"[db_service] Failed to update card {card.get('id')}: {e}")
+        
+        print(f"[db_service] Mission Control: {updated_count} cards {action_msg} for project {project_name}")
+        return True
+        
+    except Exception as e:
+        print(f"[db_service] Mission Control notification failed: {e}")
+        return False
+
+
+# ============================================================
+# 15. CHANGE ORDERS
+# ============================================================
+
+def db_get_change_orders(project_id=None, status=None):
+    """Get change orders with optional filtering"""
+    try:
+        db = get_db()
+        if not db:
+            return []
+        
+        query = db.table('change_orders').select("""
+            id, project_id, title, description, status,
+            requested_by, approved_by, requested_at, approved_at,
+            estimated_hours, actual_hours, hourly_rate, total_amount,
+            impact_description, requires_client_approval, client_signature,
+            created_at, updated_at,
+            projects(name, client_id, contacts(first_name, last_name, company))
+        """).order('created_at', desc=True)
+        
+        if project_id:
+            query = query.eq('project_id', project_id)
+        if status:
+            query = query.eq('status', status)
+            
+        result = query.execute()
+        return result.data if result.data else []
+        
+    except Exception as e:
+        print(f"Error fetching change orders: {e}")
+        return []
+
+
+def db_create_change_order(data):
+    """Create a new change order"""
+    try:
+        db = get_db()
+        if not db:
+            return None
+        
+        # Calculate total_amount if hourly_rate and estimated_hours are provided
+        if data.get('estimated_hours') and data.get('hourly_rate'):
+            data['total_amount'] = float(data['estimated_hours']) * float(data['hourly_rate'])
+        
+        result = db.table('change_orders').insert(data).execute()
+        created_change_order = result.data[0] if result.data else None
+        
+        if created_change_order:
+            # Try to create Mission Control card
+            try:
+                from mission_control_service import create_mission_control_card
+                
+                # Create Mission Control card for change order
+                mc_card_id = create_mission_control_card(created_change_order, "change_order")
+                
+                # Update change order with Mission Control card ID if successful
+                if mc_card_id:
+                    update_data = {"mission_control_card_id": mc_card_id}
+                    db.table("change_orders").update(update_data).eq("id", created_change_order["id"]).execute()
+                    created_change_order["mission_control_card_id"] = mc_card_id
+                    print(f"[db_service] Created Mission Control card {mc_card_id} for change order {created_change_order['id']}")
+                else:
+                    print(f"[db_service] Failed to create Mission Control card for change order {created_change_order['id']}")
+                    
+            except Exception as e:
+                print(f"[db_service] Error creating Mission Control card for change order: {e}")
+                # Don't fail the change order creation if MC integration fails
+        
+        return created_change_order
+        
+    except Exception as e:
+        print(f"Error creating change order: {e}")
+        return None
+
+
+def db_update_change_order(change_order_id, data):
+    """Update a change order"""
+    try:
+        db = get_db()
+        if not db:
+            return None
+        
+        data['updated_at'] = datetime.now().isoformat()
+        
+        # Recalculate total_amount if hourly_rate and estimated_hours are provided
+        if data.get('estimated_hours') and data.get('hourly_rate'):
+            data['total_amount'] = float(data['estimated_hours']) * float(data['hourly_rate'])
+        
+        result = db.table('change_orders').update(data).eq('id', change_order_id).execute()
+        return result.data[0] if result.data else None
+        
+    except Exception as e:
+        print(f"Error updating change order: {e}")
+        return None
+
+
+def db_get_change_order(change_order_id):
+    """Get a single change order by ID"""
+    try:
+        db = get_db()
+        if not db:
+            return None
+        
+        result = db.table('change_orders').select("""
+            id, project_id, title, description, status,
+            requested_by, approved_by, requested_at, approved_at,
+            estimated_hours, actual_hours, hourly_rate, total_amount,
+            impact_description, requires_client_approval, client_signature,
+            created_at, updated_at,
+            projects(name, client_id, contacts(first_name, last_name, company))
+        """).eq('id', change_order_id).execute()
+        
+        return result.data[0] if result.data else None
+        
+    except Exception as e:
+        print(f"Error fetching change order: {e}")
+        return None
+
+
+def db_delete_change_order(change_order_id):
+    """Delete a change order"""
+    try:
+        db = get_db()
+        if not db:
+            return False
+        
+        db.table('change_orders').delete().eq('id', change_order_id).execute()
+        return True
+        
+    except Exception as e:
+        print(f"Error deleting change order: {e}")
+        return False
+
+
+def db_get_project_change_orders(project_id):
+    """Get all change orders for a specific project"""
+    return db_get_change_orders(project_id=project_id)
