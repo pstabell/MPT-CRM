@@ -142,6 +142,7 @@ PROJECT_STATUS = {
     "completed": {"label": "Completed", "icon": "✅", "color": "#17a2b8", "next": ["archived"]},
     "archived": {"label": "Archived", "icon": "📦", "color": "#6f42c1", "next": []},
     "cancelled": {"label": "Cancelled", "icon": "❌", "color": "#dc3545", "next": ["archived"]},
+    "voided": {"label": "Voided", "icon": "🚫", "color": "#6c757d", "next": ["archived"]},
 }
 
 # Contact role options for projects
@@ -171,6 +172,16 @@ if 'projects_data' not in st.session_state:
 if 'detail_tab' not in st.session_state:
     st.session_state.detail_tab = "overview"
 
+# Dialog state initialization
+if 'show_hold_dialog' not in st.session_state:
+    st.session_state.show_hold_dialog = False
+
+if 'show_cancel_dialog' not in st.session_state:
+    st.session_state.show_cancel_dialog = False
+
+if 'show_void_dialog' not in st.session_state:
+    st.session_state.show_void_dialog = False
+
 # ============================================
 # HELPER FUNCTIONS
 # ============================================
@@ -192,6 +203,150 @@ def get_project_by_id(project_id):
     """Get a specific project by ID"""
     projects = load_projects()
     return next((p for p in projects if p['id'] == project_id), None)
+
+def render_project_status_banner(project):
+    """Render status banner for non-active projects"""
+    status = project.get('status')
+    reason = project.get('status_reason', '')
+    
+    if status == 'on_hold':
+        st.warning(f"⏸️ Project On Hold - {reason}")
+    elif status == 'cancelled':
+        st.error(f"❌ Project Cancelled - {reason}")
+    elif status == 'voided':
+        st.info(f"🚫 Project Voided - {reason}")
+
+def render_project_action_buttons(project):
+    """Render action buttons for project status changes"""
+    current_status = project.get('status')
+    project_id = project['id']
+    
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    
+    # Put on Hold button - only for active projects
+    if current_status == 'active':
+        with col1:
+            if st.button("⏸️ Put on Hold", key="put_on_hold_btn", use_container_width=True):
+                st.session_state.show_hold_dialog = True
+    
+    # Cancel Project button - for active or on_hold projects
+    if current_status in ['active', 'on_hold']:
+        with col2:
+            if st.button("❌ Cancel Project", key="cancel_project_btn", use_container_width=True):
+                st.session_state.show_cancel_dialog = True
+    
+    # Void Project button - always available for invalid projects
+    with col3:
+        if st.button("🚫 Void Project", key="void_project_btn", use_container_width=True):
+            st.session_state.show_void_dialog = True
+    
+    # Handle dialogs
+    if hasattr(st.session_state, 'show_hold_dialog') and st.session_state.show_hold_dialog:
+        render_hold_dialog(project)
+    
+    if hasattr(st.session_state, 'show_cancel_dialog') and st.session_state.show_cancel_dialog:
+        render_cancel_dialog(project)
+    
+    if hasattr(st.session_state, 'show_void_dialog') and st.session_state.show_void_dialog:
+        render_void_dialog(project)
+
+def render_hold_dialog(project):
+    """Render Put on Hold confirmation dialog"""
+    with st.form("hold_form"):
+        st.markdown("### ⏸️ Put Project on Hold")
+        st.markdown(f"**Project:** {project.get('name')}")
+        
+        reason = st.text_area("Reason for putting on hold *", placeholder="Why is this project being put on hold?")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.form_submit_button("⏸️ Put on Hold", type="primary"):
+                if reason.strip():
+                    # Update project status
+                    update_data = {
+                        'status': 'on_hold',
+                        'status_reason': reason.strip()
+                    }
+                    success, error = db_update_project(project['id'], update_data)
+                    if success:
+                        st.success("✅ Project put on hold successfully!")
+                        st.session_state.show_hold_dialog = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to update project: {error}")
+                else:
+                    st.error("❌ Please provide a reason")
+        
+        with col2:
+            if st.form_submit_button("Cancel"):
+                st.session_state.show_hold_dialog = False
+                st.rerun()
+
+def render_cancel_dialog(project):
+    """Render Cancel Project confirmation dialog"""
+    with st.form("cancel_form"):
+        st.markdown("### ❌ Cancel Project")
+        st.markdown(f"**Project:** {project.get('name')}")
+        st.warning("⚠️ This action will cancel the project. Are you sure?")
+        
+        reason = st.text_area("Reason for cancellation *", placeholder="Why is this project being cancelled?")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.form_submit_button("❌ Cancel Project", type="primary"):
+                if reason.strip():
+                    # Update project status
+                    update_data = {
+                        'status': 'cancelled',
+                        'status_reason': reason.strip()
+                    }
+                    success, error = db_update_project(project['id'], update_data)
+                    if success:
+                        st.success("✅ Project cancelled successfully!")
+                        st.session_state.show_cancel_dialog = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to update project: {error}")
+                else:
+                    st.error("❌ Please provide a reason")
+        
+        with col2:
+            if st.form_submit_button("Cancel"):
+                st.session_state.show_cancel_dialog = False
+                st.rerun()
+
+def render_void_dialog(project):
+    """Render Void Project confirmation dialog"""
+    with st.form("void_form"):
+        st.markdown("### 🚫 Void Project")
+        st.markdown(f"**Project:** {project.get('name')}")
+        st.warning("⚠️ This action will mark the project as invalid/voided. Are you sure?")
+        
+        reason = st.text_area("Reason for voiding *", placeholder="Why is this project being voided?")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.form_submit_button("🚫 Void Project", type="primary"):
+                if reason.strip():
+                    # Update project status
+                    update_data = {
+                        'status': 'voided',
+                        'status_reason': reason.strip()
+                    }
+                    success, error = db_update_project(project['id'], update_data)
+                    if success:
+                        st.success("✅ Project voided successfully!")
+                        st.session_state.show_void_dialog = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Failed to update project: {error}")
+                else:
+                    st.error("❌ Please provide a reason")
+        
+        with col2:
+            if st.form_submit_button("Cancel"):
+                st.session_state.show_void_dialog = False
+                st.rerun()
 
 # ============================================
 # NEW PROJECT FORM
@@ -360,7 +515,16 @@ def render_project_detail():
             st.session_state.projects_view = "list"
             st.rerun()
     
+    # Show status banner for non-active projects
+    render_project_status_banner(project)
+    
     st.markdown("---")
+    
+    # Action buttons for status changes
+    if project['status'] in ['active', 'on_hold']:
+        st.markdown("### 🎛️ Project Actions")
+        render_project_action_buttons(project)
+        st.markdown("---")
     
     # Financial summary dashboard
     project_value = project.get('project_value', 0)
