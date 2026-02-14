@@ -929,6 +929,94 @@ Support@MetroPointTech.com | (239) 600-8159
 - **Remaining Value:** ${remaining_value:,.2f}
             """)
 
+    # Stop Project Modal
+    if st.session_state.get('show_stop_modal', False):
+        with st.container():
+            st.markdown("---")
+            st.subheader("\u23f8\ufe0f Stop Project")
+            st.warning("This will put the project on hold. You can resume it later.")
+            
+            with st.form("stop_project_form"):
+                stop_reason = st.text_area(
+                    "Reason for stopping *",
+                    placeholder="e.g., Client requested pause, waiting for approvals, resource constraints..."
+                )
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.form_submit_button("Stop Project", type="secondary", use_container_width=True):
+                        if stop_reason:
+                            success, error = db_change_project_status(
+                                project_id=project['id'],
+                                new_status='on-hold',
+                                reason=stop_reason,
+                                changed_by='Metro Bot'
+                            )
+                            if success:
+                                project['status'] = 'on-hold'
+                                project['status_reason'] = stop_reason
+                                db_notify_mission_control_project_status(
+                                    project['id'], project['name'], 'on-hold', stop_reason
+                                )
+                                st.session_state.show_stop_modal = False
+                                st.success("Project stopped successfully!")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to stop project: {error}")
+                        else:
+                            st.error("Please provide a reason for stopping the project.")
+                
+                with col2:
+                    if st.form_submit_button("Cancel", use_container_width=True):
+                        st.session_state.show_stop_modal = False
+                        st.rerun()
+    
+    # Void Project Modal
+    if st.session_state.get('show_void_modal', False):
+        with st.container():
+            st.markdown("---")
+            st.subheader("\u274c Void Project")
+            st.error("**Warning:** This will cancel the project permanently. This action cannot be undone!")
+            
+            with st.form("void_project_form"):
+                void_reason = st.text_area(
+                    "Reason for voiding *",
+                    placeholder="e.g., Client cancelled contract, project requirements changed, budget issues..."
+                )
+                
+                confirm_void = st.checkbox("I understand this action cannot be undone")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.form_submit_button("Void Project", type="secondary", use_container_width=True):
+                        if void_reason and confirm_void:
+                            success, error = db_change_project_status(
+                                project_id=project['id'],
+                                new_status='voided',
+                                reason=void_reason,
+                                changed_by='Metro Bot'
+                            )
+                            if success:
+                                project['status'] = 'voided'
+                                project['status_reason'] = void_reason
+                                db_notify_mission_control_project_status(
+                                    project['id'], project['name'], 'voided', void_reason
+                                )
+                                st.session_state.show_void_modal = False
+                                st.error("Project voided permanently.")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to void project: {error}")
+                        elif not void_reason:
+                            st.error("Please provide a reason for voiding the project.")
+                        elif not confirm_void:
+                            st.error("Please confirm you understand this action cannot be undone.")
+                
+                with col2:
+                    if st.form_submit_button("Cancel", use_container_width=True):
+                        st.session_state.show_void_modal = False
+                        st.rerun()
+
 
 # ============================================
 # MAIN PAGE
