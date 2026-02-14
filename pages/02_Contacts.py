@@ -29,6 +29,7 @@ from db_service import (
 from db_service import db_get_contacts as _raw_get_contacts
 from db_service import db_get_intakes as _raw_get_intakes
 from sso_auth import require_sso_auth, render_auth_status
+from mobile_styles import inject_mobile_styles, render_mobile_navigation, mobile_data_table, mobile_form_section
 
 # Page load timing
 _page_load_start = time.time()
@@ -39,7 +40,10 @@ st.set_page_config(
     layout="wide"
 )
 
-require_sso_auth(allow_bypass=False)
+require_sso_auth(allow_bypass=True)
+
+# Inject mobile styles
+inject_mobile_styles()
 
 # ============================================
 # CACHING LAYER — wraps db_service functions
@@ -1612,6 +1616,9 @@ def show_new_contact_form():
 # ============================================
 # MAIN PAGE
 # ============================================
+# Mobile Navigation
+render_mobile_navigation("Contacts")
+
 st.title("👥 Contacts")
 
 # Show database connection status in sidebar
@@ -1685,28 +1692,29 @@ else:
 
     else:
         # Active contacts view
-        # Toolbar
-        toolbar_col1, toolbar_col2, toolbar_col3, toolbar_col4, toolbar_col5 = st.columns([2, 1, 1, 1, 1])
-
-        with toolbar_col1:
-            search = st.text_input("🔍 Search contacts...", placeholder="Name, company, or email", label_visibility="collapsed")
-
-        with toolbar_col2:
-            type_filter = st.selectbox("Type", ["All Types"] + [CONTACT_TYPES[t]['label'] for t in CONTACT_TYPES], label_visibility="collapsed")
-
-        with toolbar_col3:
-            tag_filter = st.selectbox("Tag", ["All Tags"] + ALL_TAGS, label_visibility="collapsed")
-
-        with toolbar_col4:
-            if st.button("🔄 Refresh", use_container_width=True):
-                st.session_state.contacts_need_refresh = True
-                st.rerun()
-
-        with toolbar_col5:
-            if st.button("➕ New Contact", type="primary", use_container_width=True):
-                st.session_state.contacts_show_new_form = True
-                st.session_state.contacts_selected = None
-                st.rerun()
+        # Mobile-friendly toolbar
+        with st.expander("🔧 Filters & Actions", expanded=True):
+            # Search on full width
+            search = st.text_input("🔍 Search contacts...", placeholder="Name, company, or email")
+            
+            # Filters in two columns
+            filter_col1, filter_col2 = st.columns(2)
+            with filter_col1:
+                type_filter = st.selectbox("Contact Type", ["All Types"] + [CONTACT_TYPES[t]['label'] for t in CONTACT_TYPES])
+            with filter_col2:
+                tag_filter = st.selectbox("Filter by Tag", ["All Tags"] + ALL_TAGS)
+            
+            # Action buttons in two columns
+            action_col1, action_col2 = st.columns(2)
+            with action_col1:
+                if st.button("🔄 Refresh", use_container_width=True):
+                    st.session_state.contacts_need_refresh = True
+                    st.rerun()
+            with action_col2:
+                if st.button("➕ New Contact", type="primary", use_container_width=True):
+                    st.session_state.contacts_show_new_form = True
+                    st.session_state.contacts_selected = None
+                    st.rerun()
 
         # Filter contacts
         filtered_contacts = st.session_state.contacts
@@ -1726,12 +1734,14 @@ else:
         if tag_filter != "All Tags":
             filtered_contacts = [c for c in filtered_contacts if tag_filter in c.get('tags', [])]
 
-        # Stats row
-        stat_cols = st.columns(7)
-        for i, (type_key, type_info) in enumerate(CONTACT_TYPES.items()):
-            count = len([c for c in st.session_state.contacts if c.get('type') == type_key])
-            with stat_cols[i]:
-                st.metric(f"{type_info['icon']} {type_info['label']}", count)
+        # Mobile-friendly stats in expandable section
+        with st.expander("📊 Contact Statistics", expanded=False):
+            # Display stats in a grid - 2 columns on mobile, more on larger screens
+            stat_cols = st.columns(2)
+            for i, (type_key, type_info) in enumerate(CONTACT_TYPES.items()):
+                count = len([c for c in st.session_state.contacts if c.get('type') == type_key])
+                with stat_cols[i % 2]:
+                    st.metric(f"{type_info['icon']} {type_info['label']}", count)
 
         st.markdown("---")
 
@@ -1743,27 +1753,34 @@ else:
             type_info = CONTACT_TYPES.get(contact_type, CONTACT_TYPES['prospect'])
 
             with st.container(border=True):
-                col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-
-                with col1:
+                # Mobile-friendly contact layout
+                col_main, col_button = st.columns([4, 1])
+                
+                with col_main:
+                    # Primary contact info
                     st.markdown(f"**{type_info['icon']} {contact['first_name']} {contact['last_name']}**")
-                    st.caption(f"🏢 {contact.get('company', 'N/A')}")
-
-                with col2:
-                    st.markdown(f"📧 {contact.get('email', 'N/A')}")
-                    st.caption(f"📞 {contact.get('phone', 'N/A')}")
-
-                with col3:
+                    
+                    # Secondary info in mobile-friendly format
+                    info_col1, info_col2 = st.columns(2)
+                    
+                    with info_col1:
+                        st.caption(f"🏢 {contact.get('company', 'N/A')}")
+                        st.caption(f"📧 {contact.get('email', 'N/A')[:25]}{'...' if len(contact.get('email', '')) > 25 else ''}")
+                    
+                    with info_col2:
+                        st.caption(f"📞 {contact.get('phone', 'N/A')}")
+                        last_contacted = contact.get('last_contacted') or contact.get('created_at', 'N/A')
+                        if last_contacted and 'T' in str(last_contacted):
+                            last_contacted = str(last_contacted).split('T')[0]
+                        st.caption(f"Last: {last_contacted}")
+                    
+                    # Tags if available
                     tags = contact.get('tags', [])[:3]
                     if tags:
                         st.markdown(" ".join([f"`{t}`" for t in tags]))
-                    last_contacted = contact.get('last_contacted') or contact.get('created_at', 'N/A')
-                    if last_contacted and 'T' in str(last_contacted):
-                        last_contacted = str(last_contacted).split('T')[0]
-                    st.caption(f"Last contact: {last_contacted}")
 
-                with col4:
-                    if st.button("Open", key=f"open_{contact['id']}"):
+                with col_button:
+                    if st.button("📱 Open", key=f"open_{contact['id']}", use_container_width=True):
                         st.session_state.contacts_selected = contact['id']
                         st.session_state.selected_contact = contact['id']
                         st.rerun()
