@@ -24,7 +24,7 @@ from db_service import (
     db_get_project_contacts, db_add_project_contact, db_remove_project_contact,
     db_get_project_files, db_add_project_file, db_delete_project_file,
     db_get_won_deals, db_get_companies_with_won_deals, db_check_deal_project_link,
-    db_update_project_hours
+    db_update_project_hours, db_change_project_status
 )
 from cross_system_service import get_accounting_service, render_project_financials
 from mission_control_service import (
@@ -262,12 +262,8 @@ def render_hold_dialog(project):
         with col1:
             if st.form_submit_button("⏸️ Put on Hold", type="primary"):
                 if reason.strip():
-                    # Update project status
-                    update_data = {
-                        'status': 'on_hold',
-                        'status_reason': reason.strip()
-                    }
-                    success, error = db_update_project(project['id'], update_data)
+                    # Update project status using proper status change function
+                    success, error = db_change_project_status(project['id'], 'on_hold', reason.strip())
                     if success:
                         st.success("✅ Project put on hold successfully!")
                         st.session_state.show_hold_dialog = False
@@ -295,12 +291,8 @@ def render_cancel_dialog(project):
         with col1:
             if st.form_submit_button("❌ Cancel Project", type="primary"):
                 if reason.strip():
-                    # Update project status
-                    update_data = {
-                        'status': 'cancelled',
-                        'status_reason': reason.strip()
-                    }
-                    success, error = db_update_project(project['id'], update_data)
+                    # Update project status using proper status change function
+                    success, error = db_change_project_status(project['id'], 'cancelled', reason.strip())
                     if success:
                         st.success("✅ Project cancelled successfully!")
                         st.session_state.show_cancel_dialog = False
@@ -328,12 +320,8 @@ def render_void_dialog(project):
         with col1:
             if st.form_submit_button("🚫 Void Project", type="primary"):
                 if reason.strip():
-                    # Update project status
-                    update_data = {
-                        'status': 'voided',
-                        'status_reason': reason.strip()
-                    }
-                    success, error = db_update_project(project['id'], update_data)
+                    # Update project status using proper status change function
+                    success, error = db_change_project_status(project['id'], 'voided', reason.strip())
                     if success:
                         st.success("✅ Project voided successfully!")
                         st.session_state.show_void_dialog = False
