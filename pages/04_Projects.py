@@ -537,9 +537,15 @@ def show_project_detail(project_id):
                 st.warning(status_msg)
         # Clean up debug info if present
         st.session_state.pop('last_update_debug', None)
+        
+        # Check if project is read-only (voided)
+        is_read_only = project['status'] == 'voided'
+        
+        if is_read_only:
+            st.info("🚫 This project is voided and cannot be edited.")
 
-        new_name = st.text_input("Project Name", project['name'], key="edit_proj_name")
-        new_desc = st.text_area("Description", project.get('description', ''), height=100, key="edit_proj_desc")
+        new_name = st.text_input("Project Name", project['name'], key="edit_proj_name", disabled=is_read_only)
+        new_desc = st.text_area("Description", project.get('description', ''), height=100, key="edit_proj_desc", disabled=is_read_only)
 
         date_col1, date_col2 = st.columns(2)
         with date_col1:
@@ -547,14 +553,16 @@ def show_project_detail(project_id):
             new_start = st.date_input(
                 "Start Date",
                 value=datetime.strptime(start, "%Y-%m-%d").date() if start else None,
-                key="edit_start"
+                key="edit_start",
+                disabled=is_read_only
             )
         with date_col2:
             end = project.get('target_end_date')
             new_end = st.date_input(
                 "Target End Date",
                 value=datetime.strptime(end, "%Y-%m-%d").date() if end else None,
-                key="edit_end"
+                key="edit_end",
+                disabled=is_read_only
             )
 
         # Pricing fields
@@ -565,14 +573,16 @@ def show_project_detail(project_id):
                 "Hourly Rate ($)",
                 min_value=0.0, step=25.0,
                 value=float(project.get('hourly_rate', DEFAULT_HOURLY_RATE)),
-                key="edit_rate"
+                key="edit_rate",
+                disabled=is_read_only
             )
         with price_col2:
             new_est_hours = st.number_input(
                 "Estimated Hours",
                 min_value=0.0, step=10.0,
                 value=float(project.get('estimated_hours', 0) or 0),
-                key="edit_est_hours"
+                key="edit_est_hours",
+                disabled=is_read_only
             )
 
         # Show calculated value
@@ -580,7 +590,7 @@ def show_project_detail(project_id):
         st.markdown(f"**Project Value:** ${new_value:,.2f}")
 
         # Save changes button
-        if st.button("\U0001f4be Save Changes", type="primary"):
+        if st.button("\U0001f4be Save Changes", type="primary", disabled=is_read_only):
             project['name'] = new_name
             project['description'] = new_desc
             project['hourly_rate'] = new_rate
@@ -811,9 +821,9 @@ def show_project_detail(project_id):
         status_options = list(PROJECT_STATUS.keys())
         status_labels = [f"{PROJECT_STATUS[s]['icon']} {PROJECT_STATUS[s]['label']}" for s in status_options]
         current_idx = status_options.index(project['status']) if project['status'] in status_options else 0
-        new_status_label = st.selectbox("Status", status_labels, index=current_idx, key="edit_status")
+        new_status_label = st.selectbox("Status", status_labels, index=current_idx, key="edit_status", disabled=is_read_only)
         new_status = status_options[status_labels.index(new_status_label)]
-        if new_status != project['status']:
+        if new_status != project['status'] and not is_read_only:
             project['status'] = new_status
             if db_is_connected():
                 db_update_project(project['id'], {'status': new_status})  # Ignore result for quick status change
@@ -824,9 +834,9 @@ def show_project_detail(project_id):
         type_options = list(PROJECT_TYPES.keys())
         type_labels = [f"{PROJECT_TYPES[t]['icon']} {PROJECT_TYPES[t]['label']}" for t in type_options]
         current_type_idx = type_options.index(project.get('project_type', 'project')) if project.get('project_type', 'project') in type_options else 0
-        new_type_label = st.selectbox("Project Type", type_labels, index=current_type_idx, key="edit_type")
+        new_type_label = st.selectbox("Project Type", type_labels, index=current_type_idx, key="edit_type", disabled=is_read_only)
         new_type = type_options[type_labels.index(new_type_label)]
-        if new_type != project.get('project_type'):
+        if new_type != project.get('project_type') and not is_read_only:
             project['project_type'] = new_type
 
         # Quick financial summary
