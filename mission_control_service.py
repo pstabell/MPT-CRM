@@ -229,6 +229,97 @@ class MissionControlService:
         
         return self._make_request("tasks", "POST", task_data)
 
+    def create_task_from_crm_item(self, item_data: Dict[str, Any], item_type: str) -> Optional[dict]:
+        """
+        Create a new Mission Control task from a CRM billable item (change order or service ticket).
+        
+        Args:
+            item_data: Dictionary with item info (title, description, project_id, etc.)
+            item_type: Type of item ("change_order", "service", "maintenance")
+            
+        Returns:
+            Created task record if successful
+        """
+        # Map item type to Mission Control categories
+        type_mapping = {
+            'change_order': 'change-request',
+            'service': 'support', 
+            'maintenance': 'maintenance'
+        }
+        
+        category = type_mapping.get(item_type, 'task')
+        priority = 'high' if item_type == 'change_order' else 'medium'
+        track = 'development' if item_type == 'change_order' else 'operations'
+        
+        # Get project info to build client context
+        project_name = ""
+        if item_data.get('project_id'):
+            # Try to get project name from database
+            try:
+                from db_service import db_get_project
+                project = db_get_project(item_data['project_id'])
+                if project:
+                    project_name = f" - {project.get('name', '')}"
+            except:
+                pass
+        
+        # Build title with appropriate badge
+        title = item_data.get('title', 'Unnamed Item')
+        ticket_id = item_data.get('id', 'UNKNOWN')
+        
+        if item_type == 'change_order':
+            badge_title = f"[CO-{ticket_id[:8]}] {title}"
+        elif item_type == 'service':
+            badge_title = f"[TICKET-{ticket_id[:8]}] {title}" 
+        elif item_type == 'maintenance':
+            badge_title = f"[MAINT-{ticket_id[:8]}] {title}"
+        else:
+            badge_title = f"[{item_type.upper()}-{ticket_id[:8]}] {title}"
+        
+        task_data = {
+            "title": badge_title + project_name,
+            "description": item_data.get('description', ''),
+            "priority": priority,
+            "status": "backlog",
+            "category": category,
+            "track": track,
+            "type": item_type,
+            "ticketId": str(ticket_id),
+            "clientId": item_data.get('client_id', 'client_001'),  # Default client
+            "projectId": item_data.get('project_id'),
+            "estimatedHours": item_data.get('estimated_hours', 0),
+            "tags": [f"crm:{item_type}", f"ticket:{ticket_id}"]
+        }
+        
+        # Use the /api/tasks/from-crm endpoint which handles badge generation
+        return self._make_request("tasks/from-crm", "POST", task_data)
+
+
+def create_mission_control_card(item_data: Dict[str, Any], item_type: str) -> Optional[str]:
+    """
+    Create Mission Control card for a CRM billable item.
+    Called by db_service when creating change orders or service tickets.
+    
+    Args:
+        item_data: The created CRM item (change order or service ticket)
+        item_type: 'change_order', 'service', or 'maintenance'
+        
+    Returns:
+        Mission Control task ID if successful, None otherwise
+    """
+    try:
+        service = get_mission_control_service()
+        result = service.create_task_from_crm_item(item_data, item_type)
+        
+        if result and result.get('task', {}).get('id'):
+            return result['task']['id']
+        
+        return None
+        
+    except Exception as e:
+        print(f"[mission_control_service] Error creating MC card: {e}")
+        return None
+
 
 # Singleton instance
 _mc_service: Optional[MissionControlService] = None
