@@ -623,30 +623,38 @@ def show_project_detail(project_id):
         if not project_entries:
             project_entries = [e for e in st.session_state.proj_time_entries if e.get('project_id') == project_id]
 
-        # Add new time entry
-        with st.expander("\u2795 Log Time"):
-            entry_col1, entry_col2 = st.columns(2)
-            with entry_col1:
-                new_entry_date = st.date_input("Date", value=date.today(), key="new_entry_date")
-                new_entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, step=0.5, key="new_entry_hours")
-            with entry_col2:
-                new_entry_desc = st.text_input("Description", key="new_entry_desc")
-                new_entry_billable = st.checkbox("Billable", value=True, key="new_entry_billable")
+        # Add new time entry (only if project allows time logging)
+        can_log_time = db_can_log_time_to_project(project_id)
+        
+        if not can_log_time and project['status'] in ('on-hold', 'voided'):
+            st.warning(f"⚠️ Time logging is disabled for {project['status']} projects.")
+        
+        with st.expander("\u2795 Log Time", expanded=can_log_time):
+            if not can_log_time:
+                st.error("Cannot log time to stopped or voided projects.")
+            else:
+                entry_col1, entry_col2 = st.columns(2)
+                with entry_col1:
+                    new_entry_date = st.date_input("Date", value=date.today(), key="new_entry_date")
+                    new_entry_hours = st.number_input("Hours", min_value=0.0, max_value=24.0, step=0.5, key="new_entry_hours")
+                with entry_col2:
+                    new_entry_desc = st.text_input("Description", key="new_entry_desc")
+                    new_entry_billable = st.checkbox("Billable", value=True, key="new_entry_billable")
 
-            if st.button("Add Time Entry", type="primary"):
-                if new_entry_hours > 0 and new_entry_desc:
-                    new_entry = {
-                        "id": f"te-{len(st.session_state.proj_time_entries) + 1}",
-                        "project_id": project_id,
-                        "date": new_entry_date.strftime("%Y-%m-%d"),
-                        "hours": new_entry_hours,
-                        "description": new_entry_desc,
-                        "billable": new_entry_billable
-                    }
-                    st.session_state.proj_time_entries.append(new_entry)
-                    project['hours_logged'] = (project.get('hours_logged', 0) or 0) + new_entry_hours
-                    st.success("Time entry added!")
-                    st.rerun()
+                if st.button("Add Time Entry", type="primary", disabled=not can_log_time):
+                    if new_entry_hours > 0 and new_entry_desc:
+                        new_entry = {
+                            "id": f"te-{len(st.session_state.proj_time_entries) + 1}",
+                            "project_id": project_id,
+                            "date": new_entry_date.strftime("%Y-%m-%d"),
+                            "hours": new_entry_hours,
+                            "description": new_entry_desc,
+                            "billable": new_entry_billable
+                        }
+                        st.session_state.proj_time_entries.append(new_entry)
+                        project['hours_logged'] = (project.get('hours_logged', 0) or 0) + new_entry_hours
+                        st.success("Time entry added!")
+                        st.rerun()
 
         # Display time entries
         if project_entries:
