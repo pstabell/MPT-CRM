@@ -1444,7 +1444,214 @@ Day 30: Re-engagement attempt
 
 ---
 
-## 12. Troubleshooting & Support
+## 12. E-Signature & Contract Generation
+
+### Overview
+MPT-CRM includes a built-in e-signature system for generating, sending, and managing client contracts. This eliminates the need for external services like DocuSign and keeps the entire contract workflow within the CRM.
+
+### Contract Package Structure
+
+Every client contract consists of three components merged into a single PDF:
+
+```
+┌─────────────────────────────────────────────────┐
+│           COMPLETE CLIENT CONTRACT              │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  📄 MUTUAL NON-DISCLOSURE AGREEMENT (NDA)       │
+│     • Confidentiality terms                     │
+│     • Data protection                           │
+│     • Trade secrets                             │
+│                                                 │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  📋 STATEMENT OF WORK (SOW)                     │
+│     • Legal terms & liability                   │
+│     • IP assignment                             │
+│     • Insurance coverage ($3M Professional      │
+│       Liability, Cyber Liability)               │
+│     • Jurisdiction (US/Canada only)             │
+│                                                 │
+│     Exhibit A: [Attached Proposal]              │
+│     ─────────────────────────────               │
+│     • Scope & Deliverables                      │
+│     • Phases & Milestones                       │
+│     • Pricing & Payment Schedule                │
+│     • Timeline                                  │
+│     • Custom Terms                              │
+│                                                 │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  ✍️ SIGNATURES                                  │
+│     Client: ____________  Date: ______          │
+│     MPT:    ____________  Date: ______          │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+**Why This Structure?**
+This mirrors how insurance policies incorporate applications — the proposal (with all project specifics) becomes Exhibit A of the legal contract. One signature covers the entire package.
+
+### Contract Templates
+
+**Template Location:** SharePoint > SALES > CONTRACTS
+
+| Template | Purpose |
+|----------|---------|
+| Mutual Non-Disclosure Agreement (NDA).docx | Confidentiality protection |
+| Statement of Work (SOW) TEMPLATE.docx | Legal terms and service framework |
+
+### Auto-Fill Fields
+
+The system automatically populates contract fields from CRM data:
+
+| Field | Source |
+|-------|--------|
+| Client Company Name | contacts.company or companies.name |
+| Client Contact Name | contacts.first_name + contacts.last_name |
+| Client Email | contacts.email |
+| Project Title | projects.name |
+| Project Description | projects.description |
+| Total Fee | projects.budget |
+| Effective Date | Auto-generated (current date) |
+| MPT Company Info | Pre-filled (Metro Point Technology LLC) |
+
+### Contract Generation Workflow
+
+#### Step 1: Proposal Accepted
+After a client verbally or in writing accepts your proposal:
+1. Ensure proposal document exists with:
+   - Complete scope and deliverables
+   - Phases and milestones
+   - Pricing and payment schedule
+   - Timeline
+   - Any custom terms
+
+#### Step 2: Generate Contract Package
+1. Navigate to the Project or Deal in CRM
+2. Click **"Generate Contract"** button
+3. System merges:
+   - NDA (pages 1-2)
+   - SOW with client info auto-filled (pages 3-4)
+   - Your proposal as Exhibit A (remaining pages)
+4. Preview the complete PDF
+5. Make any manual adjustments if needed
+
+#### Step 3: Send for E-Signature
+1. Click **"Send for Signature"**
+2. Enter signer's email (auto-filled from contact)
+3. Add optional message to signer
+4. Click **"Send"**
+
+The system:
+- Generates a secure one-time signing link (UUID-based)
+- Sends professional email via SendGrid
+- Creates tracking record in esign_documents table
+
+#### Step 4: Client Signs Electronically
+The client receives an email with a signing link:
+1. Client clicks the secure link
+2. Views the complete contract PDF
+3. Draws or types their signature
+4. Clicks "Sign Document"
+
+The system captures:
+- Signature image (PNG)
+- Timestamp (UTC)
+- SHA-256 hash for tamper verification
+- IP address and browser info (audit trail)
+
+#### Step 5: Automatic Filing
+Upon successful signature:
+1. Signed PDF generated with signature overlay
+2. Auto-uploaded to SharePoint: `SALES/{ClientName}/Contracts/Signed/`
+3. Confirmation emails sent to:
+   - Client (with signed PDF attached)
+   - MPT admin (with signed PDF attached)
+4. CRM project updated with "Contract Signed" status
+5. Audit trail saved to database
+
+### E-Signature Legal Compliance
+
+**E-SIGN Act Compliance**
+All electronic signatures captured through MPT-CRM comply with the Electronic Signatures in Global and National Commerce Act (E-SIGN Act):
+
+- ✅ Intent to sign clearly captured
+- ✅ Consent to electronic signature obtained
+- ✅ Association of signature with document (hash verification)
+- ✅ Record retention (SharePoint + database)
+- ✅ Audit trail with timestamps
+
+**Verification Features**
+- SHA-256 hash of original PDF + signature + timestamp
+- Tamper detection (hash mismatch alerts)
+- Complete audit trail in JSON format
+- Certificate of completion available
+
+### Tracking Signed Contracts
+
+**E-Signature Dashboard**
+View all contracts and their status:
+
+| Status | Description |
+|--------|-------------|
+| Pending | Contract generated, not yet sent |
+| Sent | Email sent to signer, awaiting signature |
+| Signed | Signer completed, awaiting processing |
+| Completed | Fully processed and filed |
+| Expired | 30-day signing window passed |
+| Cancelled | Contract voided before signing |
+
+**Document History**
+Each contract maintains a complete history:
+- Creation timestamp
+- Send timestamp
+- View events (when signer opens link)
+- Signature timestamp
+- Filing confirmation
+- All email communications
+
+### SharePoint Integration
+
+**Automatic Folder Structure**
+Signed contracts are filed to SharePoint automatically:
+
+```
+SALES/
+└── {Client Company Name}/
+    └── Contracts/
+        └── Signed/
+            └── {ProjectName}_Contract_Signed_{Date}.pdf
+```
+
+**Access from CRM**
+- Direct link to SharePoint folder on Project detail page
+- Quick access to all client contracts
+- Version history maintained by SharePoint
+
+### Best Practices
+
+**Before Generating Contract**
+- Ensure proposal is complete and final
+- Verify all client contact information
+- Confirm project budget is accurate
+- Review any custom terms needed
+
+**During Signing Process**
+- Monitor for signing completion
+- Follow up if not signed within 48 hours
+- Be available for signer questions
+- Check spam folders if client reports missing email
+
+**After Signature**
+- Verify filing to SharePoint
+- Confirm receipt of signed copy
+- Update project status in CRM
+- Begin project onboarding sequence
+
+---
+
+## 13. Troubleshooting & Support
 
 ### Common Issues
 
@@ -1487,8 +1694,10 @@ Day 30: Re-engagement attempt
 
 ## Changelog
 
+- **2026-02-15**: **E-Signature & Contract Generation** - Added complete documentation for the built-in e-signature system including contract package structure (NDA + SOW + Proposal), auto-fill fields, generation workflow, legal compliance (E-SIGN Act), SharePoint auto-filing, and tracking features. This workflow is the official standard for all MPT client contracts.
+
 - **2026-02-13**: **Initial User Manual** - Complete CRM documentation including all modules, workflows, and user guidance. Covers Dashboard, Contacts, Companies, Projects, Pipeline, Service, Change Orders, Marketing, Reports with comprehensive workflow documentation for Lead→Customer journey, Service→Resolution→Invoice, Change Order approval, and Drip campaign enrollment processes.
 
 ---
 
-*Last updated: 2026-02-13*
+*Last updated: 2026-02-15*
