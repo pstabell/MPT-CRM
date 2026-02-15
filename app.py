@@ -67,6 +67,7 @@ PAGE_CONFIG = {
     "Tasks": {"icon": "✅", "path": "pages/05_Tasks.py"},
     "Time & Billing": {"icon": "💰", "path": "pages/06_Time_Billing.py"},
     "Marketing": {"icon": "📧", "path": "pages/07_Marketing.py"},
+    "E-Signature": {"icon": "📝", "path": "pages/12_ESignature.py"},
     "Reports": {"icon": "📊", "path": "pages/08_Reports.py"},
     "Settings": {"icon": "⚙️", "path": "pages/09_Settings.py"},
     "Help": {"icon": "❓", "path": "pages/11_Help.py"},

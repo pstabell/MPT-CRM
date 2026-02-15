@@ -3106,3 +3106,131 @@ def db_delete_change_order(change_order_id):
 def db_get_project_change_orders(project_id):
     """Get all change orders for a specific project"""
     return db_get_change_orders(project_id=project_id)
+
+
+# =============================================================================
+# 15. E-SIGNATURE DOCUMENTS
+# =============================================================================
+
+def db_create_esign_document(title, pdf_path, signer_email, signer_name, created_by, client_name=None, project_id=None):
+    """Create a new e-signature document request"""
+    try:
+        import uuid
+        from datetime import datetime
+        
+        document = {
+            "id": str(uuid.uuid4()),
+            "title": title,
+            "pdf_path": pdf_path,
+            "signer_email": signer_email,
+            "signer_name": signer_name,
+            "client_name": client_name,
+            "project_id": project_id,
+            "created_by": created_by,
+            "status": "pending", # pending, sent, signed, completed, expired
+            "signing_token": str(uuid.uuid4()),
+            "created_at": datetime.now().isoformat(),
+            "sent_at": None,
+            "signed_at": None,
+            "signed_pdf_path": None,
+            "signature_hash": None,
+            "audit_trail": []
+        }
+        
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would create esign document:", document)
+            return document
+            
+        result = supabase.table("esign_documents").insert(document).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error creating esign document: {e}")
+        return None
+
+def db_get_esign_document(document_id=None, signing_token=None):
+    """Get an e-signature document by ID or signing token"""
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would get esign document")
+            return None
+            
+        if document_id:
+            result = supabase.table("esign_documents").select("*").eq("id", document_id).execute()
+        elif signing_token:
+            result = supabase.table("esign_documents").select("*").eq("signing_token", signing_token).execute()
+        else:
+            return None
+            
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error getting esign document: {e}")
+        return None
+
+def db_get_esign_documents(status=None, created_by=None, limit=50):
+    """Get e-signature documents with optional filters"""
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would get esign documents")
+            return []
+            
+        query = supabase.table("esign_documents").select("*")
+        
+        if status:
+            query = query.eq("status", status)
+        if created_by:
+            query = query.eq("created_by", created_by)
+            
+        query = query.order("created_at", desc=True).limit(limit)
+        result = query.execute()
+        
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting esign documents: {e}")
+        return []
+
+def db_update_esign_document(document_id, updates):
+    """Update an e-signature document"""
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would update esign document:", updates)
+            return True
+            
+        # Add timestamp for status changes
+        if "status" in updates:
+            if updates["status"] == "sent":
+                updates["sent_at"] = datetime.now().isoformat()
+            elif updates["status"] == "signed":
+                updates["signed_at"] = datetime.now().isoformat()
+        
+        result = supabase.table("esign_documents").update(updates).eq("id", document_id).execute()
+        return bool(result.data)
+    except Exception as e:
+        print(f"Error updating esign document: {e}")
+        return False
+
+def db_add_esign_audit_entry(document_id, action, details, user_email=None):
+    """Add an audit trail entry to an e-signature document"""
+    try:
+        if not SUPABASE_AVAILABLE:
+            print(f"⚠️  Supabase not available - would add audit entry: {action}")
+            return True
+        
+        # Get current document to update audit trail
+        doc = db_get_esign_document(document_id)
+        if not doc:
+            return False
+            
+        audit_trail = doc.get("audit_trail", [])
+        audit_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "details": details,
+            "user_email": user_email,
+            "ip_address": None  # Could be added later
+        }
+        audit_trail.append(audit_entry)
+        
+        return db_update_esign_document(document_id, {"audit_trail": audit_trail})
+    except Exception as e:
+        print(f"Error adding audit entry: {e}")
+        return False
