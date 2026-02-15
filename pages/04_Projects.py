@@ -15,6 +15,7 @@ Complete implementation with all required features:
 import streamlit as st
 from datetime import datetime, date, timedelta
 import uuid
+import os
 from decimal import Decimal
 
 # Import all service layers
@@ -221,26 +222,35 @@ def render_project_action_buttons(project):
     current_status = project.get('status')
     project_id = project['id']
     
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1])
+    
+    # Generate Contract button - for active projects
+    if current_status == 'active':
+        with col1:
+            if st.button("📝 Generate Contract", key="generate_contract_btn", use_container_width=True, type="primary"):
+                st.session_state.show_contract_generation = True
     
     # Put on Hold button - only for active projects
     if current_status == 'active':
-        with col1:
+        with col2:
             if st.button("⏸️ Put on Hold", key="put_on_hold_btn", use_container_width=True):
                 st.session_state.show_hold_dialog = True
     
     # Cancel Project button - for active or on_hold projects
     if current_status in ['active', 'on_hold']:
-        with col2:
+        with col3:
             if st.button("❌ Cancel Project", key="cancel_project_btn", use_container_width=True):
                 st.session_state.show_cancel_dialog = True
     
     # Void Project button - always available for invalid projects
-    with col3:
+    with col4:
         if st.button("🚫 Void Project", key="void_project_btn", use_container_width=True):
             st.session_state.show_void_dialog = True
     
     # Handle dialogs
+    if hasattr(st.session_state, 'show_contract_generation') and st.session_state.show_contract_generation:
+        render_contract_generation_dialog(project)
+    
     if hasattr(st.session_state, 'show_hold_dialog') and st.session_state.show_hold_dialog:
         render_hold_dialog(project)
     
@@ -335,6 +345,206 @@ def render_void_dialog(project):
             if st.form_submit_button("Cancel"):
                 st.session_state.show_void_dialog = False
                 st.rerun()
+
+def render_contract_generation_dialog(project):
+    """Render Contract Generation dialog"""
+    from contract_generation_service import generate_contract
+    from db_service import db_get_contacts, db_create_esign_document
+    
+    with st.form("contract_generation_form"):
+        st.markdown("### 📝 Generate Contract")
+        st.markdown(f"**Project:** {project.get('name')}")
+        st.markdown(f"**Client:** {project.get('client_name', 'Unknown Client')}")
+        st.info("This will generate a contract package with NDA + SOW + Proposal merged into a single PDF")
+        
+        # Get client contact details for auto-fill
+        client_contacts = []
+        if project.get('client_id'):
+            all_contacts = db_get_contacts() if db_is_connected() else []
+            client_contacts = [c for c in all_contacts if c.get('company') == project.get('client_name')]
+        
+        # Contact selection
+        if client_contacts:
+            contact_options = [f"{c.get('first_name', '')} {c.get('last_name', '')} - {c.get('email', '')}" for c in client_contacts]
+            selected_contact_idx = st.selectbox("Select Primary Contact", range(len(contact_options)), 
+                                               format_func=lambda x: contact_options[x])
+            selected_contact = client_contacts[selected_contact_idx]
+        else:
+            st.warning("⚠️ No contacts found for this client. Contract will use project data only.")
+            selected_contact = None
+        
+        # Contract details
+        contract_title = st.text_input("Contract Title", value=f"Contract - {project.get('name')}")
+        
+        # Show what will be auto-filled
+        st.markdown("#### 📋 Auto-Fill Preview")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown(f"**Client:** {project.get('client_name', '[Client Name]')}")
+            st.markdown(f"**Project:** {project.get('name', '[Project Title]')}")
+            st.markdown(f"**Budget:** ${project.get('budget', 0):,.2f}")
+        
+        with col2:
+            if selected_contact:
+                contact_name = f"{selected_contact.get('first_name', '')} {selected_contact.get('last_name', '')}"
+                st.markdown(f"**Contact:** {contact_name}")
+                st.markdown(f"**Email:** {selected_contact.get('email', '[Contact Email]')}")
+            else:
+                st.markdown("**Contact:** [Manual entry required]")
+                st.markdown("**Email:** [Manual entry required]")
+            st.markdown(f"**Date:** {datetime.now().strftime('%B %d, %Y')}")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.form_submit_button("📝 Generate Contract", type="primary"):
+                if not contract_title.strip():
+                    st.error("❌ Please enter a contract title")
+                else:
+                    # Prepare project data for contract generation
+                    project_data = {
+                        'id': project.get('id'),
+                        'client_name': project.get('client_name', 'Unknown Client'),
+                        'project_name': project.get('name', 'Unknown Project'),
+                        'budget': project.get('budget', 0),
+                        'deal_id': project.get('deal_id'),
+                        'folder_url': project.get('folder_url')
+                    }
+                    
+                    # Add contact info if available
+                    if selected_contact:
+                        project_data['contact_name'] = f"{selected_contact.get('first_name', '')} {selected_contact.get('last_name', '')}"
+                        project_data['contact_email'] = selected_contact.get('email', '')
+                    else:
+                        project_data['contact_name'] = '[Contact Name]'
+                        project_data['contact_email'] = '[Contact Email]'
+                    
+                    # Generate contract
+                    with st.spinner("🔄 Generating contract..."):
+                        try:
+                            result = generate_contract(project_data)
+                            
+                            if result['success']:
+                                st.success(f"✅ Contract generated successfully!")
+                                st.success(f"📄 {result['page_count']} pages total")
+                                
+                                # Store in session for preview
+                                st.session_state.generated_contract = {
+                                    'pdf_path': result['contract_pdf_path'],
+                                    'title': contract_title,
+                                    'project_id': project.get('id'),
+                                    'client_name': project.get('client_name'),
+                                    'contact_name': project_data.get('contact_name'),
+                                    'contact_email': project_data.get('contact_email'),
+                                    'page_count': result['page_count']
+                                }
+                                
+                                # Close this dialog and show preview
+                                st.session_state.show_contract_generation = False
+                                st.session_state.show_contract_preview = True
+                                st.rerun()
+                                
+                            else:
+                                st.error(f"❌ Contract generation failed: {result['error']}")
+                                
+                        except Exception as e:
+                            st.error(f"❌ Error generating contract: {str(e)}")
+        
+        with col2:
+            if st.form_submit_button("Cancel"):
+                st.session_state.show_contract_generation = False
+                st.rerun()
+
+def render_contract_preview_modal():
+    """Render Contract Preview modal"""
+    from esign_components import render_pdf_viewer
+    from db_service import db_create_esign_document
+    from esign_email_service import send_esign_request_email
+    
+    if 'generated_contract' not in st.session_state:
+        st.error("❌ No contract to preview")
+        st.session_state.show_contract_preview = False
+        st.rerun()
+        return
+    
+    contract_data = st.session_state.generated_contract
+    
+    st.markdown("## 📄 Contract Preview")
+    st.markdown(f"**Title:** {contract_data['title']}")
+    st.markdown(f"**Client:** {contract_data['client_name']}")
+    st.markdown(f"**Pages:** {contract_data['page_count']}")
+    
+    # PDF Preview
+    if os.path.exists(contract_data['pdf_path']):
+        render_pdf_viewer(contract_data['pdf_path'], height=500)
+    else:
+        st.error("❌ Contract PDF file not found")
+    
+    st.markdown("---")
+    
+    # Action buttons
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if st.button("📤 Send for Signature", type="primary", use_container_width=True):
+            # Create e-signature document
+            try:
+                esign_doc = db_create_esign_document(
+                    title=contract_data['title'],
+                    pdf_path=contract_data['pdf_path'],
+                    signer_email=contract_data['contact_email'],
+                    signer_name=contract_data['contact_name'],
+                    created_by=st.session_state.get('auth_user', 'unknown'),
+                    client_name=contract_data['client_name'],
+                    project_id=contract_data['project_id']
+                )
+                
+                if esign_doc:
+                    # Send email
+                    base_url = st.get_option("server.baseUrlPath") or "http://localhost:8501"
+                    email_sent = send_esign_request_email(esign_doc, base_url)
+                    
+                    if email_sent:
+                        st.success("✅ Contract sent for signature successfully!")
+                        st.success(f"📧 Signing request sent to {contract_data['contact_email']}")
+                        
+                        # Update document status
+                        from db_service import db_update_esign_document, db_add_esign_audit_entry
+                        db_update_esign_document(esign_doc['id'], {'status': 'sent'})
+                        db_add_esign_audit_entry(
+                            esign_doc['id'],
+                            "email_sent",
+                            f"Contract sent to {contract_data['contact_email']}",
+                            st.session_state.get('auth_user', 'unknown')
+                        )
+                        
+                        # Clear session and close modal
+                        del st.session_state.generated_contract
+                        st.session_state.show_contract_preview = False
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to send email. Document created but not sent.")
+                else:
+                    st.error("❌ Failed to create e-signature document")
+                    
+            except Exception as e:
+                st.error(f"❌ Error sending for signature: {str(e)}")
+    
+    with col2:
+        if st.button("💾 Save Contract", use_container_width=True):
+            # Save to a permanent location
+            st.info("💡 Contract save functionality coming soon")
+    
+    with col3:
+        if st.button("❌ Close", use_container_width=True):
+            # Clean up and close
+            if 'generated_contract' in st.session_state:
+                del st.session_state.generated_contract
+            st.session_state.show_contract_preview = False
+            st.rerun()
 
 # ============================================
 # NEW PROJECT FORM
@@ -513,6 +723,10 @@ def render_project_detail():
         st.markdown("### 🎛️ Project Actions")
         render_project_action_buttons(project)
         st.markdown("---")
+    
+    # Contract preview modal
+    if hasattr(st.session_state, 'show_contract_preview') and st.session_state.show_contract_preview:
+        render_contract_preview_modal()
     
     # Financial summary dashboard
     project_value = project.get('project_value', 0)

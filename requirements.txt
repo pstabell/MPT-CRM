@@ -31,3 +31,6 @@ PyMuPDF>=1.23.0
 reportlab>=4.0.0
 cryptography>=41.0.0
 uuid
+
+# Contract Generation Dependencies  
+python-docx>=0.8.11
