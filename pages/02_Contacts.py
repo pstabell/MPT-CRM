@@ -1649,9 +1649,6 @@ def show_new_contact_form():
 # ============================================
 # MAIN PAGE
 # ============================================
-# Mobile Navigation
-render_mobile_navigation("Contacts")
-
 st.title("👥 Contacts")
 
 # Show database connection status in sidebar
