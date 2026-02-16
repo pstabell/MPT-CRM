@@ -1705,7 +1705,7 @@ else:
                         st.caption(f"🏢 {contact.get('company', 'N/A')}")
 
                     with col2:
-                        st.markdown(f"📧 {contact.get('email', 'N/A')}")
+                        st.markdown(f"📧 {contact.get('email') or 'N/A'}")
                         archived_at = contact.get('archived_at', '')
                         if archived_at and 'T' in str(archived_at):
                             archived_at = str(archived_at).split('T')[0]
@@ -1798,7 +1798,8 @@ else:
                     
                     with info_col1:
                         st.caption(f"🏢 {contact.get('company', 'N/A')}")
-                        st.caption(f"📧 {contact.get('email', 'N/A')[:25]}{'...' if len(contact.get('email', '')) > 25 else ''}")
+                        email_val = contact.get('email') or 'N/A'
+                        st.caption(f"📧 {email_val[:25]}{'...' if len(email_val) > 25 else ''}")
                     
                     with info_col2:
                         st.caption(f"📞 {contact.get('phone', 'N/A')}")
