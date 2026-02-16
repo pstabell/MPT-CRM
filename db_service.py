@@ -50,6 +50,13 @@ try:
 except ImportError:
     SUPABASE_AVAILABLE = False
 
+try:
+    from sharepoint_service_v2 import move_sharepoint_folder, update_sharepoint_folder_url
+    SHAREPOINT_AVAILABLE = True
+except ImportError:
+    SHAREPOINT_AVAILABLE = False
+    print("[db_service] SharePoint service not available - folder moves will be skipped")
+
 
 # ============================================================
 # 1. CONNECTION
@@ -893,7 +900,7 @@ def db_get_deals(include_contacts=False):
     try:
         if include_contacts:
             response = db.table("deals").select(
-                "*, contacts(id, first_name, last_name, company)"
+                "*, contacts(id, first_name, last_name, company, sharepoint_folder_url)"
             ).execute()
         else:
             response = db.table("deals").select("*").execute()
@@ -901,6 +908,32 @@ def db_get_deals(include_contacts=False):
     except Exception as e:
         print(f"[db_service] Error getting deals: {e}")
         return []
+
+
+def db_get_deal(deal_id, include_contacts=False):
+    """Get a single deal by ID.
+
+    Args:
+        deal_id: The UUID of the deal.
+        include_contacts: If True, join contacts table for name/company info.
+
+    Returns:
+        dict or None: The deal record, or None if not found.
+    """
+    db = get_db()
+    if not db:
+        return None
+    try:
+        if include_contacts:
+            response = db.table("deals").select(
+                "*, contacts(id, first_name, last_name, company, sharepoint_folder_url)"
+            ).eq("id", deal_id).single().execute()
+        else:
+            response = db.table("deals").select("*").eq("id", deal_id).single().execute()
+        return response.data
+    except Exception as e:
+        print(f"[db_service] Error getting deal {deal_id}: {e}")
+        return None
 
 
 def db_create_deal(deal_data):
@@ -949,7 +982,7 @@ def db_update_deal(deal_id, deal_data):
 
 
 def db_update_deal_stage(deal_id, new_stage):
-    """Update a deal's stage.
+    """Update a deal's stage and handle SharePoint folder move if won.
 
     Args:
         deal_id: The UUID of the deal.
@@ -962,8 +995,64 @@ def db_update_deal_stage(deal_id, new_stage):
     if not db:
         return False
     try:
+        # Update the deal stage
         response = db.table("deals").update({"stage": new_stage}).eq("id", deal_id).execute()
-        return bool(response.data and len(response.data) > 0)
+        stage_updated = bool(response.data and len(response.data) > 0)
+        
+        # If deal is marked as "won", move SharePoint folder from Prospects to Clients
+        if stage_updated and new_stage == "won" and SHAREPOINT_AVAILABLE:
+            try:
+                # Get deal with contact information
+                deal = db_get_deal(deal_id, include_contacts=True)
+                
+                if deal and deal.get('contacts') and deal['contacts'].get('sharepoint_folder_url'):
+                    contact = deal['contacts']
+                    current_url = contact['sharepoint_folder_url']
+                    company_name = contact.get('company', '') or deal.get('company_name', '')
+                    
+                    print(f"[db_service] Moving SharePoint folder for won deal: {deal.get('title', 'Unknown')}")
+                    print(f"[db_service] Company: {company_name}")
+                    print(f"[db_service] Current URL: {current_url}")
+                    
+                    # Attempt to move the folder
+                    move_result = move_sharepoint_folder(current_url, company_name)
+                    
+                    if move_result.get('success'):
+                        # Update contact's sharepoint_folder_url with new location
+                        new_url = move_result.get('new_url')
+                        contact_id = contact.get('id')
+                        
+                        if new_url and contact_id:
+                            # Use the specialized update function from sharepoint_service_v2
+                            update_result = update_sharepoint_folder_url(contact_id, current_url, new_url, company_name)
+                            
+                            if update_result.get('success'):
+                                print(f"[db_service] [OK] Successfully moved folder and updated contact URL")
+                                print(f"[db_service] New URL: {new_url}")
+                                
+                                # Log if this was a simulation
+                                if move_result.get('simulation'):
+                                    print(f"[db_service] NOTE: This was a simulated move - manual SharePoint action may be required")
+                            else:
+                                error_msg = update_result.get('error', 'Unknown error')
+                                print(f"[db_service] WARNING: Folder moved but failed to update contact URL: {error_msg}")
+                        else:
+                            print(f"[db_service] WARNING: Folder moved but missing new URL or contact ID")
+                    else:
+                        error_msg = move_result.get('error', 'Unknown error')
+                        print(f"[db_service] WARNING: Failed to move SharePoint folder: {error_msg}")
+                        
+                        # Don't fail the deal stage update if SharePoint move fails
+                        # This is a nice-to-have feature, not critical
+                else:
+                    print(f"[db_service] INFO: No SharePoint folder URL found for deal, skipping folder move")
+                    
+            except Exception as sp_error:
+                print(f"[db_service] WARNING: Error during SharePoint folder move: {sp_error}")
+                # Don't fail the deal stage update if SharePoint operation fails
+        
+        return stage_updated
+        
     except Exception as e:
         print(f"[db_service] Error updating deal stage: {e}")
         return False
