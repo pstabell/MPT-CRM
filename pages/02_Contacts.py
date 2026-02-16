@@ -1027,13 +1027,18 @@ def show_contact_detail(contact_id):
             
             if st.button("💾 Save SharePoint URL", key="save_sharepoint_url"):
                 if save_contact(contact['id'], {"sharepoint_folder_url": new_sharepoint_url}):
-                    st.success("SharePoint URL saved!")
+                    st.success("SharePoint URL saved! Refreshing...")
+                    # Clear any cached contact data
+                    if 'selected_contact' in st.session_state:
+                        st.session_state.selected_contact['sharepoint_folder_url'] = new_sharepoint_url
                     st.rerun()
                 elif not db_is_connected():
                     # Update local copy
                     contact['sharepoint_folder_url'] = new_sharepoint_url
                     st.info("SharePoint URL saved locally")
                     st.rerun()
+                else:
+                    st.error("Failed to save - please try again")
 
     col1_time = time.time() - detail_start
     st.sidebar.caption(f"⏱️ Col1 done: {col1_time:.2f}s")
