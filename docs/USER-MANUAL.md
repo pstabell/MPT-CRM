@@ -1442,6 +1442,67 @@ Day 30: Re-engagement attempt
 - Unsubscribe with feedback
 - Complaint escalation
 
+### Meeting Lifecycle Automation
+
+This workflow automates the complete pre-meeting and post-meeting process for business development meetings.
+
+#### Pre-Meeting Automation (1-2 days before)
+
+**Intel PDF Generation**
+When a business meeting is scheduled with an external contact, the system automatically:
+
+1. **Website Audit**
+   - Scan contact's company website
+   - Identify issues (SEO, forms, mobile, etc.)
+   - Document systems they may be lacking
+   
+2. **Generate Intel PDF**
+   - Professional MPT-branded report
+   - Website audit findings
+   - "How MPT Can Help" soft pitch
+   - Talking points for the meeting
+
+3. **Distribution**
+   - Email PDF to contact: "Looking forward to our meeting!"
+   - Attach PDF to calendar event
+   - Save PDF to CRM contact record
+
+#### Post-Meeting Automation (same day)
+
+**Survey to Contact**
+```
+📋 CONTACT SURVEY
+• How was our meeting? (1-5 stars)
+• Topics you'd like to discuss further?
+• Interested in learning more about... (checkboxes)
+• Best way to stay in touch?
+```
+
+**Survey to Patrick**
+```
+📋 INTERNAL SURVEY  
+• How'd it go? (Hot / Warm / Cold)
+• What were they interested in?
+• Follow-up actions needed?
+• Referral potential? (1-5)
+```
+
+**Smart Follow-Up Logic**
+Based on survey responses:
+
+| Lead Temp | Follow-Up Action |
+|-----------|------------------|
+| 🔥 Hot | Send proposal, schedule next meeting |
+| 🌡️ Warm | Nurture sequence, quarterly check-in |
+| ❄️ Cold | "Great meeting you" + stay connected |
+
+#### Tools Location
+- `tools/meeting-lifecycle/generate-intel-pdf.mjs`
+- `tools/meeting-lifecycle/send-pre-meeting-email.mjs`
+- `tools/meeting-lifecycle/attach-to-calendar.mjs`
+- `tools/meeting-lifecycle/save-to-crm.mjs`
+- `tools/meeting-lifecycle/smart-followup.mjs`
+
 ---
 
 ## 12. E-Signature & Contract Generation
