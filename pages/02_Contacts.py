@@ -1002,6 +1002,39 @@ def show_contact_detail(contact_id):
             else:
                 st.warning("Please enter a note")
 
+        st.markdown("---")
+
+        # SharePoint Files section
+        st.markdown("### 📁 SharePoint Files")
+        sharepoint_url = contact.get('sharepoint_folder_url', '')
+
+        with st.container(border=True):
+            if sharepoint_url:
+                # Display the clickable link to SharePoint folder
+                st.markdown(f"[🔗 Open Folder]({sharepoint_url})")
+                st.caption("Click the link above to access this client's SharePoint folder")
+            else:
+                st.caption("_No folder linked_")
+                
+        # Option to add/edit SharePoint folder URL
+        with st.expander("🔧 Edit SharePoint Folder URL"):
+            new_sharepoint_url = st.text_input(
+                "SharePoint Folder URL", 
+                value=sharepoint_url or '', 
+                key="edit_sharepoint_url",
+                placeholder="https://company.sharepoint.com/sites/..."
+            )
+            
+            if st.button("💾 Save SharePoint URL", key="save_sharepoint_url"):
+                if save_contact(contact['id'], {"sharepoint_folder_url": new_sharepoint_url}):
+                    st.success("SharePoint URL saved!")
+                    st.rerun()
+                elif not db_is_connected():
+                    # Update local copy
+                    contact['sharepoint_folder_url'] = new_sharepoint_url
+                    st.info("SharePoint URL saved locally")
+                    st.rerun()
+
     col1_time = time.time() - detail_start
     st.sidebar.caption(f"⏱️ Col1 done: {col1_time:.2f}s")
 
