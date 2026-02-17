@@ -317,36 +317,106 @@ render_sidebar()
 # PAGE-SPECIFIC HELPER FUNCTIONS
 # ============================================
 def format_notes_display(notes_text):
-    """Format notes for display with proper timestamp formatting and separators"""
+    """Format notes for display with consistent timestamps and clear separators.
+    
+    Each note displays as:
+    - Line 1: Date/time in MM/DD/YYYY H:MM AM/PM format
+    - Line 2+: Note content
+    - Thick separator line between notes (not within)
+    """
+    import re
+    from datetime import datetime
+    import pytz
+    
     if not notes_text:
         return ""
     
-    # Handle both old and new note formats
     notes = notes_text.strip()
     
-    # If notes don't contain separators, it's likely old format or single note
-    if "---" not in notes:
-        # Check if it starts with timestamp pattern
-        import re
-        timestamp_pattern = r'\*\*\[(\d{1,2}\/\d{1,2}\/\d{4} \d{1,2}:\d{2} [AP]M)\]\*\*'
-        if re.match(timestamp_pattern, notes):
-            return notes  # Already properly formatted
-        else:
-            # Old format or plain text - return as-is but wrapped
-            return notes
+    # Thick separator for BETWEEN notes (not within)
+    SEPARATOR = "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     
-    # Split by separator and format each note
-    note_parts = notes.split("---")
-    formatted_parts = []
+    def convert_timestamp(ts_str):
+        """Convert various timestamp formats to MM/DD/YYYY H:MM AM/PM"""
+        eastern = pytz.timezone('US/Eastern')
+        
+        # Try ISO format: 2026-02-17 13:56 or 2026-02-17 20:21
+        iso_pattern = r'(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})'
+        match = re.match(iso_pattern, ts_str)
+        if match:
+            year, month, day, hour, minute = match.groups()
+            hour = int(hour)
+            am_pm = "AM" if hour < 12 else "PM"
+            if hour == 0:
+                hour = 12
+            elif hour > 12:
+                hour -= 12
+            return f"{month}/{day}/{year} {hour}:{minute} {am_pm}"
+        
+        # Try already formatted: MM/DD/YYYY H:MM AM/PM
+        formatted_pattern = r'(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s+[AP]M)'
+        match = re.match(formatted_pattern, ts_str)
+        if match:
+            return match.group(1)
+        
+        # Return original if no match
+        return ts_str
     
-    for part in note_parts:
-        part = part.strip()
-        if part:
-            # Ensure each part has proper line spacing
-            formatted_parts.append(part)
+    def parse_note(note_text):
+        """Parse a note and extract timestamp + content, reformatting as needed."""
+        note_text = note_text.strip()
+        if not note_text:
+            return None
+        
+        # Pattern 1: **[MM/DD/YYYY H:MM AM/PM]** format (new format)
+        new_format = r'\*\*\[([^\]]+)\]\*\*\s*(.*)'
+        match = re.match(new_format, note_text, re.DOTALL)
+        if match:
+            ts = convert_timestamp(match.group(1))
+            content = match.group(2).strip()
+            return f"**{ts}**\n{content}"
+        
+        # Pattern 2: [SURVEY_SENT: 2026-02-17 13:56] format
+        survey_format = r'\[SURVEY_SENT:\s*([^\]]+)\]\s*(.*)'
+        match = re.match(survey_format, note_text, re.DOTALL)
+        if match:
+            ts = convert_timestamp(match.group(1))
+            content = match.group(2).strip()
+            return f"**{ts}**\n📧 SURVEY SENT\n{content}"
+        
+        # Pattern 3: NOTES (2026-02-17 20:21) format
+        notes_format = r'NOTES\s*\(([^)]+)\)\s*(.*)'
+        match = re.match(notes_format, note_text, re.DOTALL)
+        if match:
+            ts = convert_timestamp(match.group(1))
+            content = match.group(2).strip()
+            return f"**{ts}**\n{content}"
+        
+        # Pattern 4: Just a date at the start: 2026-02-16: content
+        date_prefix = r'(\d{4}-\d{2}-\d{2}):\s*(.*)'
+        match = re.match(date_prefix, note_text, re.DOTALL)
+        if match:
+            date_str = match.group(1)
+            content = match.group(2).strip()
+            # Convert YYYY-MM-DD to MM/DD/YYYY
+            parts = date_str.split('-')
+            formatted_date = f"{parts[1]}/{parts[2]}/{parts[0]}"
+            return f"**{formatted_date}**\n{content}"
+        
+        # No recognized format - return as-is (plain text note)
+        return note_text
     
-    # Rejoin with proper separators
-    return "\n\n---\n\n".join(formatted_parts)
+    # Split notes by --- separator
+    raw_parts = re.split(r'\n*---+\n*', notes)
+    
+    formatted_notes = []
+    for part in raw_parts:
+        parsed = parse_note(part)
+        if parsed:
+            formatted_notes.append(parsed)
+    
+    # Join with thick separator BETWEEN notes only
+    return SEPARATOR.join(formatted_notes)
 
 def load_contacts():
     """Load contacts from database only - no sample data"""
