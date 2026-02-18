@@ -1442,14 +1442,137 @@ Day 30: Re-engagement attempt
 - Unsubscribe with feedback
 - Complaint escalation
 
-### Meeting Lifecycle Automation
+### Discovery Meeting Lifecycle (Sales Prospects)
 
-This workflow automates the complete pre-meeting and post-meeting process for business development meetings.
+This workflow automates the complete lifecycle for **sales discovery calls** with prospects who come through the CRM Discovery form.
+
+#### Wire Chart: Discovery Meeting Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DISCOVERY MEETING LIFECYCLE                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
+│   │  DISCOVERY   │     │   PRE-MTG    │     │   MEETING    │                │
+│   │    FORM      │────▶│    PREP      │────▶│  (RECORDED)  │                │
+│   │  (CRM p.01)  │     │              │     │              │                │
+│   └──────────────┘     └──────────────┘     └──────────────┘                │
+│         │                    │                    │                          │
+│         ▼                    ▼                    ▼                          │
+│   • Auto-create       • Match to CRM       • Teams recording                 │
+│     contact           • Calendar brief     • Auto-transcript                 │
+│   • Drip enroll       • Full CRM context                                    │
+│                                                                              │
+│   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
+│   │  TRANSCRIPT  │     │   APPROVAL   │     │   MISSION    │                │
+│   │  PROCESSING  │────▶│    QUEUE     │────▶│   CONTROL    │                │
+│   │ (Metro Bot)  │     │   (Teams)    │     │    CARDS     │                │
+│   └──────────────┘     └──────────────┘     └──────────────┘                │
+│         │                    │                    │                          │
+│         ▼                    ▼                    ▼                          │
+│   • Summarize         • Patrick approves   • Approved items                  │
+│   • Extract items       each item            become cards                    │
+│   • Ownership tags    • Reject junk        • Auto-tracked                   │
+│   • Update CRM                                                               │
+│                                                                              │
+│   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
+│   │   PROJECT    │     │  WAITING-ON  │     │    DAILY     │                │
+│   │   PROPOSAL   │     │   TRACKING   │     │    CHECKS    │                │
+│   │              │────▶│              │────▶│              │                │
+│   └──────────────┘     └──────────────┘     └──────────────┘                │
+│         │                    │                    │                          │
+│         ▼                    ▼                    ▼                          │
+│   • Auto-generate     • Client items       • What's overdue?                 │
+│     from scope        • Follow-up dates    • Waiting on whom?                │
+│   • Send for sig      • Auto-reminders     • Archive 14 days                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Workflow Steps
+
+**1. Lead Intake**
+- Prospect fills out **Discovery form** in MPT-CRM (`pages/01_Discovery.py`)
+- Contact auto-created in CRM with all intake data
+- Auto-enrolled in appropriate drip campaign
+
+**2. Pre-Meeting**
+- Match attendees to CRM contacts automatically
+- Generate calendar briefing with full CRM relationship summary
+- Include: who they are, company, product interest, message from form
+
+**3. During Meeting**
+- Patrick records in Teams (built-in, free)
+- Teams auto-generates transcript
+
+**4. Post-Meeting (Metro Bot processes transcript)**
+- ✅ Summarize key points & decisions
+- ✅ Extract action items with ownership (Patrick's vs. prospect's)
+- ✅ **Approval queue** in Teams before creating cards
+- ✅ Create Mission Control cards for approved items only
+- ✅ Update CRM contact notes with meeting context
+- ✅ Track "waiting on" items for prospect follow-ups
+- ✅ **Generate project proposal** from discussed scope
+
+**5. Follow-Up Automation**
+- Daily completion checks (what's overdue, waiting on others)
+- Auto-archive completed items after 14 days
+- Temperature-based follow-up (HOT/WARM/COLD)
+
+---
+
+### Network Contact Meeting Lifecycle (Networking)
+
+This workflow automates meetings with **networking contacts** from Chamber events, referrals, and professional connections.
+
+#### Wire Chart: Network Contact Meeting Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 NETWORK CONTACT MEETING LIFECYCLE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
+│   │   CONTACT    │     │  INTEL PDF   │     │   MEETING    │                │
+│   │   EXISTS     │────▶│  GENERATION  │────▶│  (RECORDED)  │                │
+│   │   IN CRM     │     │              │     │              │                │
+│   └──────────────┘     └──────────────┘     └──────────────┘                │
+│         │                    │                    │                          │
+│         ▼                    ▼                    ▼                          │
+│   • From Chamber      • Website audit      • Teams recording                 │
+│   • From referral     • PageSpeed score    • Auto-transcript                 │
+│   • From event        • Competitor info                                      │
+│                       • Send to contact                                      │
+│                                                                              │
+│   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐                │
+│   │  TRANSCRIPT  │     │   SURVEYS    │     │    SMART     │                │
+│   │  PROCESSING  │────▶│   (BOTH)     │────▶│  FOLLOW-UP   │                │
+│   │ (Metro Bot)  │     │              │     │              │                │
+│   └──────────────┘     └──────────────┘     └──────────────┘                │
+│         │                    │                    │                          │
+│         ▼                    ▼                    ▼                          │
+│   • Summarize         • Contact survey     • HOT: Proposal                   │
+│   • Extract items     • Patrick survey     • WARM: Nurture                   │
+│   • Update CRM        • Both → CRM notes   • COLD: Stay connected            │
+│                                                                              │
+│                    ┌──────────────┐                                          │
+│                    │  REFERRAL    │                                          │
+│                    │  TRACKING    │                                          │
+│                    └──────────────┘                                          │
+│                          │                                                   │
+│                          ▼                                                   │
+│                    • Referral potential                                      │
+│                    • Mutual connections                                      │
+│                    • Long-term relationship                                  │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 #### Pre-Meeting Automation (1-2 days before)
 
 **Intel PDF Generation**
-When a business meeting is scheduled with an external contact, the system automatically:
+When a networking meeting is scheduled:
 
 1. **Website Audit**
    - Scan contact's company website
@@ -1755,10 +1878,14 @@ SALES/
 
 ## Changelog
 
+- **2026-02-17**: **Meeting Lifecycle Workflows** - Split into two distinct workflows with wire charts:
+  - **Discovery Meeting Lifecycle** (Sales Prospects) — Full automation from CRM Discovery form through approval queue, Mission Control cards, project proposals, and daily completion checks
+  - **Network Contact Meeting Lifecycle** (Networking) — Intel PDF generation, post-meeting surveys, smart follow-up based on temperature (HOT/WARM/COLD)
+
 - **2026-02-15**: **E-Signature & Contract Generation** - Added complete documentation for the built-in e-signature system including contract package structure (NDA + SOW + Proposal), auto-fill fields, generation workflow, legal compliance (E-SIGN Act), SharePoint auto-filing, and tracking features. This workflow is the official standard for all MPT client contracts.
 
 - **2026-02-13**: **Initial User Manual** - Complete CRM documentation including all modules, workflows, and user guidance. Covers Dashboard, Contacts, Companies, Projects, Pipeline, Service, Change Orders, Marketing, Reports with comprehensive workflow documentation for Lead→Customer journey, Service→Resolution→Invoice, Change Order approval, and Drip campaign enrollment processes.
 
 ---
 
-*Last updated: 2026-02-15*
+*Last updated: 2026-02-17*
