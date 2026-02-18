@@ -15,6 +15,7 @@ import base64
 import time
 import uuid
 import json
+import pytz
 import db_service
 from db_service import (
     db_is_connected,
@@ -315,6 +316,108 @@ render_sidebar()
 # ============================================
 # PAGE-SPECIFIC HELPER FUNCTIONS
 # ============================================
+def format_notes_display(notes_text):
+    """Format notes for display with consistent timestamps and clear separators.
+    
+    Each note displays as:
+    - Line 1: Date/time in MM/DD/YYYY H:MM AM/PM format
+    - Line 2+: Note content
+    - Thick separator line between notes (not within)
+    """
+    import re
+    from datetime import datetime
+    import pytz
+    
+    if not notes_text:
+        return ""
+    
+    notes = notes_text.strip()
+    
+    # Thick separator for BETWEEN notes (not within)
+    SEPARATOR = "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    def convert_timestamp(ts_str):
+        """Convert various timestamp formats to MM/DD/YYYY H:MM AM/PM"""
+        eastern = pytz.timezone('US/Eastern')
+        
+        # Try ISO format: 2026-02-17 13:56 or 2026-02-17 20:21
+        iso_pattern = r'(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})'
+        match = re.match(iso_pattern, ts_str)
+        if match:
+            year, month, day, hour, minute = match.groups()
+            hour = int(hour)
+            am_pm = "AM" if hour < 12 else "PM"
+            if hour == 0:
+                hour = 12
+            elif hour > 12:
+                hour -= 12
+            return f"{month}/{day}/{year} {hour}:{minute} {am_pm}"
+        
+        # Try already formatted: MM/DD/YYYY H:MM AM/PM
+        formatted_pattern = r'(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s+[AP]M)'
+        match = re.match(formatted_pattern, ts_str)
+        if match:
+            return match.group(1)
+        
+        # Return original if no match
+        return ts_str
+    
+    def parse_note(note_text):
+        """Parse a note and extract timestamp + content, reformatting as needed."""
+        note_text = note_text.strip()
+        if not note_text:
+            return None
+        
+        # Pattern 1: **[MM/DD/YYYY H:MM AM/PM]** format (new format)
+        new_format = r'\*\*\[([^\]]+)\]\*\*\s*(.*)'
+        match = re.match(new_format, note_text, re.DOTALL)
+        if match:
+            ts = convert_timestamp(match.group(1))
+            content = match.group(2).strip()
+            return f"**{ts}**\n{content}"
+        
+        # Pattern 2: [SURVEY_SENT: 2026-02-17 13:56] format
+        survey_format = r'\[SURVEY_SENT:\s*([^\]]+)\]\s*(.*)'
+        match = re.match(survey_format, note_text, re.DOTALL)
+        if match:
+            ts = convert_timestamp(match.group(1))
+            content = match.group(2).strip()
+            return f"**{ts}**\n📧 SURVEY SENT\n{content}"
+        
+        # Pattern 3: NOTES (2026-02-17 20:21) format
+        notes_format = r'NOTES\s*\(([^)]+)\)\s*(.*)'
+        match = re.match(notes_format, note_text, re.DOTALL)
+        if match:
+            ts = convert_timestamp(match.group(1))
+            content = match.group(2).strip()
+            return f"**{ts}**\n{content}"
+        
+        # Pattern 4: Just a date at the start: 2026-02-16: content
+        date_prefix = r'(\d{4}-\d{2}-\d{2}):\s*(.*)'
+        match = re.match(date_prefix, note_text, re.DOTALL)
+        if match:
+            date_str = match.group(1)
+            content = match.group(2).strip()
+            # Convert YYYY-MM-DD to MM/DD/YYYY
+            parts = date_str.split('-')
+            formatted_date = f"{parts[1]}/{parts[2]}/{parts[0]}"
+            return f"**{formatted_date}**\n{content}"
+        
+        # No recognized format - return as-is (plain text note)
+        return note_text
+    
+    # Split notes by --- separator
+    raw_parts = re.split(r'\n*---+\n*', notes)
+    
+    formatted_notes = []
+    for part in raw_parts:
+        parsed = parse_note(part)
+        if parsed:
+            formatted_notes.append(parsed)
+    
+    # Join with thick separator BETWEEN notes only
+    return SEPARATOR.join(formatted_notes)
+
 def load_contacts():
     """Load contacts from database only - no sample data"""
     if db_is_connected():
@@ -990,23 +1093,47 @@ def show_contact_detail(contact_id):
 
         st.markdown("---")
 
-        # Notes section
-        st.markdown("### 📝 Notes")
-        existing_notes = contact.get('notes', '')
+        # SharePoint Files section (FIRST - always visible)
+        st.markdown("### 📁 SharePoint Files")
+        sharepoint_url = contact.get('sharepoint_folder_url', '')
+        
+        with st.container(border=True):
+            if sharepoint_url:
+                # Show Open Folder button
+                st.markdown(f'<a href="{sharepoint_url}" target="_blank" style="text-decoration: none;"><button style="width: 100%; padding: 0.5rem; background-color: #0078d4; color: white; border: none; border-radius: 0.5rem; cursor: pointer; margin-bottom: 0.5rem;">🔗 Open SharePoint Folder</button></a>', unsafe_allow_html=True)
+                st.caption(f"📂 {sharepoint_url}")
+            else:
+                st.caption("_No SharePoint folder URL set_")
+            
+            # Edit SharePoint Folder URL (collapsible)
+            with st.expander("📝 Edit SharePoint Folder URL"):
+                new_sharepoint_url = st.text_input("SharePoint Folder URL:", value=sharepoint_url, key="edit_sharepoint_url", placeholder="https://metropointtechnology.sharepoint.com/...")
+                if st.button("💾 Save SharePoint URL", key="save_sharepoint_url"):
+                    if save_contact(contact['id'], {"sharepoint_folder_url": new_sharepoint_url}):
+                        contact['sharepoint_folder_url'] = new_sharepoint_url
+                        st.success("SharePoint URL saved!")
+                        st.rerun()
+                    elif not db_is_connected():
+                        contact['sharepoint_folder_url'] = new_sharepoint_url
+                        st.info("SharePoint URL saved locally")
+                        st.rerun()
 
-        if existing_notes:
-            with st.container(border=True):
-                st.markdown(existing_notes)
-        else:
-            st.caption("_No notes yet_")
-
-        new_note_text = st.text_area("Add a note:", placeholder="Type your note here...", key="new_note_input", height=100)
-        if st.button("📝 Add Note", key="add_note_btn"):
+        # Add a Note section (SECOND - input area)
+        st.markdown("### ✏️ Add a Note")
+        new_note_text = st.text_area("Type your note here:", placeholder="Enter your note...", key="new_note_input", height=100)
+        if st.button("📝 Add Note", key="add_note_btn", type="primary"):
             if new_note_text.strip():
-                timestamp = datetime.now().strftime("%m/%d/%Y %I:%M %p")
-                new_note_entry = f"**[{timestamp}]** {new_note_text.strip()}"
+                # Format with Eastern time, non-military format
+                from datetime import datetime
+                import pytz
+                eastern = pytz.timezone('US/Eastern')
+                now_eastern = datetime.now(eastern)
+                timestamp = now_eastern.strftime("%m/%d/%Y %I:%M %p")
+                new_note_entry = f"**[{timestamp}]**\n{new_note_text.strip()}"
 
+                existing_notes = contact.get('notes', '')
                 if existing_notes:
+                    # Prepend new note at TOP (newest first)
                     updated_notes = f"{new_note_entry}\n\n---\n\n{existing_notes}"
                 else:
                     updated_notes = new_note_entry
@@ -1022,43 +1149,17 @@ def show_contact_detail(contact_id):
             else:
                 st.warning("Please enter a note")
 
-        st.markdown("---")
+        # Notes History section (at bottom, grows downward infinitely)
+        st.markdown("### 📜 Notes History")
+        existing_notes = contact.get('notes', '')
 
-        # SharePoint Files section
-        st.markdown("### 📁 SharePoint Files")
-        sharepoint_url = contact.get('sharepoint_folder_url', '')
-
-        with st.container(border=True):
-            if sharepoint_url:
-                # Display the clickable link to SharePoint folder
-                st.markdown(f"[🔗 Open Folder]({sharepoint_url})")
-                st.caption("Click the link above to access this client's SharePoint folder")
-            else:
-                st.caption("_No folder linked_")
-                
-        # Option to add/edit SharePoint folder URL
-        with st.expander("🔧 Edit SharePoint Folder URL"):
-            new_sharepoint_url = st.text_input(
-                "SharePoint Folder URL", 
-                value=sharepoint_url or '', 
-                key="edit_sharepoint_url",
-                placeholder="https://company.sharepoint.com/sites/..."
-            )
-            
-            if st.button("💾 Save SharePoint URL", key="save_sharepoint_url"):
-                if save_contact(contact['id'], {"sharepoint_folder_url": new_sharepoint_url}):
-                    st.success("SharePoint URL saved! Refreshing...")
-                    # Clear any cached contact data
-                    if 'selected_contact' in st.session_state:
-                        st.session_state.selected_contact['sharepoint_folder_url'] = new_sharepoint_url
-                    st.rerun()
-                elif not db_is_connected():
-                    # Update local copy
-                    contact['sharepoint_folder_url'] = new_sharepoint_url
-                    st.info("SharePoint URL saved locally")
-                    st.rerun()
-                else:
-                    st.error("Failed to save - please try again")
+        if existing_notes:
+            # Parse and display notes with proper formatting
+            formatted_notes = format_notes_display(existing_notes)
+            with st.container(border=True):
+                st.markdown(formatted_notes)
+        else:
+            st.caption("_No notes yet_")
 
     col1_time = time.time() - detail_start
     st.sidebar.caption(f"⏱️ Col1 done: {col1_time:.2f}s")
