@@ -34,3 +34,6 @@ uuid
 
 # Contract Generation Dependencies  
 python-docx>=0.8.11
+
+# SMS/Twilio Dependencies
+twilio>=8.12.0

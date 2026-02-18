@@ -772,6 +772,26 @@ def show_contact_detail(contact_id):
                                     pass
                             activities.append(f"📧 Email sent — {send.get('subject', 'No subject')} — {sent_date}")
 
+                    # Get SMS history
+                    try:
+                        from services.sms_service import get_sms_history
+                        sms_data = get_sms_history(contact['id'], limit=5)
+                        if sms_data:
+                            for sms in sms_data:
+                                sms_date = sms.get('sent_at', 'Unknown')
+                                if sms_date and sms_date != 'Unknown':
+                                    try:
+                                        sms_date = datetime.fromisoformat(sms_date.replace('Z', '+00:00')).strftime('%b %d, %Y %I:%M %p')
+                                    except Exception:
+                                        pass
+                                message_preview = sms.get('message', '')[:50] + ('...' if len(sms.get('message', '')) > 50 else '')
+                                status_emoji = '✅' if sms.get('status') == 'sent' else '❌'
+                                activities.append(f"📱 {status_emoji} SMS sent — {message_preview} — {sms_date}")
+                    except ImportError:
+                        pass  # SMS service not available
+                    except Exception:
+                        pass  # SMS history error
+
                     # Get activities table
                     act_data = db_get_contact_activities(contact['id'], limit=5)
                     if act_data:
@@ -1415,6 +1435,80 @@ def show_contact_detail(contact_id):
                 pass
             st.caption("_No email address_")
 
+        # Send SMS - compose and send text message
+        phone_number = contact.get('phone', '')
+        if phone_number:
+            if st.button("📱 Send SMS", use_container_width=True, key="send_sms_btn"):
+                st.session_state[f"show_sms_compose_{contact['id']}"] = True
+        else:
+            if st.button("📱 Send SMS", use_container_width=True, disabled=True):
+                pass
+            st.caption("_No phone number_")
+
+        # Show SMS compose form if toggled
+        if st.session_state.get(f"show_sms_compose_{contact['id']}"):
+            with st.container(border=True):
+                st.markdown("**📱 Compose SMS**")
+                
+                # Import SMS service
+                try:
+                    from services.sms_service import send_sms, validate_phone_number
+                    
+                    # Validate and display phone number
+                    phone_validation = validate_phone_number(phone_number)
+                    if phone_validation['valid']:
+                        st.success(f"📱 To: {phone_validation['formatted']}")
+                        validated_phone = phone_validation['formatted']
+                    else:
+                        st.error(f"❌ Invalid phone: {phone_validation['error']}")
+                        validated_phone = phone_number
+                    
+                    # Message composition
+                    sms_message = st.text_area(
+                        "Message:", 
+                        key=f"sms_message_{contact['id']}", 
+                        height=80, 
+                        max_chars=160,
+                        placeholder="Type your message here...",
+                        help="SMS messages are limited to 160 characters"
+                    )
+                    
+                    # Character counter
+                    char_count = len(sms_message)
+                    char_color = "red" if char_count > 160 else "green" if char_count > 140 else "black"
+                    st.markdown(f"<p style='color: {char_color}; font-size: 0.8em; margin: 0;'>Characters: {char_count}/160</p>", unsafe_allow_html=True)
+                    
+                    # Action buttons
+                    col_send, col_cancel = st.columns(2)
+                    with col_send:
+                        send_disabled = not phone_validation['valid'] or len(sms_message.strip()) == 0 or char_count > 160
+                        if st.button("Send SMS", key=f"send_sms_final_{contact['id']}", type="primary", use_container_width=True, disabled=send_disabled):
+                            if sms_message.strip():
+                                # Send SMS
+                                result = send_sms(validated_phone, sms_message, contact['id'])
+                                if result['success']:
+                                    st.success(f"✅ SMS sent successfully!")
+                                    st.info(f"Message ID: {result['message_id']}")
+                                    # Update last_contacted
+                                    save_contact(contact['id'], {"last_contacted": datetime.now().isoformat()})
+                                    contact['last_contacted'] = datetime.now().strftime("%Y-%m-%d")
+                                    # Clear form
+                                    st.session_state[f"show_sms_compose_{contact['id']}"] = False
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ Failed to send SMS: {result['error']}")
+                            
+                    with col_cancel:
+                        if st.button("Cancel", key=f"cancel_sms_{contact['id']}", use_container_width=True):
+                            st.session_state[f"show_sms_compose_{contact['id']}"] = False
+                            st.rerun()
+                
+                except ImportError as e:
+                    st.error("SMS service not available. Please check configuration.")
+                    st.code(str(e))
+                except Exception as e:
+                    st.error(f"SMS error: {str(e)}")
+
         # Log Call - creates activity entry
         if st.button("📞 Log Call", use_container_width=True, key="log_call_btn"):
             st.session_state[f"show_log_call_{contact['id']}"] = True
@@ -1462,6 +1556,64 @@ def show_contact_detail(contact_id):
             st.session_state.mkt_enroll_contact_name = f"{contact['first_name']} {contact['last_name']}"
             st.session_state.mkt_enroll_contact_email = contact.get('email', '')
             st.switch_page("pages/07_Marketing.py")
+
+        # SMS History section
+        st.markdown("### 📱 SMS History")
+        with st.container(border=True):
+            try:
+                from services.sms_service import get_sms_history
+                sms_history = get_sms_history(contact['id'], limit=10)
+                
+                if sms_history:
+                    for sms in sms_history:
+                        # Format date
+                        sms_date = sms.get('sent_at', 'Unknown')
+                        if sms_date and sms_date != 'Unknown':
+                            try:
+                                sms_date = datetime.fromisoformat(sms_date.replace('Z', '+00:00')).strftime('%b %d, %Y %I:%M %p')
+                            except Exception:
+                                sms_date = str(sms_date)
+                        
+                        # Status indicator
+                        status = sms.get('status', 'unknown')
+                        if status == 'sent':
+                            status_icon = '✅'
+                            status_color = 'green'
+                        elif status == 'failed':
+                            status_icon = '❌'
+                            status_color = 'red'
+                        elif status == 'delivered':
+                            status_icon = '📨'
+                            status_color = 'blue'
+                        else:
+                            status_icon = '🔄'
+                            status_color = 'orange'
+                        
+                        # Message content (truncated)
+                        message = sms.get('message', '')
+                        if len(message) > 100:
+                            message = message[:100] + '...'
+                        
+                        # Display SMS entry
+                        st.markdown(f"""
+                        <div style="margin-bottom: 10px; padding: 8px; border-left: 3px solid {status_color}; background-color: #f8f9fa;">
+                            <div style="font-size: 0.8em; color: #666; margin-bottom: 4px;">
+                                {status_icon} <strong>{sms_date}</strong> • To: {sms.get('phone_number', 'Unknown')}
+                            </div>
+                            <div style="color: #333;">
+                                {message}
+                            </div>
+                            {f'<div style="font-size: 0.7em; color: #999; margin-top: 4px;">Error: {sms.get("error_message", "")}</div>' if sms.get('error_message') else ''}
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                else:
+                    st.caption("_No SMS messages sent yet_")
+                    
+            except ImportError:
+                st.caption("_SMS service not available_")
+            except Exception as e:
+                st.caption(f"_Error loading SMS history: {str(e)}_")
 
         # Merge section
         st.markdown("### 🔗 Merge Contacts")
