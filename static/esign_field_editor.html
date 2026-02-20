@@ -87,6 +87,55 @@
     <!-- Hidden file input for PDF upload -->
     <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;">
 
+    <!-- Signature Capture Modal (Phase 3) -->
+    <div id="signature-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3>✍️ Capture Signature</h3>
+                <button id="close-signature-modal" class="close-button">&times;</button>
+            </div>
+            
+            <div class="modal-content">
+                <div class="signature-tabs">
+                    <button id="draw-tab" class="tab-button active">Draw Signature</button>
+                    <button id="type-tab" class="tab-button">Type Signature</button>
+                </div>
+                
+                <div id="draw-signature-panel" class="signature-panel active">
+                    <div class="draw-area">
+                        <canvas id="signature-canvas" width="400" height="200"></canvas>
+                        <div class="canvas-controls">
+                            <button id="clear-signature" class="secondary-button">Clear</button>
+                            <div class="canvas-info">Use your mouse or touch to sign above</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="type-signature-panel" class="signature-panel">
+                    <div class="type-area">
+                        <input type="text" id="signature-text" placeholder="Type your full name..." maxlength="100">
+                        <div class="font-selector">
+                            <label>Font Style:</label>
+                            <select id="signature-font">
+                                <option value="cursive">Cursive</option>
+                                <option value="serif">Serif</option>
+                                <option value="sans-serif">Sans Serif</option>
+                            </select>
+                        </div>
+                        <div class="signature-preview" id="typed-signature-preview">
+                            Your signature will appear here
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="cancel-signature" class="secondary-button">Cancel</button>
+                <button id="apply-signature" class="primary-button" disabled>Apply Signature</button>
+            </div>
+        </div>
+    </div>
+
     <script src="esign_field_editor.js"></script>
 </body>
 </html>

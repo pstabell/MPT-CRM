@@ -3680,3 +3680,251 @@ def format_phone_for_display(phone_number):
             
     except Exception:
         return phone_number
+
+
+# =============================================================================
+# 16. E-SIGNATURE PHASE 3: SIGNATURE MANAGEMENT
+# =============================================================================
+
+def db_create_signature(signature_data):
+    """Create a new signature record
+    
+    Args:
+        signature_data: Dict with signature fields (pdf_field_id, document_id, etc.)
+    
+    Returns:
+        dict: Created signature record or None if error
+    """
+    db = get_db()
+    if not db:
+        return None
+    
+    try:
+        response = db.table("signatures").insert(signature_data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"Error creating signature: {e}")
+        return None
+
+
+def db_get_signature_by_field(pdf_field_id):
+    """Get signature by PDF field ID
+    
+    Args:
+        pdf_field_id: ID of the PDF field
+    
+    Returns:
+        dict: Signature record or None if not found
+    """
+    db = get_db()
+    if not db:
+        return None
+    
+    try:
+        response = db.table("signatures").select("*").eq(
+            "pdf_field_id", pdf_field_id
+        ).single().execute()
+        return response.data
+    except Exception:
+        return None
+
+
+def db_get_signatures_by_document(document_id):
+    """Get all signatures for a document
+    
+    Args:
+        document_id: UUID of the document
+    
+    Returns:
+        list: List of signature records
+    """
+    db = get_db()
+    if not db:
+        return []
+    
+    try:
+        response = db.table("signatures").select("*").eq(
+            "document_id", document_id
+        ).order("applied_at", desc=True).execute()
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"Error getting signatures for document: {e}")
+        return []
+
+
+def db_update_signature(signature_id, updates):
+    """Update a signature record
+    
+    Args:
+        signature_id: UUID of the signature
+        updates: Dict of fields to update
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    db = get_db()
+    if not db:
+        return False
+    
+    try:
+        response = db.table("signatures").update(updates).eq("id", signature_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Error updating signature: {e}")
+        return False
+
+
+def db_delete_signature(signature_id):
+    """Delete a signature record
+    
+    Args:
+        signature_id: UUID of the signature
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    db = get_db()
+    if not db:
+        return False
+    
+    try:
+        db.table("signatures").delete().eq("id", signature_id).execute()
+        return True
+    except Exception as e:
+        print(f"Error deleting signature: {e}")
+        return False
+
+
+def db_mark_field_as_signed(pdf_field_id, signature_id):
+    """Mark a PDF field as signed and disable further editing
+    
+    This could be implemented by updating a field_status table or
+    adding a signed flag to the field layout data.
+    
+    Args:
+        pdf_field_id: ID of the PDF field
+        signature_id: UUID of the applied signature
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    # For now, we'll just record that the field is signed
+    # In a more complex system, you might update the field layout data
+    try:
+        # This is a placeholder - you might want to update the esign_field_layouts table
+        # to mark specific fields as signed and prevent further editing
+        print(f"Field {pdf_field_id} marked as signed with signature {signature_id}")
+        return True
+    except Exception as e:
+        print(f"Error marking field as signed: {e}")
+        return False
+
+
+def db_get_esign_document(document_id):
+    """Get an e-signature document by ID
+    
+    Args:
+        document_id: UUID of the document
+    
+    Returns:
+        dict: Document record or None if not found
+    """
+    db = get_db()
+    if not db:
+        return None
+    
+    try:
+        response = db.table("esign_documents").select("*").eq("id", document_id).single().execute()
+        return response.data
+    except Exception:
+        return None
+
+
+def db_update_esign_document_status(document_id, status, signed_pdf_path=None):
+    """Update e-signature document status
+    
+    Args:
+        document_id: UUID of the document
+        status: New status ('signed', 'completed', etc.)
+        signed_pdf_path: Optional path to signed PDF
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    db = get_db()
+    if not db:
+        return False
+    
+    try:
+        updates = {"status": status}
+        
+        if signed_pdf_path:
+            updates["signed_pdf_path"] = signed_pdf_path
+            
+        if status == "signed":
+            updates["signed_at"] = datetime.now().isoformat()
+        
+        response = db.table("esign_documents").update(updates).eq("id", document_id).execute()
+        return bool(response.data)
+    except Exception as e:
+        print(f"Error updating document status: {e}")
+        return False
+
+
+def db_check_document_fully_signed(document_id):
+    """Check if all required signature fields in a document have been signed
+    
+    Args:
+        document_id: UUID of the document
+    
+    Returns:
+        dict: {"fully_signed": bool, "total_fields": int, "signed_fields": int}
+    """
+    db = get_db()
+    if not db:
+        return {"fully_signed": False, "total_fields": 0, "signed_fields": 0}
+    
+    try:
+        # Get field layout for the document to count signature fields
+        layout_response = db.table("esign_field_layouts").select("field_data").eq(
+            "document_id", document_id
+        ).single().execute()
+        
+        if not layout_response.data:
+            return {"fully_signed": False, "total_fields": 0, "signed_fields": 0}
+        
+        # Parse field data
+        field_data = layout_response.data.get("field_data", {})
+        if isinstance(field_data, str):
+            import json
+            field_data = json.loads(field_data)
+        
+        # Count signature fields
+        signature_fields = [
+            field for field in field_data.get("fields", [])
+            if field.get("type") == "signature"
+        ]
+        total_signature_fields = len(signature_fields)
+        
+        if total_signature_fields == 0:
+            return {"fully_signed": True, "total_fields": 0, "signed_fields": 0}
+        
+        # Count how many of these fields have been signed
+        signatures_response = db.table("signatures").select("pdf_field_id").eq(
+            "document_id", document_id
+        ).execute()
+        
+        signed_field_ids = {sig["pdf_field_id"] for sig in signatures_response.data or []}
+        signature_field_ids = {field["id"] for field in signature_fields}
+        
+        signed_fields = len(signed_field_ids.intersection(signature_field_ids))
+        
+        return {
+            "fully_signed": signed_fields >= total_signature_fields,
+            "total_fields": total_signature_fields,
+            "signed_fields": signed_fields
+        }
+        
+    except Exception as e:
+        print(f"Error checking if document fully signed: {e}")
+        return {"fully_signed": False, "total_fields": 0, "signed_fields": 0}

@@ -43,6 +43,9 @@ class ESignatureFieldEditor {
         // Phase 2: Load templates on startup
         this.loadTemplates();
         
+        // Phase 3: Initialize signature modal
+        this.initSignatureModal();
+        
         console.log('E-Signature Field Editor initialized');
     }
 
@@ -195,6 +198,14 @@ class ESignatureFieldEditor {
             fieldId: this.generateFieldId(),
             page: this.currentPage
         });
+
+        // Phase 3: Add double-click handler for signature fields
+        if (fieldType === 'signature') {
+            fieldGroup.on('mousedblclick', () => {
+                console.log('Signature field double-clicked');
+                this.showSignatureModal(fieldGroup.fieldId, fieldGroup);
+            });
+        }
 
         // Add to canvas
         this.fabricCanvas.add(fieldGroup);
@@ -694,6 +705,431 @@ class ESignatureFieldEditor {
         """Set the current document ID for field association"""
         this.currentDocumentId = documentId;
         console.log('Document ID set:', documentId);
+    }
+    
+    // ========================================================================
+    // PHASE 3: SIGNATURE CAPTURE MODAL FUNCTIONALITY
+    // ========================================================================
+    
+    initSignatureModal() {
+        """Initialize the signature capture modal"""
+        this.signatureModal = document.getElementById('signature-modal');
+        this.signatureCanvas = document.getElementById('signature-canvas');
+        this.signatureCtx = this.signatureCanvas.getContext('2d');
+        this.isDrawing = false;
+        this.currentSignatureFieldId = null;
+        this.currentSignatureField = null;
+        
+        // Set up drawing events
+        this.setupSignatureCanvas();
+        
+        // Set up modal event listeners
+        this.setupSignatureModalEvents();
+        
+        console.log('Signature modal initialized');
+    }
+    
+    setupSignatureCanvas() {
+        """Set up the signature drawing canvas"""
+        const canvas = this.signatureCanvas;
+        const ctx = this.signatureCtx;
+        
+        // Set canvas style
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        // Mouse events
+        canvas.addEventListener('mousedown', (e) => {
+            this.startDrawing(e);
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            this.draw(e);
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            this.stopDrawing();
+        });
+        
+        canvas.addEventListener('mouseout', () => {
+            this.stopDrawing();
+        });
+        
+        // Touch events for mobile
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const mouseEvent = new MouseEvent('mouseup', {});
+            canvas.dispatchEvent(mouseEvent);
+        });
+    }
+    
+    setupSignatureModalEvents() {
+        """Set up event listeners for the signature modal"""
+        
+        // Tab switching
+        document.getElementById('draw-tab').addEventListener('click', () => {
+            this.switchSignatureTab('draw');
+        });
+        
+        document.getElementById('type-tab').addEventListener('click', () => {
+            this.switchSignatureTab('type');
+        });
+        
+        // Clear signature
+        document.getElementById('clear-signature').addEventListener('click', () => {
+            this.clearSignatureCanvas();
+        });
+        
+        // Type signature input
+        document.getElementById('signature-text').addEventListener('input', (e) => {
+            this.updateTypedSignaturePreview(e.target.value);
+        });
+        
+        document.getElementById('signature-font').addEventListener('change', () => {
+            const text = document.getElementById('signature-text').value;
+            this.updateTypedSignaturePreview(text);
+        });
+        
+        // Modal buttons
+        document.getElementById('close-signature-modal').addEventListener('click', () => {
+            this.hideSignatureModal();
+        });
+        
+        document.getElementById('cancel-signature').addEventListener('click', () => {
+            this.hideSignatureModal();
+        });
+        
+        document.getElementById('apply-signature').addEventListener('click', () => {
+            this.applySignature();
+        });
+        
+        // Close modal on overlay click
+        this.signatureModal.addEventListener('click', (e) => {
+            if (e.target === this.signatureModal) {
+                this.hideSignatureModal();
+            }
+        });
+    }
+    
+    showSignatureModal(fieldId, fieldObject) {
+        """Show the signature capture modal for a specific field"""
+        this.currentSignatureFieldId = fieldId;
+        this.currentSignatureField = fieldObject;
+        
+        // Reset modal state
+        this.switchSignatureTab('draw');
+        this.clearSignatureCanvas();
+        this.clearTypedSignature();
+        
+        // Show modal
+        this.signatureModal.style.display = 'flex';
+        
+        // Focus the signature canvas
+        setTimeout(() => {
+            this.signatureCanvas.focus();
+        }, 100);
+        
+        console.log('Signature modal shown for field:', fieldId);
+    }
+    
+    hideSignatureModal() {
+        """Hide the signature capture modal"""
+        this.signatureModal.style.display = 'none';
+        this.currentSignatureFieldId = null;
+        this.currentSignatureField = null;
+        
+        console.log('Signature modal hidden');
+    }
+    
+    switchSignatureTab(tab) {
+        """Switch between draw and type signature tabs"""
+        const drawTab = document.getElementById('draw-tab');
+        const typeTab = document.getElementById('type-tab');
+        const drawPanel = document.getElementById('draw-signature-panel');
+        const typePanel = document.getElementById('type-signature-panel');
+        
+        if (tab === 'draw') {
+            drawTab.classList.add('active');
+            typeTab.classList.remove('active');
+            drawPanel.classList.add('active');
+            typePanel.classList.remove('active');
+        } else {
+            drawTab.classList.remove('active');
+            typeTab.classList.add('active');
+            drawPanel.classList.remove('active');
+            typePanel.classList.add('active');
+        }
+        
+        // Update apply button state
+        this.updateApplyButtonState();
+    }
+    
+    startDrawing(e) {
+        """Start drawing on the signature canvas"""
+        this.isDrawing = true;
+        const rect = this.signatureCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        this.signatureCtx.beginPath();
+        this.signatureCtx.moveTo(x, y);
+        
+        // Update apply button state
+        this.updateApplyButtonState();
+    }
+    
+    draw(e) {
+        """Draw on the signature canvas"""
+        if (!this.isDrawing) return;
+        
+        const rect = this.signatureCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        this.signatureCtx.lineTo(x, y);
+        this.signatureCtx.stroke();
+    }
+    
+    stopDrawing() {
+        """Stop drawing on the signature canvas"""
+        this.isDrawing = false;
+        this.signatureCtx.beginPath();
+        
+        // Update apply button state
+        this.updateApplyButtonState();
+    }
+    
+    clearSignatureCanvas() {
+        """Clear the signature canvas"""
+        this.signatureCtx.clearRect(0, 0, this.signatureCanvas.width, this.signatureCanvas.height);
+        this.updateApplyButtonState();
+    }
+    
+    updateTypedSignaturePreview(text) {
+        """Update the typed signature preview"""
+        const preview = document.getElementById('typed-signature-preview');
+        const font = document.getElementById('signature-font').value;
+        
+        if (text.trim()) {
+            preview.textContent = text;
+            preview.style.fontFamily = font;
+            preview.classList.add('has-signature');
+        } else {
+            preview.textContent = 'Your signature will appear here';
+            preview.classList.remove('has-signature');
+        }
+        
+        this.updateApplyButtonState();
+    }
+    
+    clearTypedSignature() {
+        """Clear the typed signature input"""
+        document.getElementById('signature-text').value = '';
+        this.updateTypedSignaturePreview('');
+    }
+    
+    updateApplyButtonState() {
+        """Enable/disable the apply button based on signature content"""
+        const applyBtn = document.getElementById('apply-signature');
+        const activeTab = document.querySelector('.tab-button.active').id;
+        
+        let hasSignature = false;
+        
+        if (activeTab === 'draw-tab') {
+            // Check if canvas has drawing
+            const canvas = this.signatureCanvas;
+            const ctx = this.signatureCtx;
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            hasSignature = imageData.data.some(channel => channel !== 0);
+        } else if (activeTab === 'type-tab') {
+            // Check if text input has content
+            const text = document.getElementById('signature-text').value;
+            hasSignature = text.trim().length > 0;
+        }
+        
+        applyBtn.disabled = !hasSignature;
+    }
+    
+    getSignatureData() {
+        """Get the signature data based on active tab"""
+        const activeTab = document.querySelector('.tab-button.active').id;
+        
+        if (activeTab === 'draw-tab') {
+            // Return canvas as base64 data URL
+            return {
+                type: 'draw',
+                data: this.signatureCanvas.toDataURL('image/png'),
+                font: null
+            };
+        } else if (activeTab === 'type-tab') {
+            // Return typed text and font
+            const text = document.getElementById('signature-text').value.trim();
+            const font = document.getElementById('signature-font').value;
+            return {
+                type: 'type',
+                data: text,
+                font: font
+            };
+        }
+        
+        return null;
+    }
+    
+    applySignature() {
+        """Apply the captured signature to the field"""
+        if (!this.currentSignatureFieldId || !this.currentSignatureField) {
+            console.error('No field selected for signature');
+            return;
+        }
+        
+        const signatureData = this.getSignatureData();
+        if (!signatureData) {
+            console.error('No signature data to apply');
+            return;
+        }
+        
+        // Get field coordinates and properties
+        const field = this.fields.find(f => f.id === this.currentSignatureFieldId);
+        if (!field) {
+            console.error('Field not found:', this.currentSignatureFieldId);
+            return;
+        }
+        
+        const payload = {
+            pdf_field_id: this.currentSignatureFieldId,
+            document_id: this.currentDocumentId,
+            signature_type: signatureData.type,
+            signature_data: signatureData.data,
+            x_coordinate: field.x,
+            y_coordinate: field.y,
+            width: 120, // Default signature field width
+            height: 40, // Default signature field height
+            page_number: field.page,
+            font_family: signatureData.font,
+            font_size: 16 // Default font size
+        };
+        
+        console.log('Applying signature:', payload);
+        
+        // Send to backend
+        this.sendSignatureToBackend(payload);
+        
+        // Hide modal
+        this.hideSignatureModal();
+        
+        // Mark field as signed (visual feedback)
+        this.markFieldAsSigned(field);
+    }
+    
+    sendSignatureToBackend(payload) {
+        """Send signature data to the backend for PDF processing"""
+        fetch('/api/esign/apply_signature', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Signature applied successfully:', data);
+                this.showToast('Signature applied successfully!', 'success');
+            } else {
+                console.error('Failed to apply signature:', data.error);
+                this.showToast('Failed to apply signature: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error applying signature:', error);
+            this.showToast('Error applying signature', 'error');
+        });
+    }
+    
+    markFieldAsSigned(field) {
+        """Mark a field as signed with visual indication"""
+        if (field.object) {
+            // Change the field color to indicate it's signed
+            const fabricObject = field.object;
+            if (fabricObject.getObjects) {
+                const objects = fabricObject.getObjects();
+                objects.forEach(obj => {
+                    if (obj.fill) {
+                        obj.set('fill', '#d5f4e6'); // Light green background
+                        obj.set('stroke', '#27ae60'); // Green border
+                    }
+                });
+            }
+            
+            this.fabricCanvas.renderAll();
+        }
+        
+        // Mark as signed in the field data
+        field.signed = true;
+        field.signedAt = new Date().toISOString();
+        
+        console.log('Field marked as signed:', field.id);
+    }
+    
+    showToast(message, type = 'info') {
+        """Show a toast notification"""
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
+            color: white;
+            border-radius: 6px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // Show toast
+        setTimeout(() => {
+            toast.style.transform = 'translateX(0)';
+        }, 100);
+        
+        // Hide toast after 3 seconds
+        setTimeout(() => {
+            toast.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
     }
 }
 
