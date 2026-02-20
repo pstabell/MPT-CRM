@@ -13,6 +13,11 @@ class ESignatureFieldEditor {
         this.selectedFieldType = null;
         this.scale = 1;
         
+        // Phase 2: Document and template management
+        this.currentDocumentId = null;
+        this.currentLayoutId = null;
+        this.templates = [];
+        
         this.init();
     }
 
@@ -34,6 +39,9 @@ class ESignatureFieldEditor {
         // Default field type
         window.selectedFieldType = 'signature';
         this.selectFieldType('signature');
+        
+        // Phase 2: Load templates on startup
+        this.loadTemplates();
         
         console.log('E-Signature Field Editor initialized');
     }
@@ -90,9 +98,24 @@ class ESignatureFieldEditor {
         document.getElementById('save-fields').addEventListener('click', () => {
             this.saveFieldLayout();
         });
+        
+        document.getElementById('load-fields').addEventListener('click', () => {
+            this.loadFieldLayout();
+        });
 
         document.getElementById('preview-fields').addEventListener('click', () => {
             this.previewFields();
+        });
+        
+        // Phase 2: Template management
+        document.getElementById('save-as-template').addEventListener('click', () => {
+            this.saveAsTemplate();
+        });
+        
+        document.getElementById('template-name').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.saveAsTemplate();
+            }
         });
 
         // File input for PDF upload (hidden)
@@ -352,11 +375,12 @@ class ESignatureFieldEditor {
 
         console.log('Field layout saved:', layoutData);
         
-        // Here you would typically send this data to your backend
-        // For now, we'll store it in localStorage as a demo
-        localStorage.setItem('esign_field_layout', JSON.stringify(layoutData));
-        
-        alert(`Field layout saved! Found ${this.fields.length} fields across ${this.totalPages} pages.`);
+        // Phase 2: Save to database via Streamlit backend
+        this.sendMessageToStreamlit({
+            action: 'save_field_layout',
+            data: layoutData,
+            document_id: this.currentDocumentId
+        });
     }
 
     previewFields() {
@@ -387,6 +411,289 @@ class ESignatureFieldEditor {
     // Public method to trigger PDF upload
     uploadPDF() {
         document.getElementById('pdf-file-input').click();
+    }
+    
+    // =============================================================================
+    // PHASE 2: DATABASE & TEMPLATE MANAGEMENT METHODS
+    // =============================================================================
+    
+    sendMessageToStreamlit(message) {
+        """Send message to Streamlit backend via postMessage"""
+        console.log('Sending message to Streamlit:', message);
+        
+        // Store in session state for Streamlit to pick up
+        if (window.parent && window.parent.postMessage) {
+            window.parent.postMessage({
+                type: 'field_editor_message',
+                ...message
+            }, '*');
+        }
+        
+        // Also try setting directly if in same window
+        if (window.streamlit_session_state) {
+            window.streamlit_session_state.field_editor_message = message;
+        }
+    }
+    
+    async loadFieldLayout(documentId = null) {
+        """Load field layout from database"""
+        try {
+            const message = {
+                action: 'load_field_layout',
+                document_id: documentId || this.currentDocumentId
+            };
+            
+            this.sendMessageToStreamlit(message);
+            
+            // Wait for response (simplified - in real implementation, you'd use proper async handling)
+            setTimeout(() => {
+                this.checkForStreamlitResponse('load');
+            }, 500);
+            
+        } catch (error) {
+            console.error('Error loading field layout:', error);
+            alert('Error loading field layout');
+        }
+    }
+    
+    async saveAsTemplate() {
+        """Save current field layout as a reusable template"""
+        const templateName = document.getElementById('template-name').value.trim();
+        
+        if (!templateName) {
+            alert('Please enter a template name');
+            return;
+        }
+        
+        if (this.fields.length === 0) {
+            alert('Please place some fields before saving as template');
+            return;
+        }
+        
+        const layoutData = {
+            fields: this.fields.map(field => ({
+                id: field.id,
+                type: field.type,
+                page: field.page,
+                x: field.x,
+                y: field.y,
+                width: field.object.width,
+                height: field.object.height
+            })),
+            totalPages: this.totalPages,
+            timestamp: new Date().toISOString()
+        };
+        
+        this.sendMessageToStreamlit({
+            action: 'save_field_layout',
+            data: layoutData,
+            template_name: templateName
+        });
+        
+        // Clear the input
+        document.getElementById('template-name').value = '';
+        
+        // Refresh templates
+        setTimeout(() => {
+            this.loadTemplates();
+        }, 1000);
+    }
+    
+    async loadTemplates() {
+        """Load available templates from database"""
+        console.log('Loading templates...');
+        
+        this.sendMessageToStreamlit({
+            action: 'get_templates'
+        });
+        
+        // Wait for response
+        setTimeout(() => {
+            this.checkForStreamlitResponse('templates');
+        }, 500);
+    }
+    
+    checkForStreamlitResponse(type) {
+        """Check if Streamlit has responded with data"""
+        // This is a simplified approach - in a real implementation,
+        // you'd use proper async communication or websockets
+        
+        if (window.streamlit_response) {
+            const response = window.streamlit_response;
+            
+            if (type === 'load' && response.success) {
+                this.applyLoadedLayout(response.data);
+            } else if (type === 'templates' && response.success) {
+                this.renderTemplates(response.templates);
+            }
+            
+            // Clear response
+            delete window.streamlit_response;
+        }
+    }
+    
+    applyLoadedLayout(layoutData) {
+        """Apply loaded field layout to the editor"""
+        try {
+            // Clear existing fields
+            this.clearAllFields();
+            
+            // Apply loaded fields
+            if (layoutData.fields) {
+                layoutData.fields.forEach(fieldData => {
+                    this.restoreField(fieldData);
+                });
+            }
+            
+            this.updateFieldList();
+            alert(`Field layout loaded! Applied ${layoutData.fields ? layoutData.fields.length : 0} fields.`);
+            
+        } catch (error) {
+            console.error('Error applying loaded layout:', error);
+            alert('Error applying loaded layout');
+        }
+    }
+    
+    restoreField(fieldData) {
+        """Restore a field from saved data"""
+        const fieldColors = {
+            signature: '#ff6b6b',
+            initials: '#4ecdc4',
+            date: '#45b7d1',
+            text: '#96ceb4'
+        };
+
+        const fieldLabels = {
+            signature: 'SIGNATURE',
+            initials: 'INITIALS',
+            date: 'DATE',
+            text: 'TEXT FIELD'
+        };
+        
+        // Create field rectangle
+        const field = new fabric.Rect({
+            left: fieldData.x - 60,
+            top: fieldData.y - 15,
+            width: fieldData.width || 120,
+            height: fieldData.height || 30,
+            fill: fieldColors[fieldData.type] + '40',
+            stroke: fieldColors[fieldData.type],
+            strokeWidth: 2,
+            rx: 4,
+            ry: 4,
+            selectable: true,
+            moveable: true
+        });
+
+        // Add field label text
+        const label = new fabric.Text(fieldLabels[fieldData.type], {
+            left: fieldData.x - 50,
+            top: fieldData.y - 8,
+            fontSize: 12,
+            fontFamily: 'Arial',
+            fill: fieldColors[fieldData.type],
+            selectable: false,
+            evented: false
+        });
+
+        // Group field and label together
+        const fieldGroup = new fabric.Group([field, label], {
+            left: fieldData.x - 60,
+            top: fieldData.y - 15,
+            selectable: true,
+            moveable: true,
+            fieldType: fieldData.type,
+            fieldId: fieldData.id,
+            page: fieldData.page
+        });
+
+        // Add to canvas
+        this.fabricCanvas.add(fieldGroup);
+        
+        // Add to fields array
+        this.fields.push({
+            id: fieldData.id,
+            type: fieldData.type,
+            page: fieldData.page,
+            x: fieldData.x,
+            y: fieldData.y,
+            object: fieldGroup
+        });
+    }
+    
+    renderTemplates(templates) {
+        """Render the list of available templates"""
+        const templateList = document.getElementById('template-list');
+        
+        if (!templates || templates.length === 0) {
+            templateList.innerHTML = '<p class="loading-templates">No templates saved yet</p>';
+            return;
+        }
+        
+        const templatesHtml = templates.map(template => `
+            <div class="template-item">
+                <div class="template-info">
+                    <div class="template-name">${template.name}</div>
+                    <div class="template-meta">${template.field_count} fields • ${this.formatDate(template.created_at)}</div>
+                </div>
+                <div class="template-actions">
+                    <button class="template-load-btn" onclick="editor.loadTemplate('${template.name}')" title="Load Template">📂</button>
+                    <button class="template-delete-btn" onclick="editor.deleteTemplate('${template.name}')" title="Delete Template">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+        
+        templateList.innerHTML = templatesHtml;
+        this.templates = templates;
+    }
+    
+    loadTemplate(templateName) {
+        """Load a specific template"""
+        if (this.fields.length > 0) {
+            if (!confirm('This will replace your current field layout. Continue?')) {
+                return;
+            }
+        }
+        
+        this.sendMessageToStreamlit({
+            action: 'load_field_layout',
+            template_name: templateName
+        });
+        
+        setTimeout(() => {
+            this.checkForStreamlitResponse('load');
+        }, 500);
+    }
+    
+    deleteTemplate(templateName) {
+        """Delete a template"""
+        if (confirm(`Are you sure you want to delete the template "${templateName}"?`)) {
+            this.sendMessageToStreamlit({
+                action: 'delete_template',
+                template_name: templateName
+            });
+            
+            // Refresh templates
+            setTimeout(() => {
+                this.loadTemplates();
+            }, 1000);
+        }
+    }
+    
+    formatDate(dateString) {
+        """Format date for display"""
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        } catch (error) {
+            return 'Unknown';
+        }
+    }
+    
+    setDocumentId(documentId) {
+        """Set the current document ID for field association"""
+        this.currentDocumentId = documentId;
+        console.log('Document ID set:', documentId);
     }
 }
 
