@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Signature Field Editor</title>
+    
+    <!-- PDF.js CDN v4.0.379 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"></script>
+    
+    <!-- Fabric.js CDN v5.3.0 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="esign_field_editor.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Field Palette -->
+        <div class="field-palette">
+            <h3>Field Types</h3>
+            <div class="field-buttons">
+                <button class="field-btn" data-field-type="signature" onclick="selectFieldType('signature')">
+                    ✍️ Signature
+                </button>
+                <button class="field-btn" data-field-type="initials" onclick="selectFieldType('initials')">
+                    🔤 Initials
+                </button>
+                <button class="field-btn" data-field-type="date" onclick="selectFieldType('date')">
+                    📅 Date
+                </button>
+                <button class="field-btn" data-field-type="text" onclick="selectFieldType('text')">
+                    📝 Text
+                </button>
+            </div>
+            <div class="selected-field">
+                <p>Selected: <span id="selectedField">None</span></p>
+            </div>
+        </div>
+
+        <!-- PDF Viewer Container -->
+        <div class="pdf-viewer-container">
+            <!-- Page Navigation -->
+            <div class="page-controls">
+                <button id="prevBtn" onclick="previousPage()">⬅️ Previous</button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextBtn" onclick="nextPage()">➡️ Next</button>
+            </div>
+
+            <!-- Canvas Container with Layered Canvases -->
+            <div class="canvas-container">
+                <!-- PDF Rendering Canvas (Bottom Layer) -->
+                <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+                
+                <!-- Annotation Canvas (Top Layer) using Fabric.js -->
+                <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+            </div>
+
+            <!-- PDF Load Controls -->
+            <div class="pdf-controls">
+                <input type="file" id="pdfInput" accept=".pdf" onchange="loadPDF()" />
+                <label for="pdfInput" class="file-btn">📁 Load PDF</label>
+                
+                <button id="clearFields" onclick="clearAllFields()">🗑️ Clear Fields</button>
+                <button id="exportFields" onclick="exportFieldData()">💾 Export Fields</button>
+            </div>
+
+            <!-- Debug Info (for development) -->
+            <div class="debug-info" id="debugInfo" style="display: none;">
+                <h4>Debug Info</h4>
+                <p>PDF Pages: <span id="debugPages">0</span></p>
+                <p>Current Page: <span id="debugCurrentPage">0</span></p>
+                <p>Fields Count: <span id="debugFields">0</span></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="esign_field_editor.js"></script>
+    
+    <script>
+        // Initialize the field editor when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFieldEditor();
+        });
+    </script>
+</body>
+</html>

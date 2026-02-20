@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Signature Field Editor - Standalone Test</title>
+    
+    <!-- PDF.js CDN v4.0.379 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"></script>
+    
+    <!-- Fabric.js CDN v5.3.0 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    
+    <link rel="stylesheet" href="esign_field_editor.css">
+</head>
+<body>
+    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+        <h1>🎯 E-Signature Field Editor - Standalone Test</h1>
+        <p>Test all Phase 1 features: PDF loading, field placement, page navigation</p>
+    </div>
+
+    <div class="container">
+        <!-- Field Palette -->
+        <div class="field-palette">
+            <h3>Field Types</h3>
+            <div class="field-buttons">
+                <button class="field-btn" data-field-type="signature" onclick="selectFieldType('signature')">
+                    ✍️ Signature
+                </button>
+                <button class="field-btn" data-field-type="initials" onclick="selectFieldType('initials')">
+                    🔤 Initials
+                </button>
+                <button class="field-btn" data-field-type="date" onclick="selectFieldType('date')">
+                    📅 Date
+                </button>
+                <button class="field-btn" data-field-type="text" onclick="selectFieldType('text')">
+                    📝 Text
+                </button>
+            </div>
+            <div class="selected-field">
+                <p>Selected: <span id="selectedField">None</span></p>
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <h4 style="color: #3498db; margin-bottom: 10px;">✅ Phase 1 Checklist:</h4>
+                <div style="font-size: 12px; line-height: 1.6;">
+                    <div>✅ HTML structure with layered canvases</div>
+                    <div>✅ PDF.js CDN v4.0.379</div>
+                    <div>✅ Fabric.js CDN v5.3.0</div>
+                    <div>✅ Field Palette UI (4 field types)</div>
+                    <div>✅ Click-to-place functionality</div>
+                    <div>✅ Field type tracking</div>
+                    <div>✅ Page navigation</div>
+                    <div>✅ Semi-transparent fields</div>
+                    <div>✅ Streamlit integration</div>
+                    <div>⏳ PDF loading test needed</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PDF Viewer Container -->
+        <div class="pdf-viewer-container">
+            <!-- Page Navigation -->
+            <div class="page-controls">
+                <button id="prevBtn" onclick="previousPage()">⬅️ Previous</button>
+                <span id="pageInfo">Page 1 of 1</span>
+                <button id="nextBtn" onclick="nextPage()">➡️ Next</button>
+            </div>
+
+            <!-- Canvas Container with Layered Canvases -->
+            <div class="canvas-container">
+                <!-- PDF Rendering Canvas (Bottom Layer) -->
+                <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+                
+                <!-- Annotation Canvas (Top Layer) using Fabric.js -->
+                <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+            </div>
+
+            <!-- PDF Load Controls -->
+            <div class="pdf-controls">
+                <input type="file" id="pdfInput" accept=".pdf" onchange="loadPDF()" />
+                <label for="pdfInput" class="file-btn">📁 Load PDF</label>
+                
+                <button onclick="loadTestPDF()" style="padding: 10px 20px; background: #9b59b6; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 0 10px;">📄 Load Test PDF</button>
+                
+                <button id="clearFields" onclick="clearAllFields()">🗑️ Clear Fields</button>
+                <button id="exportFields" onclick="exportFieldData()">💾 Export Fields</button>
+            </div>
+
+            <!-- Debug Info -->
+            <div class="debug-info" id="debugInfo" style="display: block;">
+                <h4>Debug Info</h4>
+                <p>PDF Pages: <span id="debugPages">0</span></p>
+                <p>Current Page: <span id="debugCurrentPage">0</span></p>
+                <p>Fields Count: <span id="debugFields">0</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="esign_field_editor.js"></script>
+    
+    <script>
+        // Load test PDF function
+        async function loadTestPDF() {
+            try {
+                const response = await fetch('./test_contract.pdf');
+                const arrayBuffer = await response.arrayBuffer();
+                const typedArray = new Uint8Array(arrayBuffer);
+                
+                // Load PDF document
+                pdfDoc = await pdfjsLib.getDocument({
+                    data: typedArray,
+                    cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/cmaps/',
+                    cMapPacked: true
+                }).promise;
+                
+                pageCount = pdfDoc.numPages;
+                pageNum = 1;
+                
+                console.log(`Test PDF loaded: ${pageCount} pages`);
+                showMessage(`Test PDF loaded successfully (${pageCount} pages)`, 'success');
+                
+                // Render first page
+                await queueRenderPage(pageNum);
+                
+                // Update debug info
+                updateDebugInfo();
+                
+                // Enable navigation buttons
+                updateNavigationButtons();
+                
+            } catch (error) {
+                console.error('Error loading test PDF:', error);
+                showMessage('Failed to load test PDF. Use file upload instead.', 'error');
+            }
+        }
+        
+        // Initialize the field editor when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFieldEditor();
+            
+            // Auto-show message about test instructions
+            setTimeout(() => {
+                showMessage('Ready! Click "Load Test PDF" or "Load PDF" to start testing', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

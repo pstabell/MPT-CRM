@@ -1,0 +1,353 @@
+/* E-Signature Field Editor Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    display: flex;
+    height: 100vh;
+    max-width: 1400px;
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+/* Field Palette Styles */
+.field-palette {
+    width: 250px;
+    background: #2c3e50;
+    color: white;
+    padding: 20px;
+    border-right: 1px solid #34495e;
+}
+
+.field-palette h3 {
+    margin-bottom: 20px;
+    color: #ecf0f1;
+    font-size: 18px;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 10px;
+}
+
+.field-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.field-btn {
+    padding: 12px 16px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    text-align: left;
+}
+
+.field-btn:hover {
+    background: #2980b9;
+    transform: translateY(-1px);
+}
+
+.field-btn.active {
+    background: #e74c3c;
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+}
+
+.selected-field {
+    background: #34495e;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #4a5f7a;
+}
+
+.selected-field p {
+    margin: 0;
+    font-size: 14px;
+    color: #bdc3c7;
+}
+
+#selectedField {
+    color: #3498db;
+    font-weight: bold;
+}
+
+/* PDF Viewer Container */
+.pdf-viewer-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+}
+
+/* Page Controls */
+.page-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 15px;
+    background: white;
+    border-bottom: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.page-controls button {
+    padding: 8px 16px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.page-controls button:hover:not(:disabled) {
+    background: #2980b9;
+}
+
+.page-controls button:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+}
+
+#pageInfo {
+    font-weight: 500;
+    color: #2c3e50;
+    min-width: 120px;
+    text-align: center;
+}
+
+/* Canvas Container */
+.canvas-container {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    min-height: 600px;
+}
+
+.pdf-canvas,
+.annotation-canvas {
+    position: absolute;
+    border: 1px solid #ddd;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    background: white;
+}
+
+.pdf-canvas {
+    z-index: 1;
+}
+
+.annotation-canvas {
+    z-index: 2;
+    cursor: crosshair;
+}
+
+/* PDF Controls */
+.pdf-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 15px;
+    background: white;
+    border-top: 1px solid #dee2e6;
+}
+
+.pdf-controls input[type="file"] {
+    display: none;
+}
+
+.file-btn {
+    padding: 10px 20px;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-block;
+    text-decoration: none;
+}
+
+.file-btn:hover {
+    background: #219a52;
+    transform: translateY(-1px);
+}
+
+#clearFields {
+    padding: 10px 20px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+#clearFields:hover {
+    background: #c0392b;
+}
+
+#exportFields {
+    padding: 10px 20px;
+    background: #f39c12;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+#exportFields:hover {
+    background: #e67e22;
+}
+
+/* Field Styles on Canvas */
+.signature-field {
+    fill: rgba(231, 76, 60, 0.3) !important;
+    stroke: #e74c3c !important;
+    stroke-width: 2 !important;
+}
+
+.initials-field {
+    fill: rgba(52, 152, 219, 0.3) !important;
+    stroke: #3498db !important;
+    stroke-width: 2 !important;
+}
+
+.date-field {
+    fill: rgba(39, 174, 96, 0.3) !important;
+    stroke: #27ae60 !important;
+    stroke-width: 2 !important;
+}
+
+.text-field {
+    fill: rgba(243, 156, 18, 0.3) !important;
+    stroke: #f39c12 !important;
+    stroke-width: 2 !important;
+}
+
+/* Debug Info */
+.debug-info {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    min-width: 200px;
+}
+
+.debug-info h4 {
+    margin-bottom: 8px;
+    color: #3498db;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+    }
+    
+    .field-palette {
+        width: 100%;
+        padding: 15px;
+    }
+    
+    .field-buttons {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .field-btn {
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    .canvas-container {
+        min-height: 400px;
+        padding: 10px;
+    }
+}
+
+/* Loading State */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    font-size: 16px;
+    color: #666;
+}
+
+.loading::before {
+    content: "⏳ ";
+    margin-right: 8px;
+}
+
+/* Success/Error Messages */
+.message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+}
+
+.message.success {
+    background: #27ae60;
+}
+
+.message.error {
+    background: #e74c3c;
+}
+
+.message.info {
+    background: #3498db;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}

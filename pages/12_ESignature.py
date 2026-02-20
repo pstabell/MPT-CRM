@@ -12,6 +12,7 @@ Features:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import uuid
 from datetime import datetime, timedelta
@@ -64,7 +65,7 @@ st.title("📝 E-Signature")
 st.markdown("### Custom In-House Document Signing")
 
 # Create tabs for different functions
-tab1, tab2, tab3, tab4 = st.tabs(["📤 Send for Signature", "📋 Track Documents", "✍️ Sign Document", "⚙️ Settings"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📤 Send for Signature", "📋 Track Documents", "✍️ Sign Document", "🎯 Field Editor", "⚙️ Settings"])
 
 # =============================================================================
 # TAB 1: SEND FOR SIGNATURE
@@ -434,9 +435,159 @@ with tab3:
             st.error("❌ Invalid token format")
 
 # =============================================================================
-# TAB 4: SETTINGS
+# TAB 4: FIELD EDITOR (Phase 1: PDF Viewer + Basic Annotation)
 # =============================================================================
 with tab4:
+    st.header("🎯 PDF Field Editor")
+    st.markdown("### DocuSign-like drag-drop field placement for PDF documents")
+    
+""
+    
+    st.markdown("""
+    **Phase 1 Features:**
+    - ✅ PDF.js integration for PDF rendering
+    - ✅ Fabric.js for interactive annotation layer
+    - ✅ Drag-drop field placement (Signature, Initials, Date, Text)
+    - ✅ Multi-page PDF navigation
+    - ✅ Field export/import functionality
+    - ✅ Mobile-responsive design
+    """)
+    
+    # Load the HTML field editor
+    try:
+        # Read the HTML file content
+        with open('esign_field_editor.html', 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # Read CSS file
+        with open('esign_field_editor.css', 'r', encoding='utf-8') as f:
+            css_content = f.read()
+        
+        # Read JS file  
+        with open('esign_field_editor.js', 'r', encoding='utf-8') as f:
+            js_content = f.read()
+        
+        # Combine into single HTML with embedded CSS and JS
+        combined_html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>E-Signature Field Editor</title>
+            
+            <!-- PDF.js CDN v4.0.379 -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js"></script>
+            
+            <!-- Fabric.js CDN v5.3.0 -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+            
+            <style>
+            {css_content}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <!-- Field Palette -->
+                <div class="field-palette">
+                    <h3>Field Types</h3>
+                    <div class="field-buttons">
+                        <button class="field-btn" data-field-type="signature" onclick="selectFieldType('signature')">
+                            ✍️ Signature
+                        </button>
+                        <button class="field-btn" data-field-type="initials" onclick="selectFieldType('initials')">
+                            🔤 Initials
+                        </button>
+                        <button class="field-btn" data-field-type="date" onclick="selectFieldType('date')">
+                            📅 Date
+                        </button>
+                        <button class="field-btn" data-field-type="text" onclick="selectFieldType('text')">
+                            📝 Text
+                        </button>
+                    </div>
+                    <div class="selected-field">
+                        <p>Selected: <span id="selectedField">None</span></p>
+                    </div>
+                </div>
+
+                <!-- PDF Viewer Container -->
+                <div class="pdf-viewer-container">
+                    <!-- Page Navigation -->
+                    <div class="page-controls">
+                        <button id="prevBtn" onclick="previousPage()">⬅️ Previous</button>
+                        <span id="pageInfo">Page 1 of 1</span>
+                        <button id="nextBtn" onclick="nextPage()">➡️ Next</button>
+                    </div>
+
+                    <!-- Canvas Container with Layered Canvases -->
+                    <div class="canvas-container">
+                        <!-- PDF Rendering Canvas (Bottom Layer) -->
+                        <canvas id="pdfCanvas" class="pdf-canvas"></canvas>
+                        
+                        <!-- Annotation Canvas (Top Layer) using Fabric.js -->
+                        <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+                    </div>
+
+                    <!-- PDF Load Controls -->
+                    <div class="pdf-controls">
+                        <input type="file" id="pdfInput" accept=".pdf" onchange="loadPDF()" />
+                        <label for="pdfInput" class="file-btn">📁 Load PDF</label>
+                        
+                        <button id="clearFields" onclick="clearAllFields()">🗑️ Clear Fields</button>
+                        <button id="exportFields" onclick="exportFieldData()">💾 Export Fields</button>
+                    </div>
+
+                    <!-- Debug Info (for development) -->
+                    <div class="debug-info" id="debugInfo" style="display: none;">
+                        <h4>Debug Info</h4>
+                        <p>PDF Pages: <span id="debugPages">0</span></p>
+                        <p>Current Page: <span id="debugCurrentPage">0</span></p>
+                        <p>Fields Count: <span id="debugFields">0</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+            {js_content}
+            
+            // Initialize the field editor when DOM is ready
+            document.addEventListener('DOMContentLoaded', function() {{
+                initializeFieldEditor();
+            }});
+            </script>
+        </body>
+        </html>
+        """
+        
+        # Display the field editor in an iframe
+        components.html(combined_html, height=700, scrolling=True)
+        
+        st.markdown("""
+        ---
+        **Instructions:**
+        1. Click "Load PDF" to upload a PDF document
+        2. Select a field type from the left panel (Signature, Initials, Date, Text)
+        3. Click anywhere on the PDF to place the field
+        4. Use Previous/Next buttons to navigate between pages
+        5. Export field positions as JSON for later use
+        
+        **Keyboard Shortcuts:**
+        - `Ctrl + ←/→`: Navigate pages
+        - `Delete`: Remove selected field
+        - `Escape`: Deselect field type
+        """)
+        
+    except FileNotFoundError as e:
+        st.error(f"Field editor files not found: {e}")
+        st.info("Please ensure esign_field_editor.html, .css, and .js files are in the root directory.")
+    except Exception as e:
+        st.error(f"Error loading field editor: {e}")
+
+# =============================================================================
+# TAB 5: SETTINGS
+# =============================================================================
+with tab5:
     st.header("E-Signature Settings")
     
     col1, col2 = st.columns(2)
