@@ -70,10 +70,10 @@ class TwilioSMSService:
             if len(message) > 1600:
                 message = message[:1597] + "..."
             
-            # Twilio API request
+            # Twilio API request - use Messaging Service for 10DLC compliance
             url = f"{self.api_base}/Messages.json"
             data = {
-                'From': self.from_number,
+                'MessagingServiceSid': 'MG816b5f0b45fd5d92e61d12c721ac14f0',  # MPT Customer Notifications
                 'To': to_number,
                 'Body': message
             }
