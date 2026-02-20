@@ -1726,7 +1726,8 @@ def show_contact_detail(contact_id):
                                 if result['success']:
                                     st.success(f"✅ Text sent to {db_service.format_phone_for_display(contact['phone'])}")
                                     # Update last_contacted
-                                    db_service.db_update_contact(contact['id'], {"last_contacted": datetime.now().isoformat()})
+                                    from datetime import datetime as dt
+                                    db_service.db_update_contact(contact['id'], {"last_contacted": dt.now().isoformat()})
                                     # Clear the form
                                     st.session_state[f"sms_message_{contact['id']}"] = ""
                                     st.session_state[f"show_sms_compose_{contact['id']}"] = False
