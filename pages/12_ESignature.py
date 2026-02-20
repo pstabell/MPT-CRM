@@ -12,6 +12,7 @@ Features:
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import uuid
 from datetime import datetime, timedelta
@@ -64,12 +65,67 @@ st.title("📝 E-Signature")
 st.markdown("### Custom In-House Document Signing")
 
 # Create tabs for different functions
-tab1, tab2, tab3, tab4 = st.tabs(["📤 Send for Signature", "📋 Track Documents", "✍️ Sign Document", "⚙️ Settings"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Prepare Document", "📤 Send for Signature", "📋 Track Documents", "✍️ Sign Document", "⚙️ Settings"])
 
 # =============================================================================
-# TAB 1: SEND FOR SIGNATURE
+# TAB 1: PREPARE DOCUMENT (Field Editor)
 # =============================================================================
 with tab1:
+    st.header("📝 Prepare Document Fields")
+    st.markdown("Use the field editor below to place signature, initial, date, and text fields on your PDF document.")
+    
+    # Instructions
+    with st.expander("📋 How to Use the Field Editor", expanded=False):
+        st.markdown("""
+        **Step-by-step instructions:**
+        
+        1. **Select Field Type**: Choose from Signature, Initials, Date, or Text in the left panel
+        2. **Place Fields**: Click anywhere on the PDF document to place the selected field type
+        3. **Move Fields**: Click and drag placed fields to reposition them
+        4. **Navigate Pages**: Use Previous/Next buttons to work on different pages
+        5. **Save Layout**: Click 'Save Field Layout' when finished
+        
+        **Field Types:**
+        - **✍️ Signature**: Full signature area (red)
+        - **📝 Initials**: Initial signature area (teal) 
+        - **📅 Date**: Date field (blue)
+        - **📄 Text**: Text input field (green)
+        
+        **Tips:**
+        - Fields are semi-transparent so you can see the document underneath
+        - Each page can have its own set of fields
+        - Use the field list on the left to manage placed fields
+        """)
+    
+    # Load the field editor HTML
+    try:
+        # Read the HTML file
+        with open("static/esign_field_editor.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        
+        # Embed the field editor
+        components.html(
+            html_content,
+            height=800,
+            width=None,  # Use full width
+            scrolling=True
+        )
+        
+        st.info("💡 **Next Step:** After preparing your document fields, use the 'Send for Signature' tab to send the document to signers.")
+        
+    except FileNotFoundError:
+        st.error("❌ Field editor files not found. Please ensure the static files are properly deployed.")
+        st.code("""
+        Missing files:
+        - static/esign_field_editor.html
+        - static/esign_field_editor.js  
+        - static/esign_field_editor.css
+        """)
+
+# =============================================================================
+# TAB 2: SEND FOR SIGNATURE
+# =============================================================================
+with tab2:
     st.header("Send Document for Signature")
     
     col1, col2 = st.columns([2, 1])
@@ -202,9 +258,9 @@ with tab1:
                     st.error(f"Error sending document: {e}")
 
 # =============================================================================
-# TAB 2: TRACK DOCUMENTS
+# TAB 3: TRACK DOCUMENTS
 # =============================================================================
-with tab2:
+with tab3:
     st.header("Document Tracking")
     
     # Get documents
@@ -268,9 +324,9 @@ with tab2:
         st.info("No documents found. Start by sending a document for signature!")
 
 # =============================================================================
-# TAB 3: SIGN DOCUMENT (Public signing interface)
+# TAB 4: SIGN DOCUMENT (Public signing interface)
 # =============================================================================
-with tab3:
+with tab4:
     st.header("Document Signing")
     
     # Check if there's a signing token in URL parameters
@@ -434,9 +490,9 @@ with tab3:
             st.error("❌ Invalid token format")
 
 # =============================================================================
-# TAB 4: SETTINGS
+# TAB 5: SETTINGS
 # =============================================================================
-with tab4:
+with tab5:
     st.header("E-Signature Settings")
     
     col1, col2 = st.columns(2)

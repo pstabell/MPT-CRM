@@ -1,0 +1,441 @@
+/* E-Signature Field Editor Styles */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #f8f9fa;
+    color: #333;
+    line-height: 1.4;
+}
+
+#app {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   TOOLBAR STYLES
+   ============================================================================ */
+
+#toolbar {
+    width: 300px;
+    background: white;
+    border-right: 1px solid #ddd;
+    padding: 20px;
+    overflow-y: auto;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+#toolbar h3 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+    font-size: 18px;
+    border-bottom: 2px solid #e74c3c;
+    padding-bottom: 8px;
+}
+
+#toolbar h4 {
+    color: #34495e;
+    margin-bottom: 12px;
+    margin-top: 24px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Field Palette */
+#field-palette {
+    margin-bottom: 24px;
+}
+
+.field-button {
+    display: block;
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    background: #ecf0f1;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+}
+
+.field-button:hover {
+    background: #d5dbdb;
+    transform: translateY(-1px);
+}
+
+.field-button.active {
+    background: #3498db;
+    color: white;
+    border-color: #2980b9;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.field-button[data-field-type="signature"] {
+    border-left: 4px solid #e74c3c;
+}
+
+.field-button[data-field-type="signature"].active {
+    background: #e74c3c;
+    border-color: #c0392b;
+}
+
+.field-button[data-field-type="initials"] {
+    border-left: 4px solid #1abc9c;
+}
+
+.field-button[data-field-type="initials"].active {
+    background: #1abc9c;
+    border-color: #16a085;
+}
+
+.field-button[data-field-type="date"] {
+    border-left: 4px solid #3498db;
+}
+
+.field-button[data-field-type="date"].active {
+    background: #3498db;
+    border-color: #2980b9;
+}
+
+.field-button[data-field-type="text"] {
+    border-left: 4px solid #2ecc71;
+}
+
+.field-button[data-field-type="text"].active {
+    background: #2ecc71;
+    border-color: #27ae60;
+}
+
+.clear-button {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    margin-top: 16px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.clear-button:hover {
+    background: #c0392b;
+    transform: translateY(-1px);
+}
+
+/* PDF Controls */
+#pdf-controls {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+#pdf-controls button {
+    padding: 8px 12px;
+    margin: 0 4px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+#pdf-controls button:hover:not(:disabled) {
+    background: #f1f2f6;
+    border-color: #bbb;
+}
+
+#pdf-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#page-info {
+    display: inline-block;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #555;
+}
+
+/* Field List */
+#field-list {
+    margin-bottom: 24px;
+}
+
+#field-items {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    background: white;
+}
+
+.no-fields {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    font-size: 13px;
+}
+
+.field-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.field-item:last-child {
+    border-bottom: none;
+}
+
+.field-type {
+    font-weight: 600;
+    font-size: 12px;
+    color: #2c3e50;
+}
+
+.field-page {
+    font-size: 11px;
+    color: #7f8c8d;
+}
+
+.remove-field-btn {
+    width: 24px;
+    height: 24px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.2s ease;
+}
+
+.remove-field-btn:hover {
+    background: #c0392b;
+    transform: scale(1.1);
+}
+
+/* Action Buttons */
+#actions {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.primary-button, .secondary-button {
+    display: block;
+    width: 100%;
+    padding: 12px 20px;
+    margin-bottom: 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.primary-button {
+    background: #27ae60;
+    color: white;
+}
+
+.primary-button:hover {
+    background: #229954;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(39, 174, 96, 0.3);
+}
+
+.secondary-button {
+    background: #95a5a6;
+    color: white;
+}
+
+.secondary-button:hover {
+    background: #7f8c8d;
+    transform: translateY(-1px);
+}
+
+/* ============================================================================
+   CANVAS CONTAINER STYLES
+   ============================================================================ */
+
+#canvas-container {
+    flex: 1;
+    position: relative;
+    background: #34495e;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    overflow: auto;
+}
+
+/* Canvas Layering - Critical for PDF + Annotations */
+#pdf-canvas {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    z-index: 1; /* Background layer */
+}
+
+#annotation-canvas {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2; /* Overlay layer for annotations */
+    cursor: crosshair;
+}
+
+/* Loading Overlay */
+#loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(52, 73, 94, 0.9);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 16px;
+    z-index: 10;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   FIELD STYLES (Applied by Fabric.js)
+   ============================================================================ */
+
+/* Semi-transparent field appearance */
+.fabric-object {
+    opacity: 0.8;
+}
+
+/* Field type color coding */
+.signature-field {
+    background-color: rgba(231, 76, 60, 0.25); /* Semi-transparent red */
+    border: 2px solid #e74c3c;
+}
+
+.initials-field {
+    background-color: rgba(26, 188, 156, 0.25); /* Semi-transparent teal */
+    border: 2px solid #1abc9c;
+}
+
+.date-field {
+    background-color: rgba(52, 152, 219, 0.25); /* Semi-transparent blue */
+    border: 2px solid #3498db;
+}
+
+.text-field {
+    background-color: rgba(46, 204, 113, 0.25); /* Semi-transparent green */
+    border: 2px solid #2ecc71;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+
+@media (max-width: 1200px) {
+    #app {
+        flex-direction: column;
+    }
+    
+    #toolbar {
+        width: 100%;
+        height: auto;
+        max-height: 300px;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    #canvas-container {
+        height: calc(100vh - 300px);
+    }
+}
+
+@media (max-width: 768px) {
+    #toolbar {
+        padding: 15px;
+    }
+    
+    #toolbar h3 {
+        font-size: 16px;
+    }
+    
+    .field-button {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    #canvas-container {
+        padding: 10px;
+    }
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+.text-center {
+    text-align: center;
+}
+
+.mt-2 {
+    margin-top: 16px;
+}
+
+.mb-2 {
+    margin-bottom: 16px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}

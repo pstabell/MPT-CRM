@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Signature Field Editor</title>
+    <link rel="stylesheet" href="esign_field_editor.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="toolbar">
+            <h3>📝 Prepare Document Fields</h3>
+            
+            <!-- Field Palette -->
+            <div id="field-palette">
+                <h4>Field Palette</h4>
+                <button class="field-button" data-field-type="signature" id="signature-btn">
+                    ✍️ Signature
+                </button>
+                <button class="field-button" data-field-type="initials" id="initials-btn">
+                    📝 Initials
+                </button>
+                <button class="field-button" data-field-type="date" id="date-btn">
+                    📅 Date
+                </button>
+                <button class="field-button" data-field-type="text" id="text-btn">
+                    📄 Text
+                </button>
+                <button class="clear-button" id="clear-all-btn">
+                    🗑️ Clear All
+                </button>
+            </div>
+
+            <!-- PDF Controls -->
+            <div id="pdf-controls">
+                <h4>Document Navigation</h4>
+                <button id="prev-page" disabled>← Previous</button>
+                <span id="page-info">Page 1 of 1</span>
+                <button id="next-page" disabled>Next →</button>
+            </div>
+
+            <!-- Field List -->
+            <div id="field-list">
+                <h4>Placed Fields</h4>
+                <div id="field-items">
+                    <p class="no-fields">No fields placed yet</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div id="actions">
+                <button id="save-fields" class="primary-button">💾 Save Field Layout</button>
+                <button id="preview-fields" class="secondary-button">👀 Preview</button>
+            </div>
+        </div>
+
+        <div id="canvas-container">
+            <!-- PDF Canvas (background layer) -->
+            <canvas id="pdf-canvas" width="800" height="1100"></canvas>
+            
+            <!-- Fabric.js Annotation Canvas (overlay layer) -->
+            <canvas id="annotation-canvas" width="800" height="1100"></canvas>
+            
+            <!-- Loading Overlay -->
+            <div id="loading-overlay">
+                <div class="spinner"></div>
+                <p>Loading PDF...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input for PDF upload -->
+    <input type="file" id="pdf-file-input" accept=".pdf" style="display: none;">
+
+    <script src="esign_field_editor.js"></script>
+</body>
+</html>
