@@ -875,26 +875,6 @@ def show_contact_detail(contact_id):
                                     pass
                             activities.append(f"📧 Email sent — {send.get('subject', 'No subject')} — {sent_date}")
 
-                    # Get SMS history
-                    try:
-                        from services.sms_service import get_sms_history
-                        sms_data = get_sms_history(contact['id'], limit=5)
-                        if sms_data:
-                            for sms in sms_data:
-                                sms_date = sms.get('sent_at', 'Unknown')
-                                if sms_date and sms_date != 'Unknown':
-                                    try:
-                                        sms_date = datetime.fromisoformat(sms_date.replace('Z', '+00:00')).strftime('%b %d, %Y %I:%M %p')
-                                    except Exception:
-                                        pass
-                                message_preview = sms.get('message', '')[:50] + ('...' if len(sms.get('message', '')) > 50 else '')
-                                status_emoji = '✅' if sms.get('status') == 'sent' else '❌'
-                                activities.append(f"📱 {status_emoji} SMS sent — {message_preview} — {sms_date}")
-                    except ImportError:
-                        pass  # SMS service not available
-                    except Exception:
-                        pass  # SMS history error
-
                     # Get activities table
                     act_data = db_get_contact_activities(contact['id'], limit=5)
                     if act_data:
@@ -930,6 +910,74 @@ def show_contact_detail(contact_id):
                     st.caption(act)
             else:
                 st.caption("No activity recorded yet.")
+
+        # SMS Message History
+        st.markdown("### 💬 Text Messages")
+        if contact.get('phone'):
+            try:
+                # Get SMS messages from database
+                sms_messages = db_service.db_get_sms_messages(contact['id'], limit=10)
+                
+                if sms_messages:
+                    with st.container(border=True, height=300):
+                        # Display messages in chronological order (oldest first for conversation flow)
+                        for msg in reversed(sms_messages):
+                            msg_time = msg.get('created_at', '')
+                            if msg_time:
+                                try:
+                                    msg_time = datetime.fromisoformat(msg_time.replace('Z', '+00:00')).strftime('%m/%d %I:%M %p')
+                                except Exception:
+                                    msg_time = msg_time[:16] if len(msg_time) > 16 else msg_time
+                            
+                            direction = msg.get('direction', 'outbound')
+                            body = msg.get('body', '')
+                            status = msg.get('status', 'unknown')
+                            
+                            if direction == 'outbound':
+                                # Sent message - align right, blue background
+                                st.markdown(
+                                    f"""
+                                    <div style="text-align: right; margin-bottom: 10px;">
+                                        <div style="display: inline-block; background-color: #0084FF; color: white; padding: 8px 12px; border-radius: 18px; max-width: 70%; text-align: left;">
+                                            {body}
+                                        </div>
+                                        <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                                            {msg_time} • {status}
+                                        </div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                # Received message - align left, gray background
+                                contact_name = f"{contact.get('first_name', 'Unknown')}"
+                                st.markdown(
+                                    f"""
+                                    <div style="text-align: left; margin-bottom: 10px;">
+                                        <div style="display: inline-block; background-color: #E4E6EA; color: black; padding: 8px 12px; border-radius: 18px; max-width: 70%; text-align: left;">
+                                            {body}
+                                        </div>
+                                        <div style="font-size: 11px; color: #666; margin-top: 2px;">
+                                            {contact_name} • {msg_time}
+                                        </div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                    
+                    if len(sms_messages) == 10:
+                        st.caption("_Showing most recent 10 messages_")
+                else:
+                    with st.container(border=True):
+                        st.caption("💭 No text messages yet")
+                        st.caption(f"Send the first message to {db_service.format_phone_for_display(contact['phone'])}")
+                        
+            except Exception as e:
+                with st.container(border=True):
+                    st.error(f"Error loading messages: {str(e)}")
+        else:
+            with st.container(border=True):
+                st.caption("💭 Add a phone number to send text messages")
 
         # Deals section
         st.markdown("### 🎯 Deals")
@@ -1517,6 +1565,104 @@ def show_contact_detail(contact_id):
         new_status = st.selectbox("Status", status_labels, index=current_status_idx, key="email_status")
         contact['email_status'] = email_statuses[status_labels.index(new_status)]
 
+        # Drip Campaign Management
+        st.markdown("### 📬 Drip Campaign")
+        if db_is_connected():
+            # Get current enrollments for this contact
+            try:
+                from db_service import get_db
+                db = get_db()
+                enrollments_resp = db.table("campaign_enrollments").select("*").eq("contact_id", contact['id']).eq("status", "active").execute()
+                active_enrollments = enrollments_resp.data or []
+                
+                if active_enrollments:
+                    # Show current active campaigns
+                    st.success(f"✅ Currently enrolled in {len(active_enrollments)} campaign(s)")
+                    for enrollment in active_enrollments:
+                        campaign_name = enrollment.get('campaign_name', enrollment.get('campaign_id', 'Unknown'))
+                        next_email = enrollment.get('next_email_scheduled', 'None')
+                        if next_email and next_email != 'None':
+                            try:
+                                next_date = datetime.fromisoformat(next_email.replace('Z', '+00:00')).strftime('%b %d, %Y')
+                                st.caption(f"📧 **{campaign_name}** - Next email: {next_date}")
+                            except:
+                                st.caption(f"📧 **{campaign_name}** - Next email: {next_email}")
+                        else:
+                            st.caption(f"📧 **{campaign_name}** - Campaign completed")
+                    
+                    # Option to stop all campaigns
+                    if st.button("🛑 Stop All Campaigns", key=f"stop_campaigns_{contact['id']}", help="Remove from all active drip campaigns"):
+                        try:
+                            for enrollment in active_enrollments:
+                                db.table("campaign_enrollments").update({"status": "stopped"}).eq("id", enrollment["id"]).execute()
+                            st.success("All campaigns stopped!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error stopping campaigns: {e}")
+                            
+                else:
+                    # No active campaigns - show enrollment options
+                    st.info("📭 Not enrolled in any campaigns")
+                    
+                    # Manual campaign enrollment
+                    campaign_options = {
+                        "networking-drip-6week": "🤝 Networking Follow-up (8 emails over 6 weeks)",
+                        "lead-drip": "🎯 Lead Nurture (6 emails over 4 weeks)", 
+                        "prospect-drip": "💼 Prospect Nurture (5 emails over 6 weeks)",
+                        "client-drip": "🌟 Client Onboarding (4 emails over 2 weeks)"
+                    }
+                    
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        selected_campaign = st.selectbox(
+                            "Enroll in campaign:", 
+                            [""] + list(campaign_options.keys()),
+                            format_func=lambda x: campaign_options.get(x, "Select campaign..."),
+                            key=f"campaign_select_{contact['id']}"
+                        )
+                    with col2:
+                        enroll_btn = st.button("📬 Enroll", key=f"enroll_{contact['id']}", disabled=not selected_campaign)
+                    
+                    if enroll_btn and selected_campaign:
+                        try:
+                            # Use the existing auto-enroll function
+                            from db_service import _auto_enroll_in_drip_campaign
+                            result = _auto_enroll_in_drip_campaign(contact['id'], selected_campaign)
+                            if result:
+                                st.success(f"Enrolled in {campaign_options[selected_campaign]}!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to enroll in campaign")
+                        except Exception as e:
+                            st.error(f"Error enrolling: {e}")
+                    
+                    # Auto-enroll based on contact type
+                    auto_campaign_map = {
+                        "networking": "networking-drip-6week",
+                        "lead": "lead-drip", 
+                        "prospect": "prospect-drip",
+                        "client": "client-drip"
+                    }
+                    contact_type = contact.get('type', 'prospect')
+                    if contact_type in auto_campaign_map:
+                        suggested_campaign = auto_campaign_map[contact_type]
+                        if st.button(f"🚀 Auto-enroll for {CONTACT_TYPES.get(contact_type, {}).get('label', contact_type)}", key=f"auto_enroll_{contact['id']}", help=f"Automatically enroll in {campaign_options.get(suggested_campaign, 'appropriate campaign')}"):
+                            try:
+                                from db_service import _auto_enroll_in_drip_campaign
+                                result = _auto_enroll_in_drip_campaign(contact['id'], suggested_campaign)
+                                if result:
+                                    st.success(f"Auto-enrolled in {campaign_options.get(suggested_campaign, 'campaign')}!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to auto-enroll")
+                            except Exception as e:
+                                st.error(f"Error auto-enrolling: {e}")
+                
+            except Exception as e:
+                st.error(f"Error loading drip campaign status: {e}")
+        else:
+            st.warning("Database not connected - cannot manage drip campaigns")
+
         # Quick actions
         st.markdown("### ⚡ Quick Actions")
 
@@ -1537,78 +1683,64 @@ def show_contact_detail(contact_id):
             st.caption("_No email address_")
 
         # Send SMS - compose and send text message
-        phone_number = contact.get('phone', '')
-        if phone_number:
-            if st.button("📱 Send SMS", use_container_width=True, key="send_sms_btn"):
+        phone_num = contact.get('phone', '')
+        if phone_num:
+            if st.button("💬 Send Text", use_container_width=True, key="send_sms_btn"):
                 st.session_state[f"show_sms_compose_{contact['id']}"] = True
+            st.caption(f"_Text to {db_service.format_phone_for_display(phone_num)}_")
         else:
-            if st.button("📱 Send SMS", use_container_width=True, disabled=True):
+            if st.button("💬 Send Text", use_container_width=True, disabled=True):
                 pass
             st.caption("_No phone number_")
 
         # Show SMS compose form if toggled
         if st.session_state.get(f"show_sms_compose_{contact['id']}"):
             with st.container(border=True):
-                st.markdown("**📱 Compose SMS**")
+                st.markdown("**💬 Send Text Message**")
+                sms_message = st.text_area(
+                    "Message:",
+                    key=f"sms_message_{contact['id']}",
+                    height=100,
+                    max_chars=1600,
+                    placeholder="Type your text message here..."
+                )
+                char_count = len(sms_message)
+                st.caption(f"Characters: {char_count}/1600")
                 
-                # Import SMS service
-                try:
-                    from services.sms_service import send_sms, validate_phone_number
-                    
-                    # Validate and display phone number
-                    phone_validation = validate_phone_number(phone_number)
-                    if phone_validation['valid']:
-                        st.success(f"📱 To: {phone_validation['formatted']}")
-                        validated_phone = phone_validation['formatted']
-                    else:
-                        st.error(f"❌ Invalid phone: {phone_validation['error']}")
-                        validated_phone = phone_number
-                    
-                    # Message composition
-                    sms_message = st.text_area(
-                        "Message:", 
-                        key=f"sms_message_{contact['id']}", 
-                        height=80, 
-                        max_chars=160,
-                        placeholder="Type your message here...",
-                        help="SMS messages are limited to 160 characters"
-                    )
-                    
-                    # Character counter
-                    char_count = len(sms_message)
-                    char_color = "red" if char_count > 160 else "green" if char_count > 140 else "black"
-                    st.markdown(f"<p style='color: {char_color}; font-size: 0.8em; margin: 0;'>Characters: {char_count}/160</p>", unsafe_allow_html=True)
-                    
-                    # Action buttons
-                    col_send, col_cancel = st.columns(2)
-                    with col_send:
-                        send_disabled = not phone_validation['valid'] or len(sms_message.strip()) == 0 or char_count > 160
-                        if st.button("Send SMS", key=f"send_sms_final_{contact['id']}", type="primary", use_container_width=True, disabled=send_disabled):
-                            if sms_message.strip():
-                                # Send SMS
-                                result = send_sms(validated_phone, sms_message, contact['id'])
+                col_send, col_cancel = st.columns(2)
+                with col_send:
+                    send_disabled = not sms_message.strip()
+                    if st.button("📤 Send", key=f"send_sms_btn_{contact['id']}", type="primary", use_container_width=True, disabled=send_disabled):
+                        if sms_message.strip():
+                            try:
+                                # Import SMS service
+                                from twilio_sms_service import send_sms
+                                
+                                # Send the SMS
+                                result = send_sms(
+                                    to_number=contact['phone'],
+                                    message=sms_message.strip(),
+                                    contact_id=contact['id']
+                                )
+                                
                                 if result['success']:
-                                    st.success(f"✅ SMS sent successfully!")
-                                    st.info(f"Message ID: {result['message_id']}")
+                                    st.success(f"✅ Text sent to {db_service.format_phone_for_display(contact['phone'])}")
                                     # Update last_contacted
-                                    save_contact(contact['id'], {"last_contacted": datetime.now().isoformat()})
-                                    contact['last_contacted'] = datetime.now().strftime("%Y-%m-%d")
-                                    # Clear form
+                                    db_service.db_update_contact(contact['id'], {"last_contacted": datetime.now().isoformat()})
+                                    # Clear the form
+                                    st.session_state[f"sms_message_{contact['id']}"] = ""
                                     st.session_state[f"show_sms_compose_{contact['id']}"] = False
                                     st.rerun()
                                 else:
-                                    st.error(f"❌ Failed to send SMS: {result['error']}")
-                            
-                    with col_cancel:
-                        if st.button("Cancel", key=f"cancel_sms_{contact['id']}", use_container_width=True):
-                            st.session_state[f"show_sms_compose_{contact['id']}"] = False
-                            st.rerun()
+                                    error_msg = result.get('error_message', 'Unknown error')
+                                    st.error(f"❌ Failed to send text: {error_msg}")
+                            except Exception as e:
+                                st.error(f"❌ Error sending text: {str(e)}")
                 
-                except ImportError as e:
-                    st.error("SMS service not available. Please check configuration.")
-                    st.code(str(e))
-                except Exception as e:
-                    st.error(f"SMS error: {str(e)}")
+                with col_cancel:
+                    if st.button("❌ Cancel", key=f"cancel_sms_{contact['id']}", use_container_width=True):
+                        st.session_state[f"show_sms_compose_{contact['id']}"] = False
+                        st.rerun()
 
         # Log Call - creates activity entry
         if st.button("📞 Log Call", use_container_width=True, key="log_call_btn"):
@@ -1657,64 +1789,6 @@ def show_contact_detail(contact_id):
             st.session_state.mkt_enroll_contact_name = f"{contact['first_name']} {contact['last_name']}"
             st.session_state.mkt_enroll_contact_email = contact.get('email', '')
             st.switch_page("pages/07_Marketing.py")
-
-        # SMS History section
-        st.markdown("### 📱 SMS History")
-        with st.container(border=True):
-            try:
-                from services.sms_service import get_sms_history
-                sms_history = get_sms_history(contact['id'], limit=10)
-                
-                if sms_history:
-                    for sms in sms_history:
-                        # Format date
-                        sms_date = sms.get('sent_at', 'Unknown')
-                        if sms_date and sms_date != 'Unknown':
-                            try:
-                                sms_date = datetime.fromisoformat(sms_date.replace('Z', '+00:00')).strftime('%b %d, %Y %I:%M %p')
-                            except Exception:
-                                sms_date = str(sms_date)
-                        
-                        # Status indicator
-                        status = sms.get('status', 'unknown')
-                        if status == 'sent':
-                            status_icon = '✅'
-                            status_color = 'green'
-                        elif status == 'failed':
-                            status_icon = '❌'
-                            status_color = 'red'
-                        elif status == 'delivered':
-                            status_icon = '📨'
-                            status_color = 'blue'
-                        else:
-                            status_icon = '🔄'
-                            status_color = 'orange'
-                        
-                        # Message content (truncated)
-                        message = sms.get('message', '')
-                        if len(message) > 100:
-                            message = message[:100] + '...'
-                        
-                        # Display SMS entry
-                        st.markdown(f"""
-                        <div style="margin-bottom: 10px; padding: 8px; border-left: 3px solid {status_color}; background-color: #f8f9fa;">
-                            <div style="font-size: 0.8em; color: #666; margin-bottom: 4px;">
-                                {status_icon} <strong>{sms_date}</strong> • To: {sms.get('phone_number', 'Unknown')}
-                            </div>
-                            <div style="color: #333;">
-                                {message}
-                            </div>
-                            {f'<div style="font-size: 0.7em; color: #999; margin-top: 4px;">Error: {sms.get("error_message", "")}</div>' if sms.get('error_message') else ''}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                else:
-                    st.caption("_No SMS messages sent yet_")
-                    
-            except ImportError:
-                st.caption("_SMS service not available_")
-            except Exception as e:
-                st.caption(f"_Error loading SMS history: {str(e)}_")
 
         # Merge section
         st.markdown("### 🔗 Merge Contacts")

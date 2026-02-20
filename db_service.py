@@ -3323,3 +3323,201 @@ def db_add_esign_audit_entry(document_id, action, details, user_email=None):
     except Exception as e:
         print(f"Error adding audit entry: {e}")
         return False
+
+# =============================================================================
+# 16. SMS MESSAGES
+# =============================================================================
+
+def db_create_sms_message(contact_id, body, direction, from_number, to_number, twilio_message_sid=None, status="sending"):
+    """Create a new SMS message record
+    
+    Args:
+        contact_id: UUID of the contact
+        body: Message content
+        direction: 'inbound' or 'outbound'
+        from_number: Phone number sending the message (E.164 format)
+        to_number: Phone number receiving the message (E.164 format)
+        twilio_message_sid: Twilio message SID (if available)
+        status: Message status (sending, sent, delivered, failed, etc.)
+    
+    Returns:
+        dict: Created SMS message record or None if error
+    """
+    try:
+        import uuid
+        from datetime import datetime
+        
+        message = {
+            "id": str(uuid.uuid4()),
+            "contact_id": contact_id,
+            "body": body,
+            "direction": direction,
+            "from_number": from_number,
+            "to_number": to_number,
+            "twilio_message_sid": twilio_message_sid,
+            "status": status,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        if direction == 'outbound':
+            message["sent_at"] = datetime.now().isoformat()
+        
+        if not SUPABASE_AVAILABLE:
+            print(f"⚠️  Supabase not available - would create SMS: {direction} to {to_number}")
+            return message
+            
+        supabase = get_db()
+        result = supabase.table("sms_messages").insert(message).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error creating SMS message: {e}")
+        return None
+
+def db_get_sms_messages(contact_id, limit=50):
+    """Get SMS messages for a contact
+    
+    Args:
+        contact_id: UUID of the contact
+        limit: Maximum number of messages to return
+    
+    Returns:
+        list: SMS messages ordered by created_at DESC
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print(f"⚠️  Supabase not available - would get SMS messages for contact {contact_id}")
+            return []
+            
+        supabase = get_db()
+        result = supabase.table("sms_messages") \
+                          .select("*") \
+                          .eq("contact_id", contact_id) \
+                          .order("created_at", desc=True) \
+                          .limit(limit) \
+                          .execute()
+        
+        return result.data if result.data else []
+    except Exception as e:
+        print(f"Error getting SMS messages: {e}")
+        return []
+
+def db_update_sms_status(twilio_message_sid, status, error_code=None, error_message=None):
+    """Update SMS message status from Twilio webhook
+    
+    Args:
+        twilio_message_sid: Twilio message SID
+        status: New status (sent, delivered, undelivered, failed, etc.)
+        error_code: Error code if status is failed/undelivered
+        error_message: Error message if status is failed/undelivered
+    
+    Returns:
+        bool: True if update successful, False otherwise
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print(f"⚠️  Supabase not available - would update SMS status to {status}")
+            return True
+            
+        updates = {"status": status}
+        
+        if status == 'delivered':
+            updates["delivered_at"] = datetime.now().isoformat()
+        if error_code:
+            updates["error_code"] = error_code
+        if error_message:
+            updates["error_message"] = error_message
+            
+        supabase = get_db()
+        result = supabase.table("sms_messages") \
+                          .update(updates) \
+                          .eq("twilio_message_sid", twilio_message_sid) \
+                          .execute()
+        
+        return bool(result.data)
+    except Exception as e:
+        print(f"Error updating SMS status: {e}")
+        return False
+
+def db_find_contact_by_phone(phone_number):
+    """Find a contact by phone number
+    
+    Args:
+        phone_number: Phone number to search for (will be normalized)
+    
+    Returns:
+        dict: Contact record or None if not found
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print(f"⚠️  Supabase not available - would find contact by phone {phone_number}")
+            return None
+            
+        # Normalize phone number (remove all non-digits, add +1 if 10 digits)
+        import re
+        clean_phone = re.sub(r'[^0-9]', '', phone_number)
+        
+        # Try different phone number formats
+        phone_variants = [
+            phone_number,  # Original format
+            clean_phone,   # Digits only
+            f"+1{clean_phone}" if len(clean_phone) == 10 else f"+{clean_phone}",  # E.164 format
+            f"({clean_phone[:3]}) {clean_phone[3:6]}-{clean_phone[6:]}" if len(clean_phone) == 10 else None,  # (123) 456-7890
+            f"{clean_phone[:3]}-{clean_phone[3:6]}-{clean_phone[6:]}" if len(clean_phone) == 10 else None,  # 123-456-7890
+        ]
+        
+        # Remove None values
+        phone_variants = [p for p in phone_variants if p]
+        
+        supabase = get_db()
+        for variant in phone_variants:
+            result = supabase.table("contacts") \
+                            .select("*") \
+                            .eq("phone", variant) \
+                            .execute()
+            
+            if result.data:
+                return result.data[0]
+                
+        # If no exact match, try ILIKE search for partial matches
+        for variant in phone_variants:
+            result = supabase.table("contacts") \
+                            .select("*") \
+                            .ilike("phone", f"%{variant}%") \
+                            .limit(1) \
+                            .execute()
+            
+            if result.data:
+                return result.data[0]
+        
+        return None
+    except Exception as e:
+        print(f"Error finding contact by phone: {e}")
+        return None
+
+def format_phone_for_display(phone_number):
+    """Format phone number for display
+    
+    Args:
+        phone_number: Phone number in any format
+    
+    Returns:
+        str: Formatted phone number like (239) 426-7058
+    """
+    try:
+        import re
+        
+        # Extract digits only
+        digits = re.sub(r'[^0-9]', '', phone_number)
+        
+        # Handle US numbers (10 or 11 digits)
+        if len(digits) == 11 and digits[0] == '1':
+            digits = digits[1:]  # Remove leading 1
+        
+        if len(digits) == 10:
+            return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+        else:
+            # For international or non-standard numbers, return with minimal formatting
+            return phone_number
+            
+    except Exception:
+        return phone_number
