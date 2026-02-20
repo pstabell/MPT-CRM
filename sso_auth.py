@@ -23,13 +23,22 @@ import os
 
 
 # Supabase configuration - shared auth project (Mission Control)
-SUPABASE_URL = st.secrets.get("mission_control", {}).get(
-    "SUPABASE_URL",
-    os.environ.get("MC_SUPABASE_URL", "https://umedbjslspilqakwnapa.supabase.co")
+# Support both st.secrets (Streamlit Cloud) and os.environ (Railway/Docker)
+def _get_config(section: str, key: str, env_key: str, default: str = "") -> str:
+    """Get config from st.secrets or environment variables"""
+    try:
+        # Try Streamlit secrets first
+        return st.secrets.get(section, {}).get(key, os.environ.get(env_key, default))
+    except Exception:
+        # Fall back to environment variables (Railway, Docker, etc.)
+        return os.environ.get(env_key, default)
+
+SUPABASE_URL = _get_config(
+    "mission_control", "SUPABASE_URL", "MC_SUPABASE_URL", 
+    "https://umedbjslspilqakwnapa.supabase.co"
 )
-SUPABASE_ANON_KEY = st.secrets.get("mission_control", {}).get(
-    "SUPABASE_ANON_KEY", 
-    os.environ.get("MC_SUPABASE_ANON_KEY", "")
+SUPABASE_ANON_KEY = _get_config(
+    "mission_control", "SUPABASE_ANON_KEY", "MC_SUPABASE_ANON_KEY", ""
 )
 
 
