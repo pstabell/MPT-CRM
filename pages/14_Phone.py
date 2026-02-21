@@ -31,11 +31,11 @@ col1, col2 = st.columns([1, 1])
 with col1:
     st.subheader("Softphone")
     
-    # Embed MPT-Phone in an iframe
+    # Embed MPT-Phone in an iframe (taller + scrollable for mobile)
     components.iframe(
         src=PHONE_APP_URL,
-        height=600,
-        scrolling=False
+        height=800,
+        scrolling=True
     )
     
     st.caption("💡 Click 'Connect' to enable calling. Allow microphone access when prompted.")
