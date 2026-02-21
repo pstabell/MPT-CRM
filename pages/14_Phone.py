@@ -16,26 +16,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Import mobile styles (safe import)
-try:
-    from mobile_styles import inject_mobile_styles, render_mobile_navigation
-    inject_mobile_styles()
-except Exception:
-    pass
-
-# Import sidebar navigation (can cause issues - wrap in try)
-try:
-    from app import render_sidebar
-    render_sidebar("Phone")
-except Exception:
-    pass
-
-# Render mobile navigation
-try:
-    render_mobile_navigation("Phone")
-except Exception:
-    pass
-
 st.title("📱 Phone")
 st.markdown("Make and receive calls directly from the CRM.")
 
