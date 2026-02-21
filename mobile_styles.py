@@ -226,6 +226,25 @@ def render_mobile_navigation(current_page="Dashboard"):
     </div>
     """, unsafe_allow_html=True)
     
+    # Page name to file path mapping for navigation
+    PAGE_PATHS = {
+        "Dashboard": "app.py",
+        "Discovery Call": "pages/01_Discovery.py",
+        "Companies": "pages/01a_Companies.py",
+        "Contacts": "pages/02_Contacts.py",
+        "Sales Pipeline": "pages/03_Pipeline.py",
+        "Projects": "pages/04_Projects.py",
+        "Service": "pages/10_Service.py",
+        "Tasks": "pages/05_Tasks.py",
+        "Time & Billing": "pages/06_Time_Billing.py",
+        "Marketing": "pages/07_Marketing.py",
+        "E-Signature": "pages/12_ESignature.py",
+        "Phone": "pages/14_Phone.py",
+        "Reports": "pages/08_Reports.py",
+        "Settings": "pages/09_Settings.py",
+        "Help": "pages/11_Help.py",
+    }
+    
     # Mobile navigation menu in expander
     with st.expander("🧭 Navigation Menu", expanded=False):
         st.markdown("**Quick Navigation:**")
@@ -240,8 +259,9 @@ def render_mobile_navigation(current_page="Dashboard"):
                     st.success(f"{page_config['icon']} **{page_name}** (current)")
                 else:
                     if st.button(f"{page_config['icon']} {page_name}", key=f"nav_{page_name}", use_container_width=True):
-                        # Navigation logic would go here
-                        st.info(f"Navigate to {page_name}")
+                        # Navigate to the page
+                        if page_name in PAGE_PATHS:
+                            st.switch_page(PAGE_PATHS[page_name])
 
 def mobile_container(title, content_func, **kwargs):
     """Create a mobile-friendly container with consistent styling"""
