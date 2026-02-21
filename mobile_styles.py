@@ -205,7 +205,9 @@ def render_mobile_navigation(current_page="Dashboard"):
         "Tasks": {"icon": "✅", "description": "Task management"},
         "Time & Billing": {"icon": "💰", "description": "Time tracking"},
         "Marketing": {"icon": "📧", "description": "Email campaigns"},
-        "Reports": {"icon": "📊", "description": "Analytics and reports"},
+        "E-Signature": {"icon": "✍️", "description": "Send and track e-signatures"},
+        "Phone": {"icon": "📱", "description": "Make calls from CRM"},
+        "Reports": {"icon": "📋", "description": "Analytics and reports"},
         "Settings": {"icon": "⚙️", "description": "App settings"},
         "Help": {"icon": "❓", "description": "Help and support"},
     }
