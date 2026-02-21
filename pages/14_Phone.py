@@ -3,7 +3,7 @@ import requests
 import json
 from datetime import datetime, timezone
 import time
-from db_service import DatabaseService
+from db_service import db_get_contacts, db_get_contact, db_update_contact, get_db
 import uuid
 
 st.set_page_config(
@@ -13,12 +13,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize database service
-@st.cache_resource
-def init_db():
-    return DatabaseService()
-
-db = init_db()
+# Get database client
+db_client = get_db()
 
 # Page header
 st.title("📞 MPT Phone")
@@ -66,7 +62,7 @@ def get_crm_contacts_for_phone():
     """Get contacts in format expected by phone widget"""
     try:
         # Get contacts from CRM
-        contacts = db.get_contacts()
+        contacts = db_get_contacts()
         
         # Format for phone widget
         phone_contacts = []
@@ -102,10 +98,11 @@ def log_call_to_crm(call_data):
             call_note = f"[PHONE CALL - {timestamp}] {call_type.upper()} call to {phone_number} - Duration: {duration}s - Status: {status}"
             
             # Update contact notes
-            current_notes = db.get_contact(contact_id).get('notes', '')
+            contact = db_get_contact(contact_id)
+            current_notes = contact.get('notes', '') if contact else ''
             updated_notes = f"{current_notes}\n{call_note}" if current_notes else call_note
             
-            db.update_contact(contact_id, {'notes': updated_notes})
+            db_update_contact(contact_id, {'notes': updated_notes})
             
         return True
     except Exception as e:
@@ -337,7 +334,7 @@ with col2:
     
     try:
         # Fetch real call logs from database
-        call_logs = db.client.table('phone_call_logs').select('*').order('created_at', desc=True).limit(10).execute()
+        call_logs = db_client.table('phone_call_logs').select('*').order('created_at', desc=True).limit(10).execute()
         recent_calls = call_logs.data if call_logs.data else []
         
         if recent_calls:
@@ -368,7 +365,7 @@ with col2:
     
     try:
         # Fetch voicemails from database
-        voicemails = db.client.table('voicemails').select('*').eq('read', False).order('created_at', desc=True).limit(5).execute()
+        voicemails = db_client.table('voicemails').select('*').eq('is_read', False).order('created_at', desc=True).limit(5).execute()
         vm_data = voicemails.data if voicemails.data else []
         
         if vm_data:
@@ -386,7 +383,7 @@ with col2:
                     col_vm1, col_vm2 = st.columns(2)
                     with col_vm1:
                         if st.button("✅ Mark Read", key=f"vm_read_{vm.get('id')}"):
-                            db.client.table('voicemails').update({'read': True}).eq('id', vm.get('id')).execute()
+                            db_client.table('voicemails').update({'is_read': True}).eq('id', vm.get('id')).execute()
                             st.rerun()
                     with col_vm2:
                         if st.button("📞 Call Back", key=f"vm_call_{vm.get('id')}"):
