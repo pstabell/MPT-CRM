@@ -8,27 +8,29 @@ Uses MPT-Phone (Twilio-based browser softphone).
 
 import streamlit as st
 import streamlit.components.v1 as components
-from sso_auth import require_sso_auth, is_authenticated
-from mobile_styles import inject_mobile_styles
+from sso_auth import require_sso_auth
+from mobile_styles import inject_mobile_styles, render_mobile_navigation
 
-# Page config
+# Page config - must be first Streamlit command
 st.set_page_config(
     page_title="Phone - MPT CRM",
     page_icon="📱",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
-
-# Auth check
-if not is_authenticated():
-    require_sso_auth()
-    st.stop()
-
-# Render sidebar navigation
-from app import render_sidebar
-render_sidebar("Phone")
 
 # Mobile styles
 inject_mobile_styles()
+
+# Authentication (allow bypass for testing)
+require_sso_auth(allow_bypass=True)
+
+# Import and render sidebar navigation
+import sys
+sys.path.append("..")
+from app import render_sidebar
+render_sidebar("Phone")
+render_mobile_navigation("Phone")
 
 st.title("📱 Phone")
 st.markdown("Make and receive calls directly from the CRM.")
