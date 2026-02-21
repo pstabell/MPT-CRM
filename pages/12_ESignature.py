@@ -15,6 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import os
 import uuid
+import json
 from datetime import datetime, timedelta
 import base64
 from pathlib import Path
@@ -22,7 +23,10 @@ from pathlib import Path
 # Import CRM modules
 from db_service import (
     db_create_esign_document, db_get_esign_documents, db_update_esign_document,
-    db_add_esign_audit_entry, db_get_contacts
+    db_add_esign_audit_entry, db_get_contacts,
+    # Phase 2: Field position management
+    db_save_esign_field_layout, db_get_esign_field_layout, db_get_esign_templates,
+    db_update_esign_field_layout, db_delete_esign_template
 )
 from esign_components import (
     render_pdf_viewer, render_signature_canvas, create_typed_signature,
@@ -33,6 +37,104 @@ from esign_email_service import send_esign_request_email, send_esign_completion_
 from esign_sharepoint_service import store_signed_document_in_sharepoint
 from sso_auth import require_sso_auth, is_authenticated
 from mobile_styles import inject_mobile_styles, render_mobile_navigation
+
+# =============================================================================
+# PHASE 2: BACKEND MESSAGE HANDLING FOR FIELD EDITOR
+# =============================================================================
+
+def handle_field_editor_message():
+    """Handle postMessage communication from the field editor JavaScript"""
+    
+    # Check if there's a message from the field editor
+    if 'field_editor_message' in st.session_state:
+        message = st.session_state['field_editor_message']
+        action = message.get('action')
+        
+        if action == 'save_field_layout':
+            # Save field positions to database
+            field_data = message.get('data', {})
+            document_id = message.get('document_id')  # Optional
+            template_name = message.get('template_name')  # Optional
+            
+            result = db_save_esign_field_layout(document_id, field_data, template_name)
+            
+            if result:
+                response = {
+                    'success': True,
+                    'message': f'Field layout saved successfully{"" if not template_name else f" as template: {template_name}"}',
+                    'layout_id': result.get('id')
+                }
+            else:
+                response = {
+                    'success': False,
+                    'message': 'Failed to save field layout'
+                }
+            
+            # Store response for JavaScript to pick up
+            st.session_state['field_editor_response'] = response
+            
+        elif action == 'load_field_layout':
+            # Load field positions from database
+            document_id = message.get('document_id')
+            template_name = message.get('template_name')
+            
+            layout = db_get_esign_field_layout(document_id=document_id, template_name=template_name)
+            
+            if layout:
+                response = {
+                    'success': True,
+                    'data': layout.get('field_data', {}),
+                    'layout_id': layout.get('id')
+                }
+            else:
+                response = {
+                    'success': False,
+                    'message': 'Field layout not found'
+                }
+                
+            st.session_state['field_editor_response'] = response
+            
+        elif action == 'get_templates':
+            # Get list of available templates
+            templates = db_get_esign_templates()
+            
+            template_list = []
+            for template in templates:
+                template_list.append({
+                    'name': template.get('template_name'),
+                    'created_at': template.get('created_at'),
+                    'field_count': len(template.get('field_data', {}).get('fields', []))
+                })
+            
+            response = {
+                'success': True,
+                'templates': template_list
+            }
+            
+            st.session_state['field_editor_response'] = response
+            
+        elif action == 'delete_template':
+            # Delete a saved template
+            template_name = message.get('template_name')
+            
+            if template_name and db_delete_esign_template(template_name):
+                response = {
+                    'success': True,
+                    'message': f'Template "{template_name}" deleted successfully'
+                }
+            else:
+                response = {
+                    'success': False,
+                    'message': 'Failed to delete template'
+                }
+                
+            st.session_state['field_editor_response'] = response
+        
+        # Clear the message to prevent reprocessing
+        del st.session_state['field_editor_message']
+
+# Handle any pending messages
+handle_field_editor_message()
 
 # Page configuration
 st.set_page_config(
@@ -65,12 +167,135 @@ st.title("📝 E-Signature")
 st.markdown("### Custom In-House Document Signing")
 
 # Create tabs for different functions
+<<<<<<< HEAD
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📤 Send for Signature", "📋 Track Documents", "✍️ Sign Document", "🎯 Field Editor", "⚙️ Settings"])
+=======
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 Prepare Document", "📤 Send for Signature", "📋 Track Documents", "✍️ Sign Document", "⚙️ Settings"])
+>>>>>>> 9f4d5e49955802c7dd0e84b603a832c35a6e260d
 
 # =============================================================================
-# TAB 1: SEND FOR SIGNATURE
+# TAB 1: PREPARE DOCUMENT (Field Editor)
 # =============================================================================
 with tab1:
+    st.header("📝 Prepare Document Fields")
+    st.markdown("Use the field editor below to place signature, initial, date, and text fields on your PDF document.")
+    
+    # Instructions
+    with st.expander("📋 How to Use the Field Editor", expanded=False):
+        st.markdown("""
+        **Step-by-step instructions:**
+        
+        1. **Select Field Type**: Choose from Signature, Initials, Date, or Text in the left panel
+        2. **Place Fields**: Click anywhere on the PDF document to place the selected field type
+        3. **Move Fields**: Click and drag placed fields to reposition them
+        4. **Navigate Pages**: Use Previous/Next buttons to work on different pages
+        5. **Save Layout**: Click 'Save Field Layout' when finished
+        
+        **Field Types:**
+        - **✍️ Signature**: Full signature area (red)
+        - **📝 Initials**: Initial signature area (teal) 
+        - **📅 Date**: Date field (blue)
+        - **📄 Text**: Text input field (green)
+        
+        **Tips:**
+        - Fields are semi-transparent so you can see the document underneath
+        - Each page can have its own set of fields
+        - Use the field list on the left to manage placed fields
+        """)
+    
+    # Load the field editor HTML
+    try:
+        # Read the HTML file
+        with open("static/esign_field_editor.html", "r", encoding="utf-8") as f:
+            html_content = f.read()
+        
+        # Phase 2: Enhanced field editor with postMessage communication
+        enhanced_html = html_content.replace(
+            '<script src="esign_field_editor.js"></script>',
+            '''<script src="esign_field_editor.js"></script>
+            <script>
+                // Phase 2: Communication bridge with Streamlit
+                window.addEventListener('message', function(event) {
+                    if (event.data.type === 'field_editor_message') {
+                        // Forward message to Streamlit session state
+                        const message = {...event.data};
+                        delete message.type;
+                        window.parent.postMessage({
+                            type: 'streamlit:setSessionState',
+                            key: 'field_editor_message',
+                            value: message
+                        }, '*');
+                    }
+                });
+                
+                // Check for Streamlit responses
+                setInterval(function() {
+                    if (window.streamlit_response) {
+                        // Handle response from Streamlit
+                        const response = window.streamlit_response;
+                        console.log('Received Streamlit response:', response);
+                        
+                        if (response.action === 'load_field_layout' && response.success) {
+                            editor.applyLoadedLayout(response.data);
+                        } else if (response.action === 'get_templates' && response.success) {
+                            editor.renderTemplates(response.templates);
+                        } else if (response.success) {
+                            // Show success message
+                            alert(response.message || 'Operation completed successfully');
+                        } else {
+                            // Show error message
+                            alert(response.message || 'Operation failed');
+                        }
+                        
+                        // Clear response
+                        delete window.streamlit_response;
+                    }
+                }, 1000);
+            </script>'''
+        )
+        
+        # Embed the enhanced field editor
+        components.html(
+            enhanced_html,
+            height=800,
+            width=None,  # Use full width
+            scrolling=True
+        )
+        
+        # Phase 2: Handle responses back to field editor
+        if 'field_editor_response' in st.session_state:
+            response = st.session_state['field_editor_response']
+            
+            # Inject JavaScript to deliver response to field editor
+            st.components.v1.html(f"""
+            <script>
+                if (window.parent && window.parent.document) {{
+                    const iframe = window.parent.document.querySelector('iframe[title="components.html"]');
+                    if (iframe && iframe.contentWindow) {{
+                        iframe.contentWindow.streamlit_response = {json.dumps(response)};
+                    }}
+                }}
+            </script>
+            """, height=0)
+            
+            # Clear the response
+            del st.session_state['field_editor_response']
+        
+        st.info("💡 **Next Step:** After preparing your document fields, use the 'Send for Signature' tab to send the document to signers.")
+        
+    except FileNotFoundError:
+        st.error("❌ Field editor files not found. Please ensure the static files are properly deployed.")
+        st.code("""
+        Missing files:
+        - static/esign_field_editor.html
+        - static/esign_field_editor.js  
+        - static/esign_field_editor.css
+        """)
+
+# =============================================================================
+# TAB 2: SEND FOR SIGNATURE
+# =============================================================================
+with tab2:
     st.header("Send Document for Signature")
     
     col1, col2 = st.columns([2, 1])
@@ -203,9 +428,9 @@ with tab1:
                     st.error(f"Error sending document: {e}")
 
 # =============================================================================
-# TAB 2: TRACK DOCUMENTS
+# TAB 3: TRACK DOCUMENTS
 # =============================================================================
-with tab2:
+with tab3:
     st.header("Document Tracking")
     
     # Get documents
@@ -269,9 +494,9 @@ with tab2:
         st.info("No documents found. Start by sending a document for signature!")
 
 # =============================================================================
-# TAB 3: SIGN DOCUMENT (Public signing interface)
+# TAB 4: SIGN DOCUMENT (Public signing interface)
 # =============================================================================
-with tab3:
+with tab4:
     st.header("Document Signing")
     
     # Check if there's a signing token in URL parameters
@@ -435,6 +660,7 @@ with tab3:
             st.error("❌ Invalid token format")
 
 # =============================================================================
+<<<<<<< HEAD
 # TAB 4: FIELD EDITOR (Phase 1: PDF Viewer + Basic Annotation)
 # =============================================================================
 with tab4:
@@ -587,6 +813,10 @@ with tab4:
 # =============================================================================
 # TAB 5: SETTINGS
 # =============================================================================
+=======
+# TAB 5: SETTINGS
+# =============================================================================
+>>>>>>> 9f4d5e49955802c7dd0e84b603a832c35a6e260d
 with tab5:
     st.header("E-Signature Settings")
     

@@ -3325,6 +3325,165 @@ def db_add_esign_audit_entry(document_id, action, details, user_email=None):
         return False
 
 # =============================================================================
+# 15B. E-SIGNATURE FIELD POSITIONS (Phase 2)
+# =============================================================================
+
+def db_save_esign_field_layout(document_id, field_layout_data, template_name=None):
+    """Save field positions for an e-signature document or as a template
+    
+    Args:
+        document_id: UUID of the document (None if saving as template only)
+        field_layout_data: Dictionary containing field positions and metadata
+        template_name: Optional template name for reusable layouts
+    
+    Returns:
+        dict: Saved field layout record or None if error
+    """
+    try:
+        import uuid
+        from datetime import datetime
+        
+        layout = {
+            "id": str(uuid.uuid4()),
+            "document_id": document_id,
+            "template_name": template_name,
+            "field_data": json.dumps(field_layout_data),
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would save field layout:", template_name or document_id)
+            return layout
+            
+        result = supabase.table("esign_field_layouts").insert(layout).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"Error saving field layout: {e}")
+        return None
+
+def db_get_esign_field_layout(document_id=None, template_name=None, layout_id=None):
+    """Get field layout by document ID, template name, or layout ID
+    
+    Args:
+        document_id: UUID of the document
+        template_name: Name of the template
+        layout_id: Direct layout ID
+    
+    Returns:
+        dict: Field layout record or None if not found
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would get field layout")
+            return None
+            
+        if layout_id:
+            result = supabase.table("esign_field_layouts").select("*").eq("id", layout_id).execute()
+        elif document_id:
+            result = supabase.table("esign_field_layouts").select("*").eq("document_id", document_id).execute()
+        elif template_name:
+            result = supabase.table("esign_field_layouts").select("*").eq("template_name", template_name).execute()
+        else:
+            return None
+            
+        layout = result.data[0] if result.data else None
+        
+        # Parse field_data JSON string back to dict
+        if layout and layout.get('field_data'):
+            try:
+                layout['field_data'] = json.loads(layout['field_data'])
+            except json.JSONDecodeError:
+                print("Warning: Could not parse field_data JSON")
+                
+        return layout
+    except Exception as e:
+        print(f"Error getting field layout: {e}")
+        return None
+
+def db_get_esign_templates(limit=50):
+    """Get all saved e-signature templates
+    
+    Args:
+        limit: Maximum number of templates to return
+    
+    Returns:
+        list: List of template records
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would get templates")
+            return []
+            
+        query = supabase.table("esign_field_layouts").select("*")
+        query = query.not_.is_("template_name", "null")  # Only records with template names
+        query = query.order("updated_at", desc=True).limit(limit)
+        result = query.execute()
+        
+        templates = result.data if result.data else []
+        
+        # Parse field_data for each template
+        for template in templates:
+            if template.get('field_data'):
+                try:
+                    template['field_data'] = json.loads(template['field_data'])
+                except json.JSONDecodeError:
+                    print(f"Warning: Could not parse field_data JSON for template {template.get('template_name')}")
+                    
+        return templates
+    except Exception as e:
+        print(f"Error getting templates: {e}")
+        return []
+
+def db_update_esign_field_layout(layout_id, updates):
+    """Update an existing field layout
+    
+    Args:
+        layout_id: UUID of the layout to update
+        updates: Dictionary of fields to update
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would update field layout:", layout_id)
+            return True
+            
+        # Add updated timestamp
+        updates["updated_at"] = datetime.now().isoformat()
+        
+        # If updating field_data, ensure it's JSON string
+        if "field_data" in updates and isinstance(updates["field_data"], dict):
+            updates["field_data"] = json.dumps(updates["field_data"])
+        
+        result = supabase.table("esign_field_layouts").update(updates).eq("id", layout_id).execute()
+        return bool(result.data)
+    except Exception as e:
+        print(f"Error updating field layout: {e}")
+        return False
+
+def db_delete_esign_template(template_name):
+    """Delete a saved template
+    
+    Args:
+        template_name: Name of the template to delete
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        if not SUPABASE_AVAILABLE:
+            print("⚠️  Supabase not available - would delete template:", template_name)
+            return True
+            
+        result = supabase.table("esign_field_layouts").delete().eq("template_name", template_name).execute()
+        return bool(result.data)
+    except Exception as e:
+        print(f"Error deleting template: {e}")
+        return False
+
+# =============================================================================
 # 16. SMS MESSAGES
 # =============================================================================
 
