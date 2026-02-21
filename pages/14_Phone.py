@@ -14,7 +14,7 @@ from mobile_styles import inject_mobile_styles
 # Page config
 st.set_page_config(
     page_title="Phone - MPT CRM",
-    page_icon="📞",
+    page_icon="📱",
     layout="wide"
 )
 
@@ -23,10 +23,14 @@ if not is_authenticated():
     require_sso_auth()
     st.stop()
 
+# Render sidebar navigation
+from app import render_sidebar
+render_sidebar("Phone")
+
 # Mobile styles
 inject_mobile_styles()
 
-st.title("📞 Phone")
+st.title("📱 Phone")
 st.markdown("Make and receive calls directly from the CRM.")
 
 # MPT-Phone softphone URL
