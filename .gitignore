@@ -31,3 +31,5 @@ Thumbs.db
 # Sensitive documents
 SUPABASE PROJECT URL & API KEY.docx
 *.docx
+# Allow contract templates (needed for Streamlit Cloud deployment)
+!contract_templates/*.docx
