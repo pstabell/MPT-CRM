@@ -12,6 +12,7 @@ Enhanced security features for Phase 4:
 
 import hashlib
 import hmac
+import html
 import time
 import re
 from typing import Dict, Any, Optional, List
@@ -174,9 +175,9 @@ class ESignSecurityValidator:
         # Remove null bytes and control characters
         sanitized = ''.join(char for char in input_str if ord(char) >= 32 or char in '\t\n\r')
         
-        # Trim whitespace and limit length
-        sanitized = sanitized.strip()[:max_length]
-        
+        # Escape HTML to prevent XSS
+        sanitized = html.escape(sanitized.strip())[:max_length]
+
         return sanitized
     
     @classmethod

@@ -35,6 +35,8 @@ from esign_components import (
 )
 from esign_email_service import send_esign_request_email, send_esign_completion_email
 from esign_sharepoint_service import store_signed_document_in_sharepoint
+from esign_security import ESignSecurityValidator
+from esign_ui_enhancements import inject_enhanced_esign_styles, render_enhanced_progress_indicator
 from sso_auth import require_sso_auth, is_authenticated
 from mobile_styles import inject_mobile_styles, render_mobile_navigation
 
@@ -146,6 +148,9 @@ st.set_page_config(
 
 # Mobile styles
 inject_mobile_styles()
+
+# Enhanced e-signature styles
+inject_enhanced_esign_styles()
 
 # Authentication
 require_sso_auth(allow_bypass=True)
@@ -370,6 +375,25 @@ with tab2:
             elif 'uploaded_pdf_path' not in st.session_state:
                 st.error("Please upload a document first")
             else:
+                # Validate inputs before proceeding
+                email_check = ESignSecurityValidator.validate_email(signer_email)
+                if not email_check['valid']:
+                    st.error(f"Invalid email: {', '.join(email_check['errors'])}")
+                    st.stop()
+
+                name_check = ESignSecurityValidator.validate_name(signer_name, 'Signer Name')
+                if not name_check['valid']:
+                    st.error(f"Invalid name: {', '.join(name_check['errors'])}")
+                    st.stop()
+
+                # Validate uploaded PDF
+                pdf_path = st.session_state['uploaded_pdf_path']
+                with open(pdf_path, 'rb') as pf:
+                    pdf_check = ESignSecurityValidator.validate_pdf_file(pf.read(), uploaded_file.name)
+                if not pdf_check['valid']:
+                    st.error(f"Invalid PDF: {', '.join(pdf_check['errors'])}")
+                    st.stop()
+
                 try:
                     # Create e-signature document record
                     doc_data = db_create_esign_document(
@@ -397,7 +421,8 @@ with tab2:
                         st.success(f"✅ Document prepared for signing!")
                         
                         # Send email automatically
-                        email_sent = send_esign_request_email(doc_data, base_url)
+                        with st.spinner("Sending signing request email..."):
+                            email_sent = send_esign_request_email(doc_data, base_url)
                         
                         if email_sent:
                             st.success("📧 Signing request email sent successfully!")
@@ -580,9 +605,10 @@ with tab4:
                                         )
                                         
                                         # Create signed PDF (overlay signature)
-                                        signed_pdf_data = overlay_signature_on_pdf(
-                                            doc.get('pdf_path'), signature_data
-                                        )
+                                        with st.spinner("Processing signature..."):
+                                            signed_pdf_data = overlay_signature_on_pdf(
+                                                doc.get('pdf_path'), signature_data
+                                            )
                                         
                                         if signed_pdf_data:
                                             # Save signed PDF
