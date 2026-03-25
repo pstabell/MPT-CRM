@@ -44,8 +44,11 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Template paths
-CONTRACTS_DIR = r"C:\Users\Patri\Metro Point Technology\Metro Point Technology - Documents\SALES\CONTRACTS"
+# Template paths — env var for Streamlit Cloud, hardcoded fallback for local dev
+CONTRACTS_DIR = os.environ.get(
+    'CONTRACTS_DIR',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'contract_templates')
+) if not os.path.exists(r"C:\Users\Patri\Metro Point Technology\Metro Point Technology - Documents\SALES\CONTRACTS") else r"C:\Users\Patri\Metro Point Technology\Metro Point Technology - Documents\SALES\CONTRACTS"
 NDA_TEMPLATE_PATH = os.path.join(CONTRACTS_DIR, "Mutual Non-Disclosure Agreement (NDA).docx")
 SOW_TEMPLATE_PATH = os.path.join(CONTRACTS_DIR, "Statement of Work (SOW) TEMPLATE.docx")
 
